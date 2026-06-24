@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>STEELO — Sculptural Steel Furniture</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Heebo:wght@300&family=Montserrat:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+
+<body>
+
+  <!-- NAVBAR -->
+  <nav id="navbar">
+    <a href="#" class="nav-link" style="font-family:'Cormorant',Georgia,serif;font-weight:300;font-size:1.5rem;letter-spacing:0.35em;text-transform:uppercase;color:var(--ink);">STEELO</a>
+    <div class="nav-desktop" style="display:flex;align-items:center;gap:2.5rem;">
+      <a href="#collection" class="nav-link" style="font-family:Montserrat;font-size:0.7rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--ink);">Collection</a>
+      <a href="#about"      class="nav-link" style="font-family:Montserrat;font-size:0.7rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--ink);">About</a>
+      <a href="#contact"    class="nav-link" style="font-family:Montserrat;font-size:0.7rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--ink);">Contact</a>
+    </div>
+    <button id="cart-btn" aria-label="Open cart" style="display:flex;align-items:center;gap:0.5rem;background:none;border:none;cursor:pointer;color:var(--ink);padding:0;">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/>
+      </svg>
+      <span id="cart-count" style="font-family:Montserrat;font-size:0.75rem;font-weight:500;display:none;"></span>
+    </button>
+  </nav>
+
+  <!-- PAGE WRAP — clips horizontal overflow for all non-fixed content -->
+  <div id="page-wrap">
+
+    <!-- HERO -->
+    <section id="hero" style="min-height:100vh;display:flex;position:relative;background:var(--sand);">
+      <div class="hero-left" style="position:relative;z-index:10;display:flex;flex-direction:column;justify-content:center;width:50%;padding:8rem 4rem 4rem 6rem;">
+        <p class="fade-up delay-1" style="font-family:Montserrat;font-size:0.65rem;letter-spacing:0.35em;text-transform:uppercase;color:var(--ink-400);margin-bottom:2rem;">Handcrafted in Stainless Steel</p>
+        <h1 class="hero-display fade-up delay-2">
+          Form<br><em style="font-style:italic;color:var(--ink-600);">Made</em><br>Permanent
+        </h1>
+        <p class="fade-up delay-3" style="font-family:Montserrat;font-weight:300;font-size:0.875rem;line-height:1.85;color:var(--ink-400);max-width:340px;margin:2rem 0 3rem;">
+          Each piece is bent, welded, and hand-finished — a singular form in brushed steel that holds its shape for generations.
+        </p>
+        <div class="fade-up delay-4">
+          <a href="#collection" class="btn-cta" style="display:inline-flex;align-items:center;gap:0.75rem;font-family:Montserrat;font-size:0.7rem;letter-spacing:0.2em;text-transform:uppercase;border:1px solid var(--ink);padding:1rem 2.5rem;text-decoration:none;color:var(--ink);transition:background 0.3s,color 0.3s;"
+             onmouseover="this.style.background=getComputedStyle(document.documentElement).getPropertyValue('--ink');this.style.color='#F5F0EB';"
+             onmouseout="this.style.background='transparent';this.style.color=getComputedStyle(document.documentElement).getPropertyValue('--ink');">
+            Explore Collection
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+          </a>
+        </div>
+      </div>
+
+      <div class="hero-right" style="position:absolute;right:0;top:0;width:50%;height:100%;overflow:hidden;">
+        <img id="hero-img" src="images/products/LoopSideTable/1.png" alt="Loop Side Table" loading="eager"
+             style="width:100%;height:100%;object-fit:cover;object-position:center 20%;transition:opacity 0.9s ease;">
+        <div style="position:absolute;inset-y:0;left:0;width:120px;background:linear-gradient(to right,var(--sand),transparent);"></div>
+      </div>
+
+      <div id="hero-mobile-img" style="display:none;width:100%;padding:0 1.5rem 3rem;">
+        <img src="images/products/LoopSideTable/1.png" alt="Loop Side Table" style="width:100%;height:360px;object-fit:cover;object-position:center 15%;">
+      </div>
+
+      <div style="position:absolute;bottom:2.5rem;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:0.5rem;opacity:0.5;">
+        <span style="font-family:Montserrat;font-size:0.6rem;letter-spacing:0.25em;text-transform:uppercase;color:var(--ink-500);">Scroll</span>
+        <div style="width:1px;height:3.5rem;background:var(--ink-300);overflow:hidden;">
+          <div class="scroll-line" style="width:1px;height:100%;background:var(--ink-500);"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- MARQUEE -->
+    <div style="overflow:hidden;background:var(--ink);padding:1rem 0;" aria-hidden="true">
+      <div class="marquee-track">
+        <span style="font-family:Montserrat;font-size:0.6rem;letter-spacing:0.4em;text-transform:uppercase;color:var(--sand-400);padding:0 2rem;">Stainless Steel 304</span>
+        <span style="color:#433F3C;padding:0 1rem;">—</span>
+        <span style="font-family:Montserrat;font-size:0.6rem;letter-spacing:0.4em;text-transform:uppercase;color:var(--sand-400);padding:0 2rem;">Hand Finished</span>
+        <span style="color:#433F3C;padding:0 1rem;">—</span>
+        <span style="font-family:Montserrat;font-size:0.6rem;letter-spacing:0.4em;text-transform:uppercase;color:var(--sand-400);padding:0 2rem;">Sculptural Form</span>
+        <span style="color:#433F3C;padding:0 1rem;">—</span>
+        <span style="font-family:Montserrat;font-size:0.6rem;letter-spacing:0.4em;text-transform:uppercase;color:var(--sand-400);padding:0 2rem;">Made to Order</span>
+        <span style="color:#433F3C;padding:0 1rem;">—</span>
+        <span style="font-family:Montserrat;font-size:0.6rem;letter-spacing:0.4em;text-transform:uppercase;color:var(--sand-400);padding:0 2rem;">4–6 Week Lead Time</span>
+        <span style="color:#433F3C;padding:0 1rem;">—</span>
+        <!-- duplicate for seamless loop -->
+        <span style="font-family:Montserrat;font-size:0.6rem;letter-spacing:0.4em;text-transform:uppercase;color:var(--sand-400);padding:0 2rem;">Stainless Steel 304</span>
+        <span style="color:#433F3C;padding:0 1rem;">—</span>
+        <span style="font-family:Montserrat;font-size:0.6rem;letter-spacing:0.4em;text-transform:uppercase;color:var(--sand-400);padding:0 2rem;">Hand Finished</span>
+        <span style="color:#433F3C;padding:0 1rem;">—</span>
+        <span style="font-family:Montserrat;font-size:0.6rem;letter-spacing:0.4em;text-transform:uppercase;color:var(--sand-400);padding:0 2rem;">Sculptural Form</span>
+        <span style="color:#433F3C;padding:0 1rem;">—</span>
+        <span style="font-family:Montserrat;font-size:0.6rem;letter-spacing:0.4em;text-transform:uppercase;color:var(--sand-400);padding:0 2rem;">Made to Order</span>
+        <span style="color:#433F3C;padding:0 1rem;">—</span>
+        <span style="font-family:Montserrat;font-size:0.6rem;letter-spacing:0.4em;text-transform:uppercase;color:var(--sand-400);padding:0 2rem;">4–6 Week Lead Time</span>
+        <span style="color:#433F3C;padding:0 1rem;">—</span>
+      </div>
+    </div>
+
+    <!-- PHILOSOPHY -->
+    <section id="about" style="padding:7rem 6rem;">
+      <p style="font-family:Montserrat;font-size:0.65rem;letter-spacing:0.35em;text-transform:uppercase;color:var(--ink-400);margin-bottom:1.5rem;">Our Philosophy</p>
+      <h2 style="font-family:'Cormorant',Georgia,serif;font-weight:300;font-size:clamp(2rem,4.5vw,4rem);line-height:1.15;color:var(--ink);max-width:900px;margin:0;">
+        We believe furniture should outlast the trends that inspired it — so we build in steel, shaped to endure.
+      </h2>
+      <div class="philosophy-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:4rem;margin-top:5rem;">
+        <div><div class="section-line"></div>
+          <p style="font-family:Montserrat;font-size:0.65rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--ink);margin-bottom:0.75rem;">Material</p>
+          <p style="font-family:Montserrat;font-weight:300;font-size:0.875rem;line-height:1.8;color:var(--ink-400);">304-grade brushed stainless steel. Resistant to rust, stain, and time. It takes the light differently at every hour of the day.</p>
+        </div>
+        <div><div class="section-line"></div>
+          <p style="font-family:Montserrat;font-size:0.65rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--ink);margin-bottom:0.75rem;">Process</p>
+          <p style="font-family:Montserrat;font-weight:300;font-size:0.875rem;line-height:1.8;color:var(--ink-400);">Each piece is cut, bent, welded, and hand-polished. The brushed finish is applied by hand. No two pieces are identical.</p>
+        </div>
+        <div><div class="section-line"></div>
+          <p style="font-family:Montserrat;font-size:0.65rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--ink);margin-bottom:0.75rem;">Form</p>
+          <p style="font-family:Montserrat;font-weight:300;font-size:0.875rem;line-height:1.8;color:var(--ink-400);">Designed as sculpture first, furniture second. The negative space is as important as the steel itself.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- COLLECTION -->
+    <section id="collection" style="padding:2rem 0 6rem;">
+      <div class="collection-header" style="display:flex;align-items:baseline;justify-content:space-between;padding:0 3rem 3rem;">
+        <div>
+          <p style="font-family:Montserrat;font-size:0.65rem;letter-spacing:0.35em;text-transform:uppercase;color:var(--ink-400);margin-bottom:0.5rem;">Complete Works</p>
+          <h2 style="font-family:'Cormorant',Georgia,serif;font-weight:300;font-size:clamp(2.5rem,5vw,4.5rem);color:var(--ink);line-height:1;margin:0;">The Collection</h2>
+        </div>
+        <span style="font-family:Montserrat;font-size:0.65rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--ink-300);">9 Pieces</span>
+      </div>
+      <div class="grid-wrap" style="padding:0 3rem;">
+        <div id="products-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:3px;background:var(--sand-300);"></div>
+      </div>
+    </section>
+
+    <!-- CRAFTSMANSHIP -->
+    <section class="craft-grid" style="display:grid;grid-template-columns:1fr 1fr;min-height:70vh;">
+      <div style="position:relative;overflow:hidden;min-height:500px;">
+        <img src="images/products/RippleStool/1.png" alt="Ripple Stool detail" style="width:100%;height:100%;object-fit:cover;object-position:center;">
+      </div>
+      <div style="display:flex;flex-direction:column;justify-content:center;padding:5rem;background:var(--ink);">
+        <p style="font-family:Montserrat;font-size:0.65rem;letter-spacing:0.35em;text-transform:uppercase;color:var(--ink-400);margin-bottom:1.5rem;">Craftsmanship</p>
+        <h2 style="font-family:'Cormorant',Georgia,serif;font-weight:300;font-size:clamp(2rem,3.5vw,3.25rem);line-height:1.15;color:var(--sand-100);margin-bottom:2rem;">Every mark left<br>by hand, by choice.</h2>
+        <p style="font-family:Montserrat;font-weight:300;font-size:0.875rem;line-height:1.85;color:var(--ink-300);margin-bottom:1.25rem;">We work with 304-grade brushed stainless steel — a material that ages gracefully, reflects light differently throughout the day, and carries the warmth of every room it enters.</p>
+        <p style="font-family:Montserrat;font-weight:300;font-size:0.875rem;line-height:1.85;color:var(--ink-300);">The brushed finish is applied by hand. The welds are ground smooth. Each piece takes between 12 and 40 hours to complete.</p>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:2rem;margin-top:3.5rem;border-top:1px solid #2D2926;padding-top:2.5rem;">
+          <div><div class="stat-num">304</div><div class="stat-label">Grade Steel</div></div>
+          <div><div class="stat-num">9</div><div class="stat-label">Unique Forms</div></div>
+          <div><div class="stat-num">4–6w</div><div class="stat-label">Lead Time</div></div>
+          <div><div class="stat-num">∞</div><div class="stat-label">Lifespan</div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- CONTACT CTA -->
+    <section id="contact" style="padding:7rem 2rem;text-align:center;background:var(--sand);">
+      <p style="font-family:Montserrat;font-size:0.65rem;letter-spacing:0.35em;text-transform:uppercase;color:var(--ink-400);margin-bottom:1.5rem;">Get in Touch</p>
+      <h2 style="font-family:'Cormorant',Georgia,serif;font-weight:300;font-size:clamp(2rem,4.5vw,3.75rem);line-height:1.15;color:var(--ink);max-width:700px;margin:0 auto 2rem;">Interested in a piece?<br>Let's talk about your space.</h2>
+      <p style="font-family:Montserrat;font-weight:300;font-size:0.875rem;line-height:1.8;color:var(--ink-400);max-width:440px;margin:0 auto 3rem;">Every Steelo piece is made to order. We welcome enquiries about sizing, custom finishes, and bespoke commissions.</p>
+      <a href="mailto:hello@steelo.co"
+         style="display:inline-flex;align-items:center;gap:0.75rem;font-family:Montserrat;font-size:0.7rem;letter-spacing:0.2em;text-transform:uppercase;border:1px solid var(--ink);padding:1rem 2.5rem;text-decoration:none;color:var(--ink);transition:background 0.3s,color 0.3s;"
+         onmouseover="this.style.background=getComputedStyle(document.documentElement).getPropertyValue('--ink');this.style.color='#F5F0EB';"
+         onmouseout="this.style.background='transparent';this.style.color=getComputedStyle(document.documentElement).getPropertyValue('--ink');">
+        Contact Us
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+      </a>
+    </section>
+
+    <!-- FOOTER -->
+    <footer style="border-top:1px solid var(--sand-300);padding:3.5rem 6rem;background:var(--sand);">
+      <div class="footer-row" style="display:flex;align-items:flex-start;justify-content:space-between;gap:2rem;flex-wrap:wrap;">
+        <div>
+          <div style="font-family:'Cormorant',Georgia,serif;font-weight:300;font-size:1.5rem;letter-spacing:0.35em;text-transform:uppercase;color:var(--ink);margin-bottom:0.5rem;">STEELO</div>
+          <p style="font-family:Montserrat;font-size:0.7rem;letter-spacing:0.1em;color:var(--ink-400);margin:0;">Sculptural Steel Furniture</p>
+        </div>
+        <div class="footer-links" style="display:flex;gap:3rem;align-items:center;flex-wrap:wrap;">
+          <a href="#collection" class="nav-link" style="font-family:Montserrat;font-size:0.7rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--ink-400);">Collection</a>
+          <a href="#about"      class="nav-link" style="font-family:Montserrat;font-size:0.7rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--ink-400);">About</a>
+          <a href="#contact"    class="nav-link" style="font-family:Montserrat;font-size:0.7rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--ink-400);">Contact</a>
+          <a href="mailto:hello@steelo.co" class="nav-link" style="font-family:Montserrat;font-size:0.7rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--ink-400);">hello@steelo.co</a>
+        </div>
+      </div>
+      <div style="margin-top:3rem;padding-top:1.5rem;border-top:1px solid var(--sand-200);display:flex;justify-content:space-between;flex-wrap:wrap;gap:0.5rem;">
+        <p style="font-family:Montserrat;font-size:0.7rem;color:var(--ink-200);margin:0;">© 2025 Steelo. All rights reserved.</p>
+        <p style="font-family:Montserrat;font-size:0.7rem;color:var(--ink-200);margin:0;">Handcrafted. Each piece unique.</p>
+      </div>
+    </footer>
+
+  </div><!-- end #page-wrap -->
+
+  <!-- PRODUCT MODAL (fixed, outside page-wrap — correct) -->
+  <div id="product-modal" role="dialog" aria-modal="true" aria-label="Product details">
+    <div style="position:relative;display:flex;flex-direction:row;width:100%;height:100%;background:var(--sand);">
+      <button id="modal-close" aria-label="Close"
+              style="position:absolute;top:1.5rem;right:1.5rem;z-index:10;background:none;border:none;cursor:pointer;padding:0.5rem;color:var(--ink);">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+
+      <!-- Image panel -->
+      <div style="width:60%;display:flex;flex-direction:column;background:var(--sand-200);" id="modal-img-panel">
+        <div style="flex:1;overflow:hidden;position:relative;min-height:0;">
+          <div id="modal-images-container"></div>
+          <button id="modal-prev" aria-label="Previous image"
+                  style="position:absolute;left:1.25rem;top:50%;transform:translateY(-50%);background:rgba(245,240,235,0.95);border:1px solid var(--sand-300);cursor:pointer;padding:0.875rem;transition:background 0.2s;z-index:2;display:flex;align-items:center;justify-content:center;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M15 18l-6-6 6-6"/></svg>
+          </button>
+          <button id="modal-next" aria-label="Next image"
+                  style="position:absolute;right:1.25rem;top:50%;transform:translateY(-50%);background:rgba(245,240,235,0.95);border:1px solid var(--sand-300);cursor:pointer;padding:0.875rem;transition:background 0.2s;z-index:2;display:flex;align-items:center;justify-content:center;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 18l6-6-6-6"/></svg>
+          </button>
+        </div>
+        <div id="modal-thumbs" style="display:none;border-top:1px solid var(--sand-300);background:var(--sand-100);" role="tablist"></div>
+      </div>
+
+      <!-- Info panel -->
+      <div style="width:40%;display:flex;flex-direction:column;justify-content:space-between;padding:4rem 3.5rem;overflow-y:auto;" class="no-scrollbar">
+        <div>
+          <p id="modal-category" style="font-family:Montserrat;font-size:0.65rem;letter-spacing:0.3em;text-transform:uppercase;color:var(--ink-400);margin-bottom:1rem;"></p>
+          <h2 id="modal-name" style="font-family:'Cormorant',Georgia,serif;font-weight:300;font-size:clamp(2.5rem,4vw,3.75rem);line-height:1;color:var(--ink);margin-bottom:1.75rem;"></h2>
+          <p id="modal-description" style="font-family:Montserrat;font-weight:300;font-size:0.875rem;line-height:1.85;color:var(--ink-400);margin-bottom:2rem;"></p>
+          <div style="border-top:1px solid var(--sand-300);padding-top:1.5rem;margin-bottom:2rem;">
+            <div style="display:flex;justify-content:space-between;padding:0.75rem 0;border-bottom:1px solid var(--sand-200);"><span style="font-family:Montserrat;font-size:0.65rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--ink-400);">Material</span><span style="font-family:Montserrat;font-size:0.8rem;color:var(--ink-600);">Brushed Stainless Steel</span></div>
+            <div style="display:flex;justify-content:space-between;padding:0.75rem 0;border-bottom:1px solid var(--sand-200);"><span style="font-family:Montserrat;font-size:0.65rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--ink-400);">Finish</span><span style="font-family:Montserrat;font-size:0.8rem;color:var(--ink-600);">Hand Brushed</span></div>
+            <div style="display:flex;justify-content:space-between;padding:0.75rem 0;border-bottom:1px solid var(--sand-200);"><span style="font-family:Montserrat;font-size:0.65rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--ink-400);">Lead Time</span><span style="font-family:Montserrat;font-size:0.8rem;color:var(--ink-600);">4–6 Weeks</span></div>
+            <div style="display:flex;justify-content:space-between;padding:0.75rem 0;"><span style="font-family:Montserrat;font-size:0.65rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--ink-400);">Made</span><span style="font-family:Montserrat;font-size:0.8rem;color:var(--ink-600);">To Order</span></div>
+          </div>
+          <div style="display:flex;align-items:baseline;gap:0.75rem;margin-bottom:2.5rem;">
+            <span id="modal-price" style="font-family:'Cormorant',Georgia,serif;font-weight:300;font-size:2.75rem;color:var(--ink);line-height:1;"></span>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:0.75rem;">
+          <button id="modal-add-cart" class="btn-primary">Add to Cart</button>
+          <button id="modal-inquire" class="btn-outline">Enquire About This Piece</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CART ROOT — fixed viewport container, overflow:hidden clips sidebar -->
+  <div id="cart-root" role="region" aria-label="Shopping cart">
+    <div id="cart-overlay"></div>
+    <aside id="cart-sidebar">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:1.5rem 1.75rem;border-bottom:1px solid var(--sand-300);">
+        <h2 style="font-family:Montserrat;font-size:0.65rem;letter-spacing:0.3em;text-transform:uppercase;margin:0;">Your Cart</h2>
+        <button id="cart-close" aria-label="Close cart" style="background:none;border:none;cursor:pointer;padding:0.25rem;color:var(--ink);">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div id="cart-items" class="no-scrollbar" style="flex:1;overflow-y:auto;padding:1.5rem 1.75rem;"></div>
+      <div style="border-top:1px solid var(--sand-300);padding:1.5rem 1.75rem;">
+        <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:1rem;">
+          <span style="font-family:Montserrat;font-size:0.65rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--ink-400);">Subtotal</span>
+          <span id="cart-total" style="font-family:'Cormorant',Georgia,serif;font-weight:300;font-size:1.75rem;color:var(--ink);">$0</span>
+        </div>
+        <p style="font-family:Montserrat;font-weight:300;font-size:0.75rem;line-height:1.7;color:var(--ink-300);margin-bottom:1rem;">All pieces are made to order.</p>
+        <button id="checkout-btn" class="btn-primary">Request a Quote</button>
+      </div>
+    </aside>
+  </div>
+
+  <!-- INQUIRY MODAL -->
+  <div id="inquiry-modal" role="dialog" aria-modal="true">
+    <div style="width:100%;max-width:520px;padding:3rem;background:var(--sand-100);position:relative;">
+      <button id="inquiry-close" aria-label="Close" style="position:absolute;top:1.25rem;right:1.25rem;background:none;border:none;cursor:pointer;padding:0.25rem;color:var(--ink);">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+      <p style="font-family:Montserrat;font-size:0.65rem;letter-spacing:0.3em;text-transform:uppercase;color:var(--ink-400);margin-bottom:0.75rem;">Enquiry</p>
+      <h3 id="inquiry-product-name" style="font-family:'Cormorant',Georgia,serif;font-weight:300;font-size:2.25rem;color:var(--ink);margin-bottom:2rem;line-height:1.1;"></h3>
+      <form id="inquiry-form" style="display:flex;flex-direction:column;gap:1rem;">
+        <div>
+          <label for="inq-name" style="font-family:Montserrat;font-size:0.65rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--ink-500);display:block;margin-bottom:0.5rem;">Name</label>
+          <input id="inq-name" type="text" required class="form-input" placeholder="Your name" autocomplete="name">
+        </div>
+        <div>
+          <label for="inq-email" style="font-family:Montserrat;font-size:0.65rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--ink-500);display:block;margin-bottom:0.5rem;">Email</label>
+          <input id="inq-email" type="email" required class="form-input" placeholder="your@email.com" autocomplete="email">
+        </div>
+        <div>
+          <label for="inq-message" style="font-family:Montserrat;font-size:0.65rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--ink-500);display:block;margin-bottom:0.5rem;">Message</label>
+          <textarea id="inq-message" rows="5" class="form-input" style="resize:none;padding-top:0.75rem;" placeholder="Tell us about your space..."></textarea>
+        </div>
+        <button type="submit" class="btn-primary" style="margin-top:0.5rem;">Send Enquiry</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Scripts: data first, then modules, then main -->
+  <script src="js/data.js"></script>
+  <script src="js/cart.js"></script>
+  <script src="js/modal.js"></script>
+  <script src="js/main.js"></script>
+
+</body>
+</html>

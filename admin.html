@@ -1,0 +1,663 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>STEELO — Admin</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant:wght@300;400&family=Montserrat:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --sand:     #F0EAE1;
+      --sand-100: #F5F0EB;
+      --sand-200: #EDE3D8;
+      --sand-300: #DFD2C5;
+      --ink:      #1A1715;
+      --ink-500:  #6B6460;
+      --ink-400:  #8C7F77;
+      --ink-300:  #A09890;
+      --green:    #4A7C59;
+      --red:      #8B3A3A;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+
+    body {
+      font-family: 'Montserrat', sans-serif;
+      background: var(--sand);
+      color: var(--ink);
+      -webkit-font-smoothing: antialiased;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ---- Header ---- */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 1rem 2rem;
+      background: var(--ink);
+      color: var(--sand);
+      flex-shrink: 0;
+    }
+    header .brand {
+      font-family: 'Cormorant', serif;
+      font-weight: 300;
+      font-size: 1.25rem;
+      letter-spacing: 0.35em;
+      text-transform: uppercase;
+    }
+    header .tag {
+      font-size: 0.6rem;
+      letter-spacing: 0.25em;
+      text-transform: uppercase;
+      color: var(--ink-400);
+      border: 1px solid var(--ink-500);
+      padding: 0.3rem 0.75rem;
+    }
+    #save-all {
+      background: var(--green);
+      color: #fff;
+      border: none;
+      padding: 0.6rem 1.5rem;
+      font-family: 'Montserrat', sans-serif;
+      font-size: 0.7rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+    #save-all:hover { opacity: 0.85; }
+    #save-all:disabled { opacity: 0.4; cursor: default; }
+
+    #save-status {
+      font-size: 0.7rem;
+      letter-spacing: 0.1em;
+      padding: 0 1rem;
+      transition: color 0.3s;
+    }
+
+    /* ---- Layout ---- */
+    .workspace {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* ---- Sidebar ---- */
+    aside {
+      width: 300px;
+      flex-shrink: 0;
+      border-right: 1px solid var(--sand-300);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      background: var(--sand-100);
+    }
+    .sidebar-head {
+      padding: 1.25rem 1.5rem;
+      border-bottom: 1px solid var(--sand-300);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .sidebar-head h2 {
+      font-size: 0.65rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--ink-400);
+      margin: 0;
+    }
+    #add-product {
+      background: var(--ink);
+      color: var(--sand);
+      border: none;
+      padding: 0.4rem 0.9rem;
+      font-family: 'Montserrat', sans-serif;
+      font-size: 0.6rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+    #add-product:hover { opacity: 0.75; }
+
+    #product-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 0.5rem 0;
+    }
+    .product-item {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.75rem 1.5rem;
+      cursor: pointer;
+      transition: background 0.15s;
+      border-left: 3px solid transparent;
+    }
+    .product-item:hover { background: var(--sand-200); }
+    .product-item.active {
+      background: var(--sand-200);
+      border-left-color: var(--ink);
+    }
+    .product-item img {
+      width: 44px;
+      height: 52px;
+      object-fit: cover;
+      object-position: center;
+      flex-shrink: 0;
+      background: var(--sand-200);
+    }
+    .product-item .item-info { flex: 1; min-width: 0; }
+    .product-item .item-name {
+      font-family: 'Cormorant', serif;
+      font-weight: 300;
+      font-size: 1.1rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .product-item .item-cat {
+      font-size: 0.6rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--ink-400);
+    }
+    .product-item .item-price {
+      font-family: 'Cormorant', serif;
+      font-weight: 300;
+      font-size: 1rem;
+      color: var(--ink-500);
+      white-space: nowrap;
+    }
+
+    /* ---- Edit panel ---- */
+    main {
+      flex: 1;
+      overflow-y: auto;
+      padding: 2.5rem 3rem;
+    }
+
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      gap: 1rem;
+      color: var(--ink-300);
+    }
+    .empty-state svg { opacity: 0.3; }
+    .empty-state p { font-size: 0.8rem; letter-spacing: 0.1em; }
+
+    .edit-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      margin-bottom: 2.5rem;
+      gap: 1rem;
+    }
+    .edit-title {
+      font-family: 'Cormorant', serif;
+      font-weight: 300;
+      font-size: 2.5rem;
+      line-height: 1;
+      margin: 0;
+    }
+    .edit-title.new-product { color: var(--ink-400); font-style: italic; }
+    #delete-btn {
+      background: transparent;
+      color: var(--red);
+      border: 1px solid var(--red);
+      padding: 0.5rem 1.25rem;
+      font-family: 'Montserrat', sans-serif;
+      font-size: 0.65rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: background 0.2s, color 0.2s;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    #delete-btn:hover { background: var(--red); color: #fff; }
+
+    /* ---- Form ---- */
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+    }
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    .form-group.full { grid-column: 1 / -1; }
+
+    label {
+      font-size: 0.6rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--ink-400);
+    }
+    input, textarea, select {
+      font-family: 'Montserrat', sans-serif;
+      font-size: 0.875rem;
+      color: var(--ink);
+      background: var(--sand-100);
+      border: 1px solid var(--sand-300);
+      padding: 0.7rem 0.9rem;
+      outline: none;
+      transition: border-color 0.2s;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    input:focus, textarea:focus { border-color: var(--ink); background: #fff; }
+    textarea { resize: vertical; min-height: 100px; line-height: 1.6; }
+    input[type="number"] { -moz-appearance: textfield; }
+    input[type="number"]::-webkit-outer-spin-button,
+    input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; }
+
+    /* ---- Images section ---- */
+    .images-section { margin-top: 0; }
+    .images-section h3 {
+      font-size: 0.6rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--ink-400);
+      margin: 0 0 0.75rem;
+      font-weight: 400;
+    }
+    #image-list { display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 0.75rem; }
+
+    .image-row {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    .image-row img {
+      width: 52px;
+      height: 62px;
+      object-fit: cover;
+      object-position: center;
+      background: var(--sand-200);
+      flex-shrink: 0;
+      border: 1px solid var(--sand-300);
+    }
+    .image-row input { flex: 1; }
+    .image-row button {
+      background: none;
+      border: 1px solid var(--sand-300);
+      color: var(--ink-400);
+      width: 30px;
+      height: 30px;
+      cursor: pointer;
+      font-size: 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: border-color 0.2s, color 0.2s;
+    }
+    .image-row button:hover { border-color: var(--red); color: var(--red); }
+
+    #add-image {
+      background: transparent;
+      border: 1px dashed var(--sand-300);
+      color: var(--ink-400);
+      padding: 0.6rem 1rem;
+      font-family: 'Montserrat', sans-serif;
+      font-size: 0.65rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      cursor: pointer;
+      width: 100%;
+      transition: border-color 0.2s, color 0.2s;
+    }
+    #add-image:hover { border-color: var(--ink); color: var(--ink); }
+
+    /* ---- Divider ---- */
+    .divider {
+      border: none;
+      border-top: 1px solid var(--sand-300);
+      margin: 2rem 0;
+    }
+
+    /* ---- Confirm overlay ---- */
+    #confirm-overlay {
+      display: none;
+      position: fixed; inset: 0; z-index: 100;
+      background: rgba(26,23,21,0.6);
+      align-items: center; justify-content: center;
+    }
+    #confirm-overlay.show { display: flex; }
+    #confirm-box {
+      background: var(--sand-100);
+      padding: 2.5rem;
+      max-width: 400px;
+      width: 90%;
+    }
+    #confirm-box h3 {
+      font-family: 'Cormorant', serif;
+      font-weight: 300;
+      font-size: 1.75rem;
+      margin: 0 0 0.75rem;
+    }
+    #confirm-box p { font-size: 0.8rem; color: var(--ink-500); line-height: 1.6; margin: 0 0 2rem; }
+    #confirm-box .actions { display: flex; gap: 0.75rem; }
+    #confirm-box .actions button {
+      flex: 1; padding: 0.75rem;
+      font-family: 'Montserrat', sans-serif;
+      font-size: 0.65rem; letter-spacing: 0.15em; text-transform: uppercase;
+      cursor: pointer; border: none; transition: opacity 0.2s;
+    }
+    #confirm-box .actions button:hover { opacity: 0.8; }
+    #confirm-yes { background: var(--red); color: #fff; }
+    #confirm-no  { background: var(--sand-300); color: var(--ink); }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <header>
+    <div style="display:flex;align-items:center;gap:1.5rem;">
+      <span class="brand">STEELO</span>
+      <span class="tag">Admin</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:0;">
+      <span id="save-status"></span>
+      <button id="save-all">Save Changes</button>
+    </div>
+  </header>
+
+  <!-- Workspace -->
+  <div class="workspace">
+
+    <!-- Sidebar -->
+    <aside>
+      <div class="sidebar-head">
+        <h2>Products (<span id="product-count">0</span>)</h2>
+        <button id="add-product">+ Add</button>
+      </div>
+      <div id="product-list"></div>
+    </aside>
+
+    <!-- Edit panel -->
+    <main id="edit-panel">
+      <div class="empty-state">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+          <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+        </svg>
+        <p>Select a product to edit</p>
+      </div>
+    </main>
+
+  </div>
+
+  <!-- Delete confirm overlay -->
+  <div id="confirm-overlay">
+    <div id="confirm-box">
+      <h3>Delete product?</h3>
+      <p id="confirm-msg">This will permanently remove the product from the store.</p>
+      <div class="actions">
+        <button id="confirm-yes">Delete</button>
+        <button id="confirm-no">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/data.js"></script>
+  <script>
+    /* ============================================================
+       Admin state — work on a deep copy so cancelling is possible
+       ============================================================ */
+    let products   = JSON.parse(JSON.stringify(PRODUCTS));
+    let selectedId = null;
+    let dirty      = false;
+
+    const fmt = n => '₪' + Number(n).toLocaleString('he-IL');
+
+    /* ---- helpers ---- */
+    function genId(name) {
+      return name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+    }
+    function markDirty() {
+      dirty = true;
+      document.getElementById('save-status').textContent = '';
+    }
+    function setStatus(msg, ok = true) {
+      const el = document.getElementById('save-status');
+      el.textContent = msg;
+      el.style.color = ok ? '#4A7C59' : '#8B3A3A';
+    }
+
+    /* ---- Sidebar render ---- */
+    function renderSidebar() {
+      const list = document.getElementById('product-list');
+      document.getElementById('product-count').textContent = products.length;
+      list.innerHTML = '';
+      products.forEach(p => {
+        const el = document.createElement('div');
+        el.className = 'product-item' + (p.id === selectedId ? ' active' : '');
+        el.dataset.id = p.id;
+        el.innerHTML = `
+          <img src="${p.images[0] || ''}" alt="${p.name}" onerror="this.src=''">
+          <div class="item-info">
+            <div class="item-name">${p.name || 'Untitled'}</div>
+            <div class="item-cat">${p.category || ''}</div>
+          </div>
+          <div class="item-price">${fmt(p.price)}</div>`;
+        el.addEventListener('click', () => selectProduct(p.id));
+        list.appendChild(el);
+      });
+    }
+
+    /* ---- Select product ---- */
+    function selectProduct(id) {
+      selectedId = id;
+      renderSidebar();
+      renderEditPanel();
+    }
+
+    /* ---- Edit panel render ---- */
+    function renderEditPanel() {
+      const panel = document.getElementById('edit-panel');
+      const p = products.find(x => x.id === selectedId);
+      if (!p) {
+        panel.innerHTML = `<div class="empty-state">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+            <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+          </svg>
+          <p>Select a product to edit</p></div>`;
+        return;
+      }
+
+      const isNew = p._new;
+      panel.innerHTML = `
+        <div class="edit-header">
+          <h2 class="edit-title${isNew ? ' new-product' : ''}" id="edit-heading">${p.name || 'New Product'}</h2>
+          <button id="delete-btn">Delete Product</button>
+        </div>
+
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="f-name">Product Name</label>
+            <input id="f-name" type="text" value="${esc(p.name)}" placeholder="e.g. Loop">
+          </div>
+          <div class="form-group">
+            <label for="f-category">Category</label>
+            <input id="f-category" type="text" value="${esc(p.category)}" placeholder="e.g. Side Table">
+          </div>
+          <div class="form-group">
+            <label for="f-price">Price (₪)</label>
+            <input id="f-price" type="number" value="${p.price}" placeholder="3600" min="0" step="100">
+          </div>
+          <div class="form-group">
+            <label for="f-id">URL ID <span style="color:var(--ink-300);font-size:0.55em;">(auto-generated)</span></label>
+            <input id="f-id" type="text" value="${esc(p.id)}" placeholder="loop">
+          </div>
+          <div class="form-group full">
+            <label for="f-desc">Description</label>
+            <textarea id="f-desc" rows="4">${esc(p.description)}</textarea>
+          </div>
+        </div>
+
+        <hr class="divider">
+
+        <div class="images-section">
+          <h3>Product Images</h3>
+          <div id="image-list"></div>
+          <button id="add-image">+ Add Image Path</button>
+        </div>`;
+
+      /* render image rows */
+      renderImageList(p);
+
+      /* wire live updates */
+      document.getElementById('f-name').addEventListener('input', e => {
+        p.name = e.target.value;
+        p.id = genId(e.target.value);
+        document.getElementById('f-id').value = p.id;
+        document.getElementById('edit-heading').textContent = p.name || 'New Product';
+        renderSidebar();
+        markDirty();
+      });
+      document.getElementById('f-category').addEventListener('input', e => {
+        p.category = e.target.value; renderSidebar(); markDirty();
+      });
+      document.getElementById('f-price').addEventListener('input', e => {
+        p.price = parseInt(e.target.value) || 0; renderSidebar(); markDirty();
+      });
+      document.getElementById('f-id').addEventListener('input', e => {
+        p.id = e.target.value; markDirty();
+      });
+      document.getElementById('f-desc').addEventListener('input', e => {
+        p.description = e.target.value; markDirty();
+      });
+      document.getElementById('add-image').addEventListener('click', () => {
+        p.images.push('');
+        renderImageList(p);
+        renderSidebar();
+        markDirty();
+      });
+      document.getElementById('delete-btn').addEventListener('click', () => {
+        showConfirm(`Remove "${p.name}" from the store?`, () => deleteProduct(p.id));
+      });
+    }
+
+    function renderImageList(p) {
+      const list = document.getElementById('image-list');
+      if (!list) return;
+      list.innerHTML = '';
+      p.images.forEach((src, i) => {
+        const row = document.createElement('div');
+        row.className = 'image-row';
+        row.innerHTML = `
+          <img src="${src}" alt="Image ${i+1}" onerror="this.style.opacity='0.2'">
+          <input type="text" value="${esc(src)}" placeholder="images/products/Folder/1.png">
+          <button title="Remove image">×</button>`;
+        const inp = row.querySelector('input');
+        const img = row.querySelector('img');
+        inp.addEventListener('input', e => {
+          p.images[i] = e.target.value;
+          img.src = e.target.value;
+          img.style.opacity = '1';
+          renderSidebar();
+          markDirty();
+        });
+        row.querySelector('button').addEventListener('click', () => {
+          p.images.splice(i, 1);
+          renderImageList(p);
+          renderSidebar();
+          markDirty();
+        });
+        list.appendChild(row);
+      });
+    }
+
+    /* ---- Add product ---- */
+    document.getElementById('add-product').addEventListener('click', () => {
+      const newProd = {
+        id: 'new-product-' + Date.now(),
+        name: '',
+        category: '',
+        price: 0,
+        description: '',
+        images: [],
+        _new: true,
+      };
+      products.push(newProd);
+      renderSidebar();
+      selectProduct(newProd.id);
+      markDirty();
+      setTimeout(() => document.getElementById('f-name')?.focus(), 50);
+    });
+
+    /* ---- Delete product ---- */
+    function deleteProduct(id) {
+      products = products.filter(p => p.id !== id);
+      selectedId = null;
+      renderSidebar();
+      renderEditPanel();
+      markDirty();
+    }
+
+    /* ---- Save to server ---- */
+    document.getElementById('save-all').addEventListener('click', async () => {
+      const btn = document.getElementById('save-all');
+      btn.disabled = true;
+      btn.textContent = 'Saving…';
+      try {
+        const clean = products.map(({ _new, ...p }) => p);
+        const res   = await fetch('/admin/save', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(clean),
+        });
+        const data = await res.json();
+        if (data.ok) {
+          dirty = false;
+          setStatus(`Saved ${data.count} products ✓`);
+          PRODUCTS.splice(0, PRODUCTS.length, ...clean);
+        } else {
+          setStatus('Save failed: ' + data.error, false);
+        }
+      } catch (e) {
+        setStatus('Could not reach server. Is server.py running?', false);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Save Changes';
+      }
+    });
+
+    /* ---- Confirm dialog ---- */
+    function showConfirm(msg, onYes) {
+      document.getElementById('confirm-msg').textContent = msg;
+      const overlay = document.getElementById('confirm-overlay');
+      overlay.classList.add('show');
+      const yes = document.getElementById('confirm-yes');
+      const no  = document.getElementById('confirm-no');
+      const cleanup = () => overlay.classList.remove('show');
+      yes.onclick = () => { cleanup(); onYes(); };
+      no.onclick  = cleanup;
+    }
+
+    /* ---- Warn on unsaved changes ---- */
+    window.addEventListener('beforeunload', e => {
+      if (dirty) { e.preventDefault(); e.returnValue = ''; }
+    });
+
+    /* ---- Escape HTML ---- */
+    function esc(str) {
+      return (str || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+    }
+
+    /* ---- Init ---- */
+    renderSidebar();
+  </script>
+</body>
+</html>
