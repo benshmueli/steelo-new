@@ -100,9 +100,7 @@ document.getElementById('cart-overlay').addEventListener('click', closeCart);
 document.getElementById('checkout-btn').addEventListener('click', () => {
   if (cart.length === 0) return;
   closeCart();
-  const items = cart.map(i => `- ${i.name} (${i.category}) ×${i.quantity}: ${fmt(i.price * i.quantity)}`).join('\n');
-  const total = fmtPlain(cart.reduce((s, i) => s + i.price * i.quantity, 0));
-  openInquiry('Quote Request', `I'm interested in the following pieces:\n\n${items}\n\nTotal: ${total}\n\n`);
+  openCheckout();
 });
 
 /* ---- Inquiry modal ---- */

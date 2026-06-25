@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Heebo:wght@300&family=Montserrat:wght@300;400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/styles.css?v=11">
+  <link rel="stylesheet" href="css/styles.css?v=12">
 </head>
 
 <body>
@@ -277,7 +277,7 @@
     </aside>
   </div>
 
-  <!-- INQUIRY MODAL -->
+  <!-- INQUIRY MODAL (kept for single-product enquiries) -->
   <div id="inquiry-modal" role="dialog" aria-modal="true">
     <div style="width:100%;max-width:520px;padding:3rem;background:var(--sand-100);position:relative;">
       <button id="inquiry-close" aria-label="Close" style="position:absolute;top:1.25rem;right:1.25rem;background:none;border:none;cursor:pointer;padding:0.25rem;color:var(--ink);">
@@ -303,10 +303,123 @@
     </div>
   </div>
 
+  <!-- CHECKOUT MODAL -->
+  <div id="checkout-modal" role="dialog" aria-modal="true" aria-label="Checkout">
+    <div class="checkout-panel">
+
+      <!-- Header -->
+      <div class="checkout-header">
+        <div>
+          <p class="checkout-label">Order Details</p>
+          <div class="checkout-steps">
+            <span class="checkout-step-dot active"></span>
+            <span class="checkout-step-line"></span>
+            <span class="checkout-step-dot"></span>
+          </div>
+        </div>
+        <button id="checkout-close" aria-label="Close checkout">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+
+      <!-- Scrollable body -->
+      <div id="checkout-modal-body" class="checkout-body no-scrollbar">
+
+        <form id="checkout-form" novalidate>
+
+          <!-- STEP 1: Customer & Delivery -->
+          <div id="checkout-step1">
+            <h2 class="checkout-title">Your Details</h2>
+
+            <p class="checkout-section-label">Contact</p>
+            <div class="checkout-field">
+              <label for="co-name">Full Name *</label>
+              <input id="co-name" name="co-name" type="text" required class="form-input" placeholder="First and last name" autocomplete="name">
+            </div>
+            <div class="checkout-field">
+              <label for="co-email">Email *</label>
+              <input id="co-email" name="co-email" type="email" required class="form-input" placeholder="your@email.com" autocomplete="email">
+            </div>
+            <div class="checkout-field">
+              <label for="co-phone">Phone / WhatsApp *</label>
+              <input id="co-phone" name="co-phone" type="tel" required class="form-input" placeholder="+972 50 000 0000" autocomplete="tel">
+            </div>
+
+            <p class="checkout-section-label" style="margin-top:1.75rem;">Delivery Address</p>
+            <div class="checkout-field-row">
+              <div class="checkout-field" style="flex:2;">
+                <label for="co-address">Street & Number *</label>
+                <input id="co-address" name="co-address" type="text" required class="form-input" placeholder="Herzl 12" autocomplete="address-line1">
+              </div>
+              <div class="checkout-field" style="flex:1;">
+                <label for="co-apartment">Apt / Floor</label>
+                <input id="co-apartment" name="co-apartment" type="text" class="form-input" placeholder="4B" autocomplete="address-line2">
+              </div>
+            </div>
+            <div class="checkout-field-row">
+              <div class="checkout-field" style="flex:2;">
+                <label for="co-city">City *</label>
+                <input id="co-city" name="co-city" type="text" required class="form-input" placeholder="Tel Aviv" autocomplete="address-level2">
+              </div>
+              <div class="checkout-field" style="flex:1;">
+                <label for="co-postal">Postal Code *</label>
+                <input id="co-postal" name="co-postal" type="text" required class="form-input" placeholder="6100000" autocomplete="postal-code">
+              </div>
+            </div>
+            <div class="checkout-field">
+              <label for="co-country">Country</label>
+              <input id="co-country" name="co-country" type="text" class="form-input" value="Israel" autocomplete="country-name">
+            </div>
+
+            <p class="checkout-section-label" style="margin-top:1.75rem;">Order Notes</p>
+            <div class="checkout-field">
+              <label for="co-notes">Special Requests (optional)</label>
+              <textarea id="co-notes" name="co-notes" rows="3" class="form-input" style="resize:none;padding-top:0.75rem;" placeholder="Custom finish, delivery time preference…"></textarea>
+            </div>
+
+            <button type="button" id="checkout-next-btn" class="btn-primary" style="margin-top:1.5rem;">
+              Continue to Review →
+            </button>
+          </div>
+
+          <!-- STEP 2: Order Summary -->
+          <div id="checkout-step2" style="display:none;">
+            <h2 class="checkout-title">Order Summary</h2>
+            <div id="checkout-order-items"></div>
+            <div class="checkout-total-row">
+              <span>Total</span>
+              <span id="checkout-order-total"></span>
+            </div>
+            <p class="checkout-note">All pieces are made to order — 4–6 week lead time. We'll confirm your order by email and WhatsApp.</p>
+            <p id="checkout-error" style="display:none;font-family:Montserrat;font-size:0.75rem;color:#c0392b;margin-bottom:1rem;"></p>
+            <div style="display:flex;flex-direction:column;gap:0.75rem;margin-top:1.5rem;">
+              <button type="submit" id="checkout-place-btn" class="btn-primary">Place Order</button>
+              <button type="button" id="checkout-back-btn" class="btn-outline">← Back</button>
+            </div>
+          </div>
+
+        </form>
+
+        <!-- CONFIRMATION -->
+        <div id="checkout-confirmation" style="display:none;text-align:center;padding:3rem 0;">
+          <div class="checkout-confirm-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="20 6 9 17 4 12"/></svg>
+          </div>
+          <p class="checkout-label" style="margin-bottom:0.5rem;">Order Placed</p>
+          <p id="checkout-confirm-id" style="font-family:Cormorant,Georgia,serif;font-weight:300;font-size:1.75rem;color:var(--ink);margin-bottom:1.5rem;"></p>
+          <p style="font-family:Montserrat;font-weight:300;font-size:0.875rem;line-height:1.7;color:var(--ink-400);max-width:340px;margin:0 auto 2rem;">We'll be in touch within 24 hours to confirm your order and arrange delivery.</p>
+          <button id="checkout-done-btn" class="btn-primary" style="max-width:260px;margin:0 auto;">Done</button>
+        </div>
+
+      </div><!-- end checkout-body -->
+    </div><!-- end checkout-panel -->
+  </div>
+
   <!-- Scripts: data first, then modules, then main -->
   <script src="js/data.js?v=2"></script>
-  <script src="js/cart.js?v=2"></script>
+  <script src="js/cart.js?v=3"></script>
   <script src="js/modal.js?v=3"></script>
+  <script src="js/checkout.js?v=1"></script>
   <script src="js/main.js?v=2"></script>
 
 </body>
