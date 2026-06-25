@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Heebo:wght@300&family=Montserrat:wght@300;400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/styles.css?v=12">
+  <link rel="stylesheet" href="css/styles.css?v=13">
 </head>
 
 <body>
@@ -272,7 +272,7 @@
           <span id="cart-total" style="font-family:'Cormorant',Georgia,serif;font-weight:300;font-size:1.75rem;color:var(--ink);">$0</span>
         </div>
         <p style="font-family:Montserrat;font-weight:300;font-size:0.75rem;line-height:1.7;color:var(--ink-300);margin-bottom:1rem;">All pieces are made to order.</p>
-        <button id="checkout-btn" class="btn-primary">Request a Quote</button>
+        <button id="checkout-btn" class="btn-primary">Place Order</button>
       </div>
     </aside>
   </div>
@@ -313,6 +313,8 @@
           <p class="checkout-label">Order Details</p>
           <div class="checkout-steps">
             <span class="checkout-step-dot active"></span>
+            <span class="checkout-step-line"></span>
+            <span class="checkout-step-dot"></span>
             <span class="checkout-step-line"></span>
             <span class="checkout-step-dot"></span>
           </div>
@@ -391,11 +393,53 @@
               <span id="checkout-order-total"></span>
             </div>
             <p class="checkout-note">All pieces are made to order — 4–6 week lead time. We'll confirm your order by email and WhatsApp.</p>
-            <p id="checkout-error" style="display:none;font-family:Montserrat;font-size:0.75rem;color:#c0392b;margin-bottom:1rem;"></p>
             <div style="display:flex;flex-direction:column;gap:0.75rem;margin-top:1.5rem;">
-              <button type="submit" id="checkout-place-btn" class="btn-primary">Place Order</button>
+              <button type="button" id="checkout-to-payment-btn" class="btn-primary">Proceed to Payment →</button>
               <button type="button" id="checkout-back-btn" class="btn-outline">← Back</button>
             </div>
+          </div>
+
+          <!-- STEP 3: Payment -->
+          <div id="checkout-step3" style="display:none;">
+            <h2 class="checkout-title">Payment</h2>
+
+            <div class="checkout-card-preview">
+              <svg width="36" height="24" viewBox="0 0 36 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="opacity:0.4;">
+                <rect width="36" height="24" rx="3" fill="currentColor"/>
+                <rect x="0" y="7" width="36" height="5" fill="white" fill-opacity="0.3"/>
+              </svg>
+              <span style="font-family:Montserrat;font-size:0.6rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--ink-400);">Secure Payment</span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color:var(--ink-400);"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            </div>
+
+            <div class="checkout-field">
+              <label for="co-card-name">Cardholder Name *</label>
+              <input id="co-card-name" name="co-card-name" type="text" required class="form-input" placeholder="As it appears on the card" autocomplete="cc-name">
+            </div>
+            <div class="checkout-field">
+              <label for="co-card-number">Card Number *</label>
+              <input id="co-card-number" name="co-card-number" type="text" required class="form-input checkout-card-input" placeholder="0000 0000 0000 0000" autocomplete="cc-number" inputmode="numeric" maxlength="19">
+            </div>
+            <div class="checkout-field-row">
+              <div class="checkout-field" style="flex:1;">
+                <label for="co-card-expiry">Expiry *</label>
+                <input id="co-card-expiry" name="co-card-expiry" type="text" required class="form-input" placeholder="MM/YY" autocomplete="cc-exp" inputmode="numeric" maxlength="5">
+              </div>
+              <div class="checkout-field" style="flex:1;">
+                <label for="co-card-cvv">CVV *</label>
+                <input id="co-card-cvv" name="co-card-cvv" type="text" required class="form-input" placeholder="123" autocomplete="cc-csc" inputmode="numeric" maxlength="4">
+              </div>
+            </div>
+
+            <p id="checkout-error" style="display:none;font-family:Montserrat;font-size:0.75rem;color:#c0392b;margin:1rem 0 0;"></p>
+            <div style="display:flex;flex-direction:column;gap:0.75rem;margin-top:1.5rem;">
+              <button type="submit" id="checkout-place-btn" class="btn-primary">Pay Now</button>
+              <button type="button" id="checkout-payment-back-btn" class="btn-outline">← Back</button>
+            </div>
+            <p class="checkout-note" style="margin-top:1rem;text-align:center;">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="vertical-align:middle;margin-right:4px;"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+              Secured by Tranzila · SSL encrypted
+            </p>
           </div>
 
         </form>
@@ -419,7 +463,7 @@
   <script src="js/data.js?v=2"></script>
   <script src="js/cart.js?v=3"></script>
   <script src="js/modal.js?v=3"></script>
-  <script src="js/checkout.js?v=1"></script>
+  <script src="js/checkout.js?v=2"></script>
   <script src="js/main.js?v=2"></script>
 
 </body>

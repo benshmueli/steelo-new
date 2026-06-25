@@ -95,6 +95,74 @@ def append_order_to_sheet(service, order):
         return False
 
 
+# ── Tranzila config ──────────────────────────────────────────────────────────
+# When you're ready to go live:
+# 1. Sign up at https://www.tranzila.com and get your terminal name & credentials
+# 2. Set these env vars (or paste directly):
+TRANZILA_TERMINAL = os.environ.get('TRANZILA_TERMINAL', '')   # your terminal name
+TRANZILA_PASSWORD = os.environ.get('TRANZILA_PASSWORD', '')   # terminal password
+TRANZILA_API_URL  = 'https://secure5.tranzila.com/cgi-bin/tranzila71u.cgi'
+
+
+def charge_tranzila(amount_ils, card_number, expiry_mmyy, cvv, cardholder, email, order_id):
+    """
+    Charge a card via Tranzila API.
+    Returns (success: bool, transaction_id: str, error: str)
+
+    Tranzila docs: https://www.tranzila.com/api
+    Parameters reference:
+      supplier   — terminal name
+      TranzilaPW — terminal password
+      ccno       — card number (digits only)
+      expdate    — expiry as MMYY
+      mycvv      — CVV
+      sum        — amount in ILS (e.g. "1200.00")
+      currency   — 1 = ILS
+      cred_type  — 1 = regular charge
+      tranmode   — A = auth+capture
+    """
+    if not TRANZILA_TERMINAL or not TRANZILA_PASSWORD:
+        # ── Sandbox / stub mode ───────────────────────────────────────────
+        # When credentials aren't configured, simulate a successful charge.
+        # Replace this block with a real call once credentials are set.
+        import random, string
+        fake_id = 'TZ-' + ''.join(random.choices(string.digits, k=8))
+        print(f'  [Tranzila] STUB mode — simulated charge ₪{amount_ils} → {fake_id}')
+        return True, fake_id, ''
+
+    try:
+        import urllib.request, urllib.parse
+        expiry_clean = expiry_mmyy.replace('/', '')          # "MM/YY" → "MMYY"
+        params = urllib.parse.urlencode({
+            'supplier':   TRANZILA_TERMINAL,
+            'TranzilaPW': TRANZILA_PASSWORD,
+            'ccno':       card_number,
+            'expdate':    expiry_clean,
+            'mycvv':      cvv,
+            'sum':        f'{amount_ils:.2f}',
+            'currency':   '1',
+            'cred_type':  '1',
+            'tranmode':   'A',
+            'email':      email,
+            'remarks':    order_id,
+        }).encode()
+        req  = urllib.request.Request(TRANZILA_API_URL, data=params, method='POST')
+        resp = urllib.request.urlopen(req, timeout=15).read().decode()
+        # Tranzila returns key=value pairs separated by & or newline
+        result = dict(p.split('=', 1) for p in resp.replace('\n', '&').split('&') if '=' in p)
+        conf_code = result.get('ConfirmationCode', '')
+        error_code = result.get('Response', '')
+        if conf_code and conf_code != '000':
+            return True, conf_code, ''
+        else:
+            err_msg = result.get('error', f'Tranzila error code {error_code}')
+            print(f'  [Tranzila] Charge failed: {err_msg} | raw: {resp}')
+            return False, '', err_msg
+    except Exception as ex:
+        print(f'  [Tranzila] Exception: {ex}')
+        return False, '', str(ex)
+
+
 # ── Products helpers ──────────────────────────────────────────────────────────
 def products_to_js(products):
     """Serialize the products list back to the data.js format."""
@@ -138,6 +206,26 @@ class Handler(SimpleHTTPRequestHandler):
                     f.write(js)
                 self._json(200, {'ok': True, 'count': len(products)})
             except Exception as e:
+                self._json(500, {'ok': False, 'error': str(e)})
+
+        elif self.path == '/payment/charge':
+            try:
+                data = json.loads(raw)
+                ok, tx_id, err = charge_tranzila(
+                    amount_ils  = float(data.get('amount', 0)),
+                    card_number = data.get('card_number', ''),
+                    expiry_mmyy = data.get('expiry', ''),
+                    cvv         = data.get('cvv', ''),
+                    cardholder  = data.get('cardholder', ''),
+                    email       = data.get('email', ''),
+                    order_id    = data.get('order_id', ''),
+                )
+                if ok:
+                    self._json(200, {'ok': True, 'transaction_id': tx_id})
+                else:
+                    self._json(402, {'ok': False, 'error': err or 'Payment declined'})
+            except Exception as e:
+                print(f'  [Payment] Error: {e}')
                 self._json(500, {'ok': False, 'error': str(e)})
 
         elif self.path == '/order':
