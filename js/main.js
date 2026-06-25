@@ -47,6 +47,14 @@ function renderGrid() {
     imgBox.appendChild(img2);
     imgBox.appendChild(overlay);
 
+    /* discount badge */
+    if (p.discount > 0) {
+      const badge = document.createElement('div');
+      badge.textContent = `${p.discount}% OFF`;
+      badge.style.cssText = 'position:absolute;top:1rem;left:1rem;background:#B85C38;color:#fff;font-family:Montserrat,sans-serif;font-size:0.55rem;font-weight:600;letter-spacing:0.18em;padding:0.3rem 0.65rem;z-index:3;';
+      imgBox.appendChild(badge);
+    }
+
     /* info bar */
     const info = document.createElement('div');
     info.style.cssText = 'padding:1.25rem 1.5rem;background:var(--sand-100);border-top:1px solid var(--sand-300);display:flex;align-items:baseline;justify-content:space-between;';
@@ -55,7 +63,7 @@ function renderGrid() {
         <p style="font-family:Montserrat;font-size:0.6rem;letter-spacing:0.25em;text-transform:uppercase;color:var(--ink-400);margin:0 0 0.25rem;">${p.category}</p>
         <h3 style="font-family:Cormorant,Georgia,serif;font-weight:300;font-size:1.5rem;color:var(--ink);margin:0;">${p.name}</h3>
       </div>
-      <span style="font-family:Cormorant,Georgia,serif;font-weight:300;font-size:1.35rem;color:var(--ink);white-space:nowrap;">${fmt(p.price)}</span>`;
+      <span style="font-family:Cormorant,Georgia,serif;font-weight:300;font-size:1.35rem;color:var(--ink);white-space:nowrap;">${fmtPrice(p.price, p.discount)}</span>`;
 
     wrap.appendChild(imgBox);
     wrap.appendChild(info);

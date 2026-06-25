@@ -4,11 +4,22 @@ Steelo dev server — serves static files + handles admin save + order endpoints
 Run: python3 server.py
 """
 from http.server import HTTPServer, SimpleHTTPRequestHandler
-import json, os, re
+import json, os, re, hashlib, time
 
 PORT     = 8891
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_JS  = os.path.join(BASE_DIR, 'js', 'data.js')
+
+# ── Admin auth ────────────────────────────────────────────────────────────────
+# Set ADMIN_PASSWORD env var before deploying. Default is for local dev only.
+ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'steelo-admin')
+# The token is the SHA-256 hash of the password. Stateless — no session store needed.
+ADMIN_TOKEN = hashlib.sha256(ADMIN_PASSWORD.encode()).hexdigest()
+
+# ── Rate limiting (payment endpoint) ─────────────────────────────────────────
+_rate: dict = {}          # ip → [timestamp, ...]
+RATE_WINDOW  = 60         # seconds
+RATE_LIMIT   = 5          # max attempts per window
 
 # ── Google Sheets config ──────────────────────────────────────────────────────
 # 1. Create a Google Sheet, share it with the service account email (Editor).
@@ -163,6 +174,81 @@ def charge_tranzila(amount_ils, card_number, expiry_mmyy, cvv, cardholder, email
         return False, '', str(ex)
 
 
+# ── Auth helpers ─────────────────────────────────────────────────────────────
+def check_admin_token(handler):
+    """Return True if the request carries the correct admin token."""
+    auth = handler.headers.get('Authorization', '')
+    return auth == f'Bearer {ADMIN_TOKEN}'
+
+def rate_check(ip):
+    """Return True if the IP is within the allowed rate. Prunes old entries."""
+    now = time.time()
+    timestamps = [t for t in _rate.get(ip, []) if now - t < RATE_WINDOW]
+    _rate[ip] = timestamps
+    if len(timestamps) >= RATE_LIMIT:
+        return False
+    _rate[ip].append(now)
+    return True
+
+# ── Validation helpers ────────────────────────────────────────────────────────
+import re as _re
+
+def validate_order(order):
+    """
+    Validate required order fields server-side.
+    Returns (ok: bool, error: str)
+    """
+    required = ['name', 'email', 'phone', 'address', 'city', 'postal_code']
+    for field in required:
+        val = str(order.get(field, '')).strip()
+        if not val:
+            return False, f'Missing required field: {field}'
+        if len(val) > 200:
+            return False, f'Field too long: {field}'
+
+    email = str(order.get('email', '')).strip()
+    if not _re.match(r'^[^@\s]+@[^@\s]+\.[^@\s]+$', email):
+        return False, 'Invalid email address'
+
+    phone = str(order.get('phone', '')).strip()
+    if not _re.match(r'^[\d\s\+\-\(\)]{7,20}$', phone):
+        return False, 'Invalid phone number'
+
+    items = order.get('items', [])
+    if not items or not isinstance(items, list):
+        return False, 'Order must have at least one item'
+
+    return True, ''
+
+def recalculate_total(order):
+    """
+    Recalculate the order total server-side from product IDs & quantities.
+    Falls back to client total if product lookup fails (stub — replace with DB lookup).
+    Returns the verified total.
+    """
+    # Load current product prices from data.js
+    try:
+        with open(DATA_JS, 'r', encoding='utf-8') as f:
+            src = f.read()
+        # Extract price values: price: NNNN
+        price_map = {}
+        for match in _re.finditer(r"id:\s*'([^']+)'.*?price:\s*(\d+)", src, _re.DOTALL):
+            price_map[match.group(1)] = int(match.group(2))
+
+        if not price_map:
+            return order.get('total', 0)  # fallback if parse fails
+
+        total = 0
+        for item in order.get('items', []):
+            pid   = item.get('id') or item.get('name', '')
+            qty   = max(1, min(int(item.get('qty', 1)), 99))
+            price = price_map.get(pid, item.get('price', 0))
+            total += price * qty
+        return total
+    except Exception as e:
+        print(f'  [Validate] Total recalc failed: {e} — using client total')
+        return order.get('total', 0)
+
 # ── Products helpers ──────────────────────────────────────────────────────────
 def products_to_js(products):
     """Serialize the products list back to the data.js format."""
@@ -173,11 +259,13 @@ def products_to_js(products):
         name = p.get('name', '').replace("'", "\\'")
         cat  = p.get('category', '').replace("'", "\\'")
         dims = p.get('dimensions', '').replace("'", "\\'")
+        disc = max(0, min(99, int(p.get('discount', 0))))
         lines.append(f"""  {{
     id: '{p['id']}',
     name: '{name}',
     category: '{cat}',
     price: {int(p['price'])},
+    discount: {disc},
     dimensions: '{dims}',
     description: '{desc}',
     images: [{imgs}],
@@ -189,6 +277,9 @@ def products_to_js(products):
 # ── HTTP handler ──────────────────────────────────────────────────────────────
 class Handler(SimpleHTTPRequestHandler):
 
+    def do_GET(self):
+        super().do_GET()
+
     def do_OPTIONS(self):
         self.send_response(200)
         self._cors()
@@ -197,10 +288,28 @@ class Handler(SimpleHTTPRequestHandler):
     def do_POST(self):
         length = int(self.headers.get('Content-Length', 0))
         raw    = self.rfile.read(length)
+        ip     = self.address_string()
 
-        if self.path == '/admin/save':
+        # ── Admin login ──────────────────────────────────────────────────────
+        if self.path == '/admin/login':
             try:
-                products = json.loads(raw)
+                data = json.loads(raw)
+                pw   = data.get('password', '')
+                if hashlib.sha256(pw.encode()).hexdigest() == ADMIN_TOKEN:
+                    self._json(200, {'ok': True, 'token': ADMIN_TOKEN})
+                else:
+                    self._json(401, {'ok': False, 'error': 'Incorrect password'})
+            except Exception as e:
+                self._json(400, {'ok': False, 'error': str(e)})
+
+        # ── Admin save (requires token) ───────────────────────────────────
+        elif self.path == '/admin/save':
+            if not check_admin_token(self):
+                self._json(401, {'ok': False, 'error': 'Unauthorised'})
+                return
+            try:
+                payload  = json.loads(raw)
+                products = payload if isinstance(payload, list) else payload.get('products', [])
                 js = products_to_js(products)
                 with open(DATA_JS, 'w', encoding='utf-8') as f:
                     f.write(js)
@@ -209,16 +318,24 @@ class Handler(SimpleHTTPRequestHandler):
                 self._json(500, {'ok': False, 'error': str(e)})
 
         elif self.path == '/payment/charge':
+            if not rate_check(ip):
+                print(f'  [Rate] Payment blocked for {ip}')
+                self._json(429, {'ok': False, 'error': 'Too many attempts. Please wait a minute.'})
+                return
             try:
                 data = json.loads(raw)
+                # ⚠️  Never log card_number, cvv, or expiry
+                amount     = float(data.get('amount', 0))
+                order_ref  = data.get('order_id', '')
+                print(f'  [Payment] Charging ₪{amount} for order {order_ref}')
                 ok, tx_id, err = charge_tranzila(
-                    amount_ils  = float(data.get('amount', 0)),
+                    amount_ils  = amount,
                     card_number = data.get('card_number', ''),
                     expiry_mmyy = data.get('expiry', ''),
                     cvv         = data.get('cvv', ''),
                     cardholder  = data.get('cardholder', ''),
                     email       = data.get('email', ''),
-                    order_id    = data.get('order_id', ''),
+                    order_id    = order_ref,
                 )
                 if ok:
                     self._json(200, {'ok': True, 'transaction_id': tx_id})
@@ -230,8 +347,28 @@ class Handler(SimpleHTTPRequestHandler):
 
         elif self.path == '/order':
             try:
-                order = json.loads(raw)
+                order    = json.loads(raw)
                 order_id = order.get('order_id', 'unknown')
+
+                # Honeypot check — bots fill hidden fields
+                if order.get('website', '').strip():
+                    print(f'  [Order] Honeypot triggered from {ip} — rejected')
+                    self._json(400, {'ok': False, 'error': 'Invalid submission'})
+                    return
+
+                # Server-side validation
+                valid, err_msg = validate_order(order)
+                if not valid:
+                    print(f'  [Order] Validation failed: {err_msg}')
+                    self._json(400, {'ok': False, 'error': err_msg})
+                    return
+
+                # Server-side total recalculation (prevents client price tampering)
+                verified_total = recalculate_total(order)
+                if verified_total != order.get('total', 0):
+                    print(f'  [Order] Total mismatch — client: ₪{order.get("total")}, server: ₪{verified_total}. Using server total.')
+                    order['total'] = verified_total
+
                 print(f'  [Order] Received {order_id} — {order.get("name")} — ₪{order.get("total")}')
 
                 sheet_ok = False

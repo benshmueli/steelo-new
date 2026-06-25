@@ -139,6 +139,7 @@ document.getElementById('checkout-form').addEventListener('submit', async e => {
     postal_code: f['co-postal'].value.trim(),
     country:     f['co-country'].value.trim(),
     notes:       f['co-notes'].value.trim(),
+    website:     f['co-website'].value.trim(),   // honeypot — should always be empty
     items:       cart.map(i => ({ name: i.name, category: i.category, qty: i.quantity, price: i.price })),
     total,
   };

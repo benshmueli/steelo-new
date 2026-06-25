@@ -6,11 +6,26 @@ let cart = [];
 function fmt(n)      { return '<span style="font-family:Heebo,sans-serif;font-weight:300;font-size:0.65em;color:inherit;vertical-align:0.1em;">₪</span>' + n.toLocaleString('he-IL'); }
 function fmtPlain(n) { return '₪' + n.toLocaleString('he-IL'); }
 
+/* ---- Discount helpers ---- */
+function salePrice(price, discount) {
+  if (!discount || discount <= 0) return price;
+  return Math.round(price * (1 - discount / 100));
+}
+function fmtPrice(price, discount) {
+  // Returns HTML: if product has a discount, shows ~~original~~ + sale price
+  if (!discount || discount <= 0) return fmt(price);
+  const sale = salePrice(price, discount);
+  return `<span style="text-decoration:line-through;opacity:0.45;font-size:0.85em;margin-right:0.4rem;">${fmt(price)}</span><span style="color:#B85C38;">${fmt(sale)}</span>`;
+}
+
 /* ---- Cart state ---- */
 function addToCart(product) {
   const existing = cart.find(i => i.id === product.id);
   if (existing) { existing.quantity++; }
-  else { cart.push({ ...product, quantity: 1 }); }
+  else {
+    const effectivePrice = salePrice(product.price, product.discount);
+    cart.push({ ...product, originalPrice: product.price, price: effectivePrice, quantity: 1 });
+  }
   syncCart();
 }
 
@@ -64,7 +79,7 @@ function renderCartItems() {
       <div style="flex:1;">
         <p style="font-family:Montserrat;font-size:0.6rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--ink-400);margin:0 0 0.2rem;">${item.category}</p>
         <h4 style="font-family:Cormorant,Georgia,serif;font-weight:300;font-size:1.4rem;color:var(--ink);margin:0 0 0.4rem;line-height:1.1;">${item.name}</h4>
-        <p style="font-family:Cormorant,Georgia,serif;font-weight:300;font-size:1.15rem;color:var(--ink);margin:0 0 0.75rem;">${fmt(item.price)}</p>
+        <p style="font-family:Cormorant,Georgia,serif;font-weight:300;font-size:1.15rem;color:var(--ink);margin:0 0 0.75rem;">${item.originalPrice && item.originalPrice !== item.price ? `<span style="text-decoration:line-through;opacity:0.4;font-size:0.85em;margin-right:0.35rem;">${fmt(item.originalPrice)}</span><span style="color:#B85C38;">${fmt(item.price)}</span>` : fmt(item.price)}</p>
         <div style="display:flex;align-items:center;gap:0.75rem;">
           <button class="qty-btn" onclick="changeQty('${item.id}',-1)" aria-label="Decrease">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/></svg>

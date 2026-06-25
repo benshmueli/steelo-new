@@ -14,7 +14,9 @@ function openModal(productId) {
   document.getElementById('modal-name').textContent        = p.name;
   document.getElementById('modal-description').textContent = p.description;
   document.getElementById('modal-dimensions').textContent  = p.dimensions || '—';
-  document.getElementById('modal-price').innerHTML         = fmt(p.price);
+  document.getElementById('modal-price').innerHTML = (p.discount > 0)
+    ? `<span style="text-decoration:line-through;opacity:0.4;font-size:0.7em;margin-right:0.5rem;">${fmt(p.price)}</span><span style="color:#B85C38;">${fmt(salePrice(p.price, p.discount))}</span>`
+    : fmt(p.price);
 
   buildModalImages(p);
   renderThumbs(p.images, 0);

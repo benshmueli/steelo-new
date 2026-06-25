@@ -327,6 +327,65 @@
       margin: 2rem 0;
     }
 
+    /* ---- Login overlay ---- */
+    #login-overlay {
+      display: none;
+      position: fixed; inset: 0; z-index: 200;
+      background: var(--sand);
+      align-items: center; justify-content: center;
+      flex-direction: column;
+      gap: 2rem;
+    }
+    #login-overlay.show { display: flex; }
+    #login-box {
+      background: var(--sand-100);
+      border: 1px solid var(--sand-300);
+      padding: 3rem;
+      width: 100%;
+      max-width: 360px;
+    }
+    #login-box h2 {
+      font-family: 'Cormorant', serif;
+      font-weight: 300;
+      font-size: 2rem;
+      margin: 0 0 0.5rem;
+    }
+    #login-box p {
+      font-size: 0.7rem;
+      letter-spacing: 0.1em;
+      color: var(--ink-400);
+      margin: 0 0 2rem;
+    }
+    #login-box label {
+      display: block;
+      margin-bottom: 0.5rem;
+    }
+    #login-box input {
+      width: 100%;
+      margin-bottom: 1.25rem;
+    }
+    #login-btn {
+      width: 100%;
+      background: var(--ink);
+      color: var(--sand);
+      border: none;
+      padding: 0.8rem;
+      font-family: 'Montserrat', sans-serif;
+      font-size: 0.7rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+    #login-btn:hover { opacity: 0.8; }
+    #login-error {
+      display: none;
+      color: var(--red);
+      font-size: 0.75rem;
+      margin-top: 0.75rem;
+      text-align: center;
+    }
+
     /* ---- Confirm overlay ---- */
     #confirm-overlay {
       display: none;
@@ -362,17 +421,46 @@
 </head>
 <body>
 
+  <!-- Login overlay -->
+  <div id="login-overlay" class="show">
+    <div style="font-family:'Cormorant',serif;font-weight:300;font-size:1.5rem;letter-spacing:0.35em;text-transform:uppercase;color:var(--ink);">STEELO</div>
+    <div id="login-box">
+      <h2>Admin Access</h2>
+      <p>Enter your admin password to continue.</p>
+      <form id="login-form">
+        <label for="login-pw">Password</label>
+        <input id="login-pw" type="password" placeholder="••••••••" autocomplete="current-password">
+        <button id="login-btn" type="submit">Enter →</button>
+        <p id="login-error">Incorrect password. Please try again.</p>
+      </form>
+    </div>
+  </div>
+
   <!-- Header -->
   <header>
     <div style="display:flex;align-items:center;gap:1.5rem;">
       <span class="brand">STEELO</span>
       <span class="tag">Admin</span>
     </div>
-    <div style="display:flex;align-items:center;gap:0;">
+    <div style="display:flex;align-items:center;gap:0.75rem;">
       <span id="save-status"></span>
       <button id="save-all">Save Changes</button>
+      <button id="logout-btn" style="background:none;border:1px solid var(--ink-500);color:var(--ink-400);padding:0.5rem 0.9rem;font-family:Montserrat,sans-serif;font-size:0.6rem;letter-spacing:0.15em;text-transform:uppercase;cursor:pointer;" title="Log out">Logout</button>
     </div>
   </header>
+
+  <!-- Bulk discount bar -->
+  <div id="discount-bar" style="background:var(--sand-200);border-bottom:1px solid var(--sand-300);padding:0.75rem 2rem;display:flex;align-items:center;gap:1.25rem;flex-wrap:wrap;">
+    <span style="font-size:0.6rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--ink-400);">Bulk Discount</span>
+    <div style="display:flex;align-items:center;gap:0.5rem;">
+      <input type="range" id="discount-slider" min="5" max="70" step="5" value="20"
+             style="width:120px;margin:0;accent-color:var(--ink);cursor:pointer;">
+      <span id="discount-label" style="font-family:'Cormorant',serif;font-size:1.4rem;font-weight:300;color:var(--ink);min-width:2.75rem;">20%</span>
+    </div>
+    <button id="discount-apply-all" style="background:var(--ink);color:var(--sand);border:none;padding:0.45rem 1rem;font-family:Montserrat,sans-serif;font-size:0.6rem;letter-spacing:0.15em;text-transform:uppercase;cursor:pointer;transition:opacity 0.2s;" onmouseover="this.style.opacity='.75'" onmouseout="this.style.opacity='1'">Apply to All</button>
+    <button id="discount-clear-all" style="background:none;color:var(--ink-400);border:1px solid var(--sand-300);padding:0.45rem 1rem;font-family:Montserrat,sans-serif;font-size:0.6rem;letter-spacing:0.15em;text-transform:uppercase;cursor:pointer;transition:opacity 0.2s;" onmouseover="this.style.opacity='.6'" onmouseout="this.style.opacity='1'">Clear All</button>
+    <span style="font-size:0.7rem;color:var(--ink-400);">— or set per-product below</span>
+  </div>
 
   <!-- Workspace -->
   <div class="workspace">
@@ -413,6 +501,71 @@
   <script src="js/data.js"></script>
   <script>
     /* ============================================================
+       Auth
+       ============================================================ */
+    const TOKEN_KEY = 'steelo_admin_token';
+
+    function getToken() { return localStorage.getItem(TOKEN_KEY) || ''; }
+    function setToken(t) { localStorage.setItem(TOKEN_KEY, t); }
+    function clearToken() { localStorage.removeItem(TOKEN_KEY); }
+
+    async function checkAuth() {
+      const token = getToken();
+      if (!token) { showLogin(); return; }
+      // Validate against server
+      try {
+        const res = await fetch('/admin/save', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify([]),   // empty array — just testing auth
+        });
+        if (res.status === 401) { clearToken(); showLogin(); }
+        else { hideLogin(); }
+      } catch { hideLogin(); } // server not reachable — let them in locally
+    }
+
+    function showLogin() {
+      document.getElementById('login-overlay').classList.add('show');
+    }
+    function hideLogin() {
+      document.getElementById('login-overlay').classList.remove('show');
+    }
+
+    document.getElementById('login-form').addEventListener('submit', async e => {
+      e.preventDefault();
+      const pw  = document.getElementById('login-pw').value;
+      const btn = document.getElementById('login-btn');
+      btn.textContent = '…';
+      btn.disabled = true;
+      document.getElementById('login-error').style.display = 'none';
+      try {
+        const res  = await fetch('/admin/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password: pw }),
+        });
+        const data = await res.json();
+        if (data.ok) {
+          setToken(data.token);
+          hideLogin();
+        } else {
+          document.getElementById('login-error').style.display = 'block';
+        }
+      } catch {
+        document.getElementById('login-error').textContent = 'Could not reach server.';
+        document.getElementById('login-error').style.display = 'block';
+      } finally {
+        btn.textContent = 'Enter →';
+        btn.disabled = false;
+      }
+    });
+
+    document.getElementById('logout-btn').addEventListener('click', () => {
+      clearToken();
+      showLogin();
+    });
+
+    /* ============================================================
        Admin state — work on a deep copy so cancelling is possible
        ============================================================ */
     let products   = JSON.parse(JSON.stringify(PRODUCTS));
@@ -450,7 +603,10 @@
             <div class="item-name">${p.name || 'Untitled'}</div>
             <div class="item-cat">${p.category || ''}</div>
           </div>
-          <div class="item-price">${fmt(p.price)}</div>`;
+          <div style="text-align:right;">
+            <div class="item-price">${p.discount > 0 ? `<span style="text-decoration:line-through;opacity:0.4;font-size:0.85em;">${fmt(p.price)}</span> <span style="color:#B85C38;">${fmt(Math.round(p.price*(1-p.discount/100)))}</span>` : fmt(p.price)}</div>
+            ${p.discount > 0 ? `<div style="font-size:0.55rem;letter-spacing:0.1em;color:#B85C38;font-weight:600;">${p.discount}% OFF</div>` : ''}
+          </div>`;
         el.addEventListener('click', () => selectProduct(p.id));
         list.appendChild(el);
       });
@@ -497,6 +653,11 @@
             <input id="f-price" type="number" value="${p.price}" placeholder="3600" min="0" step="100">
           </div>
           <div class="form-group">
+            <label for="f-discount">Discount % <span style="color:var(--ink-300);font-size:0.55em;">(0 = no discount)</span></label>
+            <input id="f-discount" type="number" value="${p.discount || 0}" placeholder="0" min="0" max="99" step="5"
+                   style="${(p.discount > 0) ? 'border-color:#B85C38;color:#B85C38;font-weight:500;' : ''}">
+          </div>
+          <div class="form-group">
             <label for="f-id">URL ID <span style="color:var(--ink-300);font-size:0.55em;">(auto-generated)</span></label>
             <input id="f-id" type="text" value="${esc(p.id)}" placeholder="loop">
           </div>
@@ -541,6 +702,15 @@
       });
       document.getElementById('f-dimensions').addEventListener('input', e => {
         p.dimensions = e.target.value; markDirty();
+      });
+      document.getElementById('f-discount').addEventListener('input', e => {
+        const val = Math.max(0, Math.min(99, parseInt(e.target.value) || 0));
+        p.discount = val;
+        e.target.style.borderColor = val > 0 ? '#B85C38' : '';
+        e.target.style.color       = val > 0 ? '#B85C38' : '';
+        e.target.style.fontWeight  = val > 0 ? '500' : '';
+        renderSidebar();
+        markDirty();
       });
       document.getElementById('f-desc').addEventListener('input', e => {
         p.description = e.target.value; markDirty();
@@ -623,7 +793,7 @@
         const clean = products.map(({ _new, ...p }) => p);
         const res   = await fetch('/admin/save', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${getToken()}` },
           body: JSON.stringify(clean),
         });
         const data = await res.json();
@@ -664,7 +834,35 @@
       return (str || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
     }
 
+    /* ============================================================
+       Bulk discount bar
+       ============================================================ */
+    const discountSlider = document.getElementById('discount-slider');
+    const discountLabel  = document.getElementById('discount-label');
+
+    discountSlider.addEventListener('input', () => {
+      discountLabel.textContent = discountSlider.value + '%';
+    });
+
+    document.getElementById('discount-apply-all').addEventListener('click', () => {
+      const pct = parseInt(discountSlider.value);
+      products.forEach(p => { p.discount = pct; });
+      renderSidebar();
+      if (selectedId) renderEditPanel();   // refresh visible form
+      markDirty();
+      setStatus(`${pct}% discount applied to all products — save to publish`);
+    });
+
+    document.getElementById('discount-clear-all').addEventListener('click', () => {
+      products.forEach(p => { p.discount = 0; });
+      renderSidebar();
+      if (selectedId) renderEditPanel();
+      markDirty();
+      setStatus('All discounts cleared — save to publish');
+    });
+
     /* ---- Init ---- */
+    checkAuth();
     renderSidebar();
   </script>
 </body>
