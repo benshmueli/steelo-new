@@ -19,11 +19,13 @@ def products_to_js(products):
         desc = p.get('description', '').replace('\\', '\\\\').replace("'", "\\'")
         name = p.get('name', '').replace("'", "\\'")
         cat  = p.get('category', '').replace("'", "\\'")
+        dims = p.get('dimensions', '').replace("'", "\\'")
         lines.append(f"""  {{
     id: '{p['id']}',
     name: '{name}',
     category: '{cat}',
     price: {int(p['price'])},
+    dimensions: '{dims}',
     description: '{desc}',
     images: [{imgs}],
   }},""")

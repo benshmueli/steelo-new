@@ -501,6 +501,10 @@
             <input id="f-id" type="text" value="${esc(p.id)}" placeholder="loop">
           </div>
           <div class="form-group full">
+            <label for="f-dimensions">Dimensions <span style="color:var(--ink-300);font-size:0.55em;">(W × D × H cm)</span></label>
+            <input id="f-dimensions" type="text" value="${esc(p.dimensions || '')}" placeholder="e.g. 60 × 45 × 75 cm">
+          </div>
+          <div class="form-group full">
             <label for="f-desc">Description</label>
             <textarea id="f-desc" rows="4">${esc(p.description)}</textarea>
           </div>
@@ -534,6 +538,9 @@
       });
       document.getElementById('f-id').addEventListener('input', e => {
         p.id = e.target.value; markDirty();
+      });
+      document.getElementById('f-dimensions').addEventListener('input', e => {
+        p.dimensions = e.target.value; markDirty();
       });
       document.getElementById('f-desc').addEventListener('input', e => {
         p.description = e.target.value; markDirty();
@@ -586,6 +593,7 @@
         name: '',
         category: '',
         price: 0,
+        dimensions: '',
         description: '',
         images: [],
         _new: true,

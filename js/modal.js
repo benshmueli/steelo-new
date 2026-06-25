@@ -13,6 +13,7 @@ function openModal(productId) {
   document.getElementById('modal-category').textContent    = p.category;
   document.getElementById('modal-name').textContent        = p.name;
   document.getElementById('modal-description').textContent = p.description;
+  document.getElementById('modal-dimensions').textContent  = p.dimensions || '—';
   document.getElementById('modal-price').innerHTML         = fmt(p.price);
 
   buildModalImages(p);
