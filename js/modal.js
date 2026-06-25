@@ -111,13 +111,53 @@ document.getElementById('modal-add-cart').addEventListener('click', () => {
   if (!activeProd) return;
   addToCart(activeProd);
   closeModal();
-  openCart();
+  setTimeout(openCart, 380);
 });
-document.getElementById('modal-inquire').addEventListener('click', () => {
+
+/* Lightbox */
+let lbIdx = 0;
+
+function openLightbox(startIdx) {
   if (!activeProd) return;
-  const prefill = `I'm interested in the ${activeProd.name} (${activeProd.category}) — ${fmtPlain(activeProd.price)}.\n\n`;
-  closeModal();
-  openInquiry(activeProd.name, prefill);
+  lbIdx = startIdx ?? activeImgIdx;
+  lbRender();
+  document.getElementById('lightbox').style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+}
+
+function lbRender() {
+  if (!activeProd) return;
+  const imgs = activeProd.images;
+  document.getElementById('lightbox-img').src = imgs[lbIdx];
+  document.getElementById('lb-counter').textContent = (lbIdx + 1) + ' / ' + imgs.length;
+  document.getElementById('lb-prev').style.opacity = lbIdx === 0 ? '0.3' : '1';
+  document.getElementById('lb-next').style.opacity = lbIdx === imgs.length - 1 ? '0.3' : '1';
+}
+
+function lbNav(dir) {
+  if (!activeProd) return;
+  lbIdx = Math.max(0, Math.min(lbIdx + dir, activeProd.images.length - 1));
+  lbRender();
+}
+
+function closeLightbox() {
+  document.getElementById('lightbox').style.display = 'none';
+  document.body.style.overflow = 'hidden';
+}
+
+document.getElementById('modal-images-container').addEventListener('click', e => {
+  const img = e.target.closest('img');
+  if (img) openLightbox(activeImgIdx);
+});
+
+// Swipe support
+let lbTouchX = null;
+document.getElementById('lightbox').addEventListener('touchstart', e => { lbTouchX = e.touches[0].clientX; }, { passive: true });
+document.getElementById('lightbox').addEventListener('touchend', e => {
+  if (lbTouchX === null) return;
+  const dx = e.changedTouches[0].clientX - lbTouchX;
+  if (Math.abs(dx) > 40) { lbNav(dx < 0 ? 1 : -1); e.stopPropagation(); }
+  lbTouchX = null;
 });
 
 document.addEventListener('keydown', e => {

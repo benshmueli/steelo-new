@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Heebo:wght@300&family=Montserrat:wght@300;400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="css/styles.css?v=11">
 </head>
 
 <body>
@@ -15,7 +15,7 @@
   <!-- NAVBAR -->
   <nav id="navbar">
     <a href="#" class="nav-link" style="font-family:'Cormorant',Georgia,serif;font-weight:300;font-size:1.5rem;letter-spacing:0.35em;text-transform:uppercase;color:var(--ink);">STEELO</a>
-    <div class="nav-desktop" style="display:flex;align-items:center;gap:2.5rem;">
+    <div class="nav-desktop">
       <a href="#collection" class="nav-link" style="font-family:Montserrat;font-size:0.7rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--ink);">Collection</a>
       <a href="#about"      class="nav-link" style="font-family:Montserrat;font-size:0.7rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--ink);">About</a>
       <a href="#contact"    class="nav-link" style="font-family:Montserrat;font-size:0.7rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--ink);">Contact</a>
@@ -195,6 +195,21 @@
 
   </div><!-- end #page-wrap -->
 
+  <!-- LIGHTBOX -->
+  <div id="lightbox" style="display:none;position:fixed;inset:0;z-index:100;background:rgba(0,0,0,0.92);align-items:center;justify-content:center;" onclick="closeLightbox()">
+    <button onclick="event.stopPropagation();closeLightbox()" aria-label="Close" style="position:absolute;top:1.25rem;right:1.25rem;background:none;border:none;cursor:pointer;color:#fff;padding:0.5rem;z-index:101;">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+    <button id="lb-prev" onclick="event.stopPropagation();lbNav(-1)" aria-label="Previous" style="position:absolute;left:1rem;top:50%;transform:translateY(-50%);background:rgba(255,255,255,0.15);border:none;cursor:pointer;color:#fff;padding:0.75rem;border-radius:50%;z-index:101;display:flex;align-items:center;justify-content:center;">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M15 18l-6-6 6-6"/></svg>
+    </button>
+    <button id="lb-next" onclick="event.stopPropagation();lbNav(1)" aria-label="Next" style="position:absolute;right:1rem;top:50%;transform:translateY(-50%);background:rgba(255,255,255,0.15);border:none;cursor:pointer;color:#fff;padding:0.75rem;border-radius:50%;z-index:101;display:flex;align-items:center;justify-content:center;">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 18l6-6-6-6"/></svg>
+    </button>
+    <span id="lb-counter" style="position:absolute;bottom:1.25rem;left:50%;transform:translateX(-50%);color:rgba(255,255,255,0.5);font-family:Montserrat,sans-serif;font-size:0.7rem;letter-spacing:0.2em;"></span>
+    <img id="lightbox-img" src="" alt="" style="max-width:100%;max-height:90%;object-fit:contain;pointer-events:none;user-select:none;">
+  </div>
+
   <!-- PRODUCT MODAL (fixed, outside page-wrap — correct) -->
   <div id="product-modal" role="dialog" aria-modal="true" aria-label="Product details">
     <div style="position:relative;display:flex;flex-direction:row;width:100%;height:100%;background:var(--sand);">
@@ -289,10 +304,10 @@
   </div>
 
   <!-- Scripts: data first, then modules, then main -->
-  <script src="js/data.js"></script>
-  <script src="js/cart.js"></script>
-  <script src="js/modal.js"></script>
-  <script src="js/main.js"></script>
+  <script src="js/data.js?v=2"></script>
+  <script src="js/cart.js?v=2"></script>
+  <script src="js/modal.js?v=3"></script>
+  <script src="js/main.js?v=2"></script>
 
 </body>
 </html>
