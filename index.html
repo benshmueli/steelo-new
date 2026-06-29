@@ -34,8 +34,11 @@
     <!-- HERO -->
     <section id="hero" style="position:relative;height:100vh;overflow:hidden;">
       <!-- Full-screen background image -->
-      <img src="images/hero.JPG" alt="Steelo steel dining table" loading="eager"
-           style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 30%;">
+      <picture style="position:absolute;inset:0;width:100%;height:100%;">
+        <source media="(min-width: 641px)" srcset="images/hero_desktop.JPG">
+        <img src="images/Hero_mobile.JPG" alt="Steelo steel dining table" loading="eager"
+             style="width:100%;height:100%;object-fit:cover;object-position:center center;">
+      </picture>
       <!-- Dark overlay for text legibility -->
       <div style="position:absolute;inset:0;background:rgba(20,18,16,0.38);"></div>
 
