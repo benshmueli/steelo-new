@@ -6,7 +6,8 @@ Run: python3 server.py
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 import json, os, re, hashlib, time
 
-PORT     = 8891
+# Railway injects PORT; fall back to 8891 for local dev
+PORT     = int(os.environ.get('PORT', 8891))
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_JS  = os.path.join(BASE_DIR, 'js', 'data.js')
 
@@ -35,16 +36,31 @@ SHEET_COLUMNS = [
 ]
 
 def get_sheets_service():
-    """Return an authenticated Google Sheets service, or None if not configured."""
-    if not SHEET_ID or not os.path.exists(CREDENTIALS_FILE):
+    """Return an authenticated Google Sheets service, or None if not configured.
+    Credentials can come from:
+      1. GOOGLE_CREDENTIALS_JSON env var (JSON string) — used on Railway
+      2. credentials.json file in the project directory — used locally
+    """
+    if not SHEET_ID:
         return None
     try:
         from google.oauth2 import service_account
         from googleapiclient.discovery import build
-        creds = service_account.Credentials.from_service_account_file(
-            CREDENTIALS_FILE,
-            scopes=['https://www.googleapis.com/auth/spreadsheets'],
-        )
+
+        creds_json = os.environ.get('GOOGLE_CREDENTIALS_JSON', '')
+        if creds_json:
+            info = json.loads(creds_json)
+            creds = service_account.Credentials.from_service_account_info(
+                info, scopes=['https://www.googleapis.com/auth/spreadsheets']
+            )
+        elif os.path.exists(CREDENTIALS_FILE):
+            creds = service_account.Credentials.from_service_account_file(
+                CREDENTIALS_FILE,
+                scopes=['https://www.googleapis.com/auth/spreadsheets'],
+            )
+        else:
+            return None
+
         return build('sheets', 'v4', credentials=creds, cache_discovery=False)
     except Exception as e:
         print(f'  [Sheets] Could not build service: {e}')
