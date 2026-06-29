@@ -491,4 +491,5 @@ body {
   #products-grid { grid-template-columns: 1fr !important; }
   #collection .collection-header { padding: 0 1.5rem 2rem !important; }
   #collection .grid-wrap { padding: 0 !important; }
+  #hero img { object-position: center center !important; }
 }
