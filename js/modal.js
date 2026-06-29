@@ -113,7 +113,6 @@ document.getElementById('modal-add-cart').addEventListener('click', () => {
   if (!activeProd) return;
   addToCart(activeProd);
   closeModal();
-  setTimeout(openCart, 380);
 });
 
 /* Lightbox */
