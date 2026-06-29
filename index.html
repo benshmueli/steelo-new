@@ -32,39 +32,18 @@
   <div id="page-wrap">
 
     <!-- HERO -->
-    <section id="hero" style="min-height:100vh;display:flex;position:relative;background:var(--sand);">
-      <div class="hero-left" style="position:relative;z-index:10;display:flex;flex-direction:column;justify-content:center;width:50%;padding:8rem 4rem 4rem 6rem;">
-        <p class="fade-up delay-1" style="font-family:Montserrat;font-size:0.65rem;letter-spacing:0.35em;text-transform:uppercase;color:var(--ink-400);margin-bottom:2rem;">Handcrafted in 201 Stainless Steel</p>
-        <h1 class="hero-display fade-up delay-2">
-          Form<br><em style="font-style:italic;color:var(--ink-600);">Made</em><br>Permanent
-        </h1>
-        <p class="fade-up delay-3" style="font-family:Montserrat;font-weight:300;font-size:0.875rem;line-height:1.85;color:var(--ink-400);max-width:340px;margin:2rem 0 3rem;">
-          Each piece is bent, welded, and hand-finished — a singular form in brushed steel that holds its shape for generations.
-        </p>
-        <div class="fade-up delay-4">
-          <a href="#collection" class="btn-cta" style="display:inline-flex;align-items:center;gap:0.75rem;font-family:Montserrat;font-size:0.7rem;letter-spacing:0.2em;text-transform:uppercase;border:1px solid var(--ink);padding:1rem 2.5rem;text-decoration:none;color:var(--ink);transition:background 0.3s,color 0.3s;"
-             onmouseover="this.style.background=getComputedStyle(document.documentElement).getPropertyValue('--ink');this.style.color='#F5F0EB';"
-             onmouseout="this.style.background='transparent';this.style.color=getComputedStyle(document.documentElement).getPropertyValue('--ink');">
-            Explore Collection
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-          </a>
-        </div>
-      </div>
+    <section id="hero" style="position:relative;height:100vh;overflow:hidden;">
+      <!-- Full-screen background image -->
+      <img src="images/hero.JPG" alt="Steelo steel dining table" loading="eager"
+           style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center;">
+      <!-- Dark overlay for text legibility -->
+      <div style="position:absolute;inset:0;background:rgba(20,18,16,0.38);"></div>
 
-      <div class="hero-right" style="position:absolute;right:0;top:0;width:50%;height:100%;overflow:hidden;">
-        <img id="hero-img" src="images/products/LoopSideTable/1.png" alt="Loop Side Table" loading="eager"
-             style="width:100%;height:100%;object-fit:cover;object-position:center 20%;transition:opacity 0.9s ease;">
-        <div style="position:absolute;inset-y:0;left:0;width:120px;background:linear-gradient(to right,var(--sand),transparent);"></div>
-      </div>
-
-      <div id="hero-mobile-img" style="display:none;width:100%;padding:0 1.5rem 3rem;">
-        <img src="images/products/LoopSideTable/1.png" alt="Loop Side Table" style="width:100%;height:360px;object-fit:cover;object-position:center 15%;">
-      </div>
-
+      <!-- Scroll indicator -->
       <div style="position:absolute;bottom:2.5rem;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:0.5rem;opacity:0.5;">
-        <span style="font-family:Montserrat;font-size:0.6rem;letter-spacing:0.25em;text-transform:uppercase;color:var(--ink-500);">Scroll</span>
-        <div style="width:1px;height:3.5rem;background:var(--ink-300);overflow:hidden;">
-          <div class="scroll-line" style="width:1px;height:100%;background:var(--ink-500);"></div>
+        <span style="font-family:Montserrat;font-size:0.6rem;letter-spacing:0.25em;text-transform:uppercase;color:#F5F0EB;">Scroll</span>
+        <div style="width:1px;height:3.5rem;background:rgba(245,240,235,0.4);overflow:hidden;">
+          <div class="scroll-line" style="width:1px;height:100%;background:#F5F0EB;"></div>
         </div>
       </div>
     </section>
