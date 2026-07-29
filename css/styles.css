@@ -493,3 +493,7 @@ body {
   #collection .grid-wrap { padding: 0 !important; }
   #hero img { object-position: center center !important; }
 }
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}

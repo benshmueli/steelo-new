@@ -122,72 +122,13 @@ def append_order_to_sheet(service, order):
         return False
 
 
-# ── Tranzila config ──────────────────────────────────────────────────────────
-# When you're ready to go live:
-# 1. Sign up at https://www.tranzila.com and get your terminal name & credentials
-# 2. Set these env vars (or paste directly):
-TRANZILA_TERMINAL = os.environ.get('TRANZILA_TERMINAL', '')   # your terminal name
-TRANZILA_PASSWORD = os.environ.get('TRANZILA_PASSWORD', '')   # terminal password
-TRANZILA_API_URL  = 'https://secure5.tranzila.com/cgi-bin/tranzila71u.cgi'
+# ── Tranzila hosted payment page ──────────────────────────────────────────────
+TRANZILA_TERMINAL = os.environ.get('TRANZILA_TERMINAL', 'fxpsteelo')
+TRANZILA_HOSTED_URL = 'https://secure5.tranzila.com/cgi-bin/tranzila71u.cgi'
 
-
-def charge_tranzila(amount_ils, card_number, expiry_mmyy, cvv, cardholder, email, order_id):
-    """
-    Charge a card via Tranzila API.
-    Returns (success: bool, transaction_id: str, error: str)
-
-    Tranzila docs: https://www.tranzila.com/api
-    Parameters reference:
-      supplier   — terminal name
-      TranzilaPW — terminal password
-      ccno       — card number (digits only)
-      expdate    — expiry as MMYY
-      mycvv      — CVV
-      sum        — amount in ILS (e.g. "1200.00")
-      currency   — 1 = ILS
-      cred_type  — 1 = regular charge
-      tranmode   — A = auth+capture
-    """
-    if not TRANZILA_TERMINAL or not TRANZILA_PASSWORD:
-        # ── Sandbox / stub mode ───────────────────────────────────────────
-        # When credentials aren't configured, simulate a successful charge.
-        # Replace this block with a real call once credentials are set.
-        import random, string
-        fake_id = 'TZ-' + ''.join(random.choices(string.digits, k=8))
-        print(f'  [Tranzila] STUB mode — simulated charge ₪{amount_ils} → {fake_id}')
-        return True, fake_id, ''
-
-    try:
-        import urllib.request, urllib.parse
-        expiry_clean = expiry_mmyy.replace('/', '')          # "MM/YY" → "MMYY"
-        params = urllib.parse.urlencode({
-            'supplier':   TRANZILA_TERMINAL,
-            'TranzilaPW': TRANZILA_PASSWORD,
-            'ccno':       card_number,
-            'expdate':    expiry_clean,
-            'mycvv':      cvv,
-            'sum':        f'{amount_ils:.2f}',
-            'currency':   '1',
-            'cred_type':  '1',
-            'tranmode':   'A',
-            'email':      email,
-            'remarks':    order_id,
-        }).encode()
-        req  = urllib.request.Request(TRANZILA_API_URL, data=params, method='POST')
-        resp = urllib.request.urlopen(req, timeout=15).read().decode()
-        # Tranzila returns key=value pairs separated by & or newline
-        result = dict(p.split('=', 1) for p in resp.replace('\n', '&').split('&') if '=' in p)
-        conf_code = result.get('ConfirmationCode', '')
-        error_code = result.get('Response', '')
-        if conf_code and conf_code != '000':
-            return True, conf_code, ''
-        else:
-            err_msg = result.get('error', f'Tranzila error code {error_code}')
-            print(f'  [Tranzila] Charge failed: {err_msg} | raw: {resp}')
-            return False, '', err_msg
-    except Exception as ex:
-        print(f'  [Tranzila] Exception: {ex}')
-        return False, '', str(ex)
+# In-memory pending orders (order_id → order dict).
+# Tranzila redirects back to us after payment; we look up the order then save it.
+_pending_orders: dict = {}
 
 
 # ── Auth helpers ─────────────────────────────────────────────────────────────
@@ -294,7 +235,37 @@ def products_to_js(products):
 class Handler(SimpleHTTPRequestHandler):
 
     def do_GET(self):
-        super().do_GET()
+        if self.path.startswith('/payment/confirm'):
+            self._handle_payment_confirm()
+        else:
+            super().do_GET()
+
+    def _handle_payment_confirm(self):
+        import urllib.parse
+        parsed = urllib.parse.urlparse(self.path)
+        params = urllib.parse.parse_qs(parsed.query)
+        order_id   = params.get('order_id',  [''])[0]
+        response   = params.get('Response',  [''])[0]
+        conf_code  = params.get('ConfirmationCode', [''])[0]
+
+        order = _pending_orders.pop(order_id, None)
+        if not order:
+            self._json(404, {'ok': False, 'error': 'Order not found or already processed'})
+            return
+
+        if response == '000' and conf_code:
+            order['payment_ref'] = conf_code
+            service = get_sheets_service()
+            if service:
+                append_order_to_sheet(service, order)
+            else:
+                print(f'  [Sheets] Not configured — order {order_id} logged to console only.')
+                print(f'  [Order] {json.dumps(order, ensure_ascii=False, indent=2)}')
+            print(f'  [Payment] Confirmed {order_id} — conf {conf_code}')
+            self._json(200, {'ok': True, 'order_id': order_id, 'conf': conf_code})
+        else:
+            print(f'  [Payment] Failed confirm for {order_id} — Response={response}')
+            self._json(400, {'ok': False, 'error': f'Payment not confirmed (Response={response})'})
 
     def do_OPTIONS(self):
         self.send_response(200)
@@ -332,6 +303,9 @@ class Handler(SimpleHTTPRequestHandler):
                 self._json(200, {'ok': True, 'count': len(products)})
             except Exception as e:
                 self._json(500, {'ok': False, 'error': str(e)})
+
+        elif self.path == '/payment/init':
+            self._handle_payment_init(raw, ip)
 
         elif self.path == '/payment/charge':
             if not rate_check(ip):
@@ -403,6 +377,52 @@ class Handler(SimpleHTTPRequestHandler):
         else:
             self.send_response(404)
             self.end_headers()
+
+    def _handle_payment_init(self, raw, ip):
+        if not rate_check(ip):
+            self._json(429, {'ok': False, 'error': 'Too many attempts. Please wait a minute.'})
+            return
+        try:
+            import urllib.parse
+            order = json.loads(raw)
+
+            if order.get('website', '').strip():
+                self._json(400, {'ok': False, 'error': 'Invalid submission'})
+                return
+
+            valid, err = validate_order(order)
+            if not valid:
+                self._json(400, {'ok': False, 'error': err})
+                return
+
+            order['total'] = recalculate_total(order)
+
+            now = __import__('datetime').datetime.now()
+            order.setdefault('date', now.strftime('%d/%m/%Y %H:%M'))
+
+            order_id = order.get('order_id', '')
+            if not order_id:
+                self._json(400, {'ok': False, 'error': 'Missing order_id'})
+                return
+
+            _pending_orders[order_id] = order
+
+            params = urllib.parse.urlencode({
+                'supplier':  TRANZILA_TERMINAL,
+                'sum':       f"{order['total']:.2f}",
+                'currency':  '1',
+                'cred_type': '1',
+                'contact':   order.get('name', ''),
+                'email':     order.get('email', ''),
+                'phone':     order.get('phone', ''),
+                'Order_ID':  order_id,
+            })
+            redirect_url = f'{TRANZILA_HOSTED_URL}?{params}'
+            print(f'  [Payment] Init {order_id} — ₪{order["total"]} — redirecting to Tranzila')
+            self._json(200, {'ok': True, 'redirect_url': redirect_url, 'order_id': order_id})
+        except Exception as e:
+            print(f'  [Payment/init] Error: {e}')
+            self._json(500, {'ok': False, 'error': str(e)})
 
     def _cors(self):
         self.send_header('Access-Control-Allow-Origin', '*')

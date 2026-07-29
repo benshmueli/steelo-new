@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Payment Confirmed — STEELO</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,300;0,400;1,300&family=Montserrat:wght@300;400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css?v=13">
+  <style>
+    .result-wrap {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 4rem 2rem;
+      text-align: center;
+    }
+    .result-icon {
+      width: 3rem;
+      height: 3rem;
+      border-radius: 50%;
+      background: var(--sand-300);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 2rem;
+    }
+    .result-icon svg { color: var(--ink); }
+  </style>
+</head>
+<body>
+  <nav id="navbar">
+    <a href="/" class="nav-link" style="display:flex;align-items:center;">
+      <img src="images/logo.png" alt="STEELO" style="height:2.2rem;width:auto;display:block;">
+    </a>
+  </nav>
+
+  <div id="page-wrap">
+    <div class="result-wrap">
+      <div class="result-icon">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <polyline points="20 6 9 17 4 12"/>
+        </svg>
+      </div>
+      <h1 style="font-family:'Cormorant',Georgia,serif;font-weight:300;font-size:clamp(2rem,5vw,3.5rem);color:var(--ink);margin:0 0 1rem;line-height:1.1;">
+        Thank you for your order
+      </h1>
+      <p id="order-id-line" style="font-family:Montserrat;font-size:0.7rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--ink-400);margin:0 0 0.5rem;"></p>
+      <p id="conf-line" style="font-family:Montserrat;font-size:0.7rem;letter-spacing:0.15em;color:var(--ink-400);margin:0 0 2.5rem;"></p>
+      <p style="font-family:Montserrat;font-weight:300;font-size:0.875rem;line-height:1.9;color:var(--ink-400);max-width:480px;margin:0 0 3rem;">
+        Your payment was received successfully. We will be in touch shortly with delivery details.
+      </p>
+      <a href="/" class="btn-primary" style="text-decoration:none;">Back to Store</a>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      const params = new URLSearchParams(window.location.search);
+      const orderId = params.get('order_id') || params.get('Order_ID') || '';
+      const conf    = params.get('ConfirmationCode') || '';
+      const resp    = params.get('Response') || '';
+
+      if (orderId) {
+        document.getElementById('order-id-line').textContent = 'Order ' + orderId;
+      }
+      if (conf) {
+        document.getElementById('conf-line').textContent = 'Confirmation: ' + conf;
+      }
+
+      // Notify server to save order to Sheets
+      if (orderId && resp === '000') {
+        const qs = new URLSearchParams({ order_id: orderId, Response: resp, ConfirmationCode: conf });
+        fetch('/payment/confirm?' + qs.toString()).catch(() => {});
+      }
+    })();
+  </script>
+</body>
+</html>

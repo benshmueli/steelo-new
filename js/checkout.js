@@ -1,5 +1,5 @@
 /* ============================================================
-   Checkout Flow  (3 steps: Details → Payment → Confirmation)
+   Checkout Flow  (2 steps: Details → Order Summary → Tranzila)
    ============================================================ */
 
 function generateOrderId() {
@@ -26,7 +26,8 @@ function closeCheckout() {
   document.getElementById('checkout-step3').style.display = 'none';
   document.getElementById('checkout-confirmation').style.display = 'none';
   document.getElementById('checkout-form').reset();
-  document.getElementById('checkout-error').style.display = 'none';
+  const err = document.getElementById('checkout-error');
+  if (err) err.style.display = 'none';
 }
 
 /* ── Step indicator ───────────────────────────────────────── */
@@ -61,20 +62,6 @@ function buildOrderSummary() {
   document.getElementById('checkout-order-total').innerHTML = fmt(total);
 }
 
-/* ── Card number formatting ───────────────────────────────── */
-document.getElementById('co-card-number').addEventListener('input', function () {
-  let v = this.value.replace(/\D/g, '').slice(0, 16);
-  this.value = v.replace(/(.{4})/g, '$1 ').trim();
-});
-document.getElementById('co-card-expiry').addEventListener('input', function () {
-  let v = this.value.replace(/\D/g, '').slice(0, 4);
-  if (v.length >= 3) v = v.slice(0, 2) + '/' + v.slice(2);
-  this.value = v;
-});
-document.getElementById('co-card-cvv').addEventListener('input', function () {
-  this.value = this.value.replace(/\D/g, '').slice(0, 4);
-});
-
 /* ── Step 1 → Step 2 (details → summary) ─────────────────── */
 document.getElementById('checkout-next-btn').addEventListener('click', () => {
   const step1Fields = document.querySelectorAll('#checkout-step1 [required]');
@@ -88,38 +75,19 @@ document.getElementById('checkout-next-btn').addEventListener('click', () => {
   showCheckoutStep(2);
 });
 
-/* ── Step 2 → Step 3 (summary → payment) ─────────────────── */
-document.getElementById('checkout-to-payment-btn').addEventListener('click', () => {
-  showCheckoutStep(3);
-});
-
 /* ── Step 2 back → Step 1 ─────────────────────────────────── */
 document.getElementById('checkout-back-btn').addEventListener('click', () => {
   showCheckoutStep(1);
 });
 
-/* ── Step 3 back → Step 2 ─────────────────────────────────── */
-document.getElementById('checkout-payment-back-btn').addEventListener('click', () => {
-  showCheckoutStep(2);
-});
+/* ── Step 2 → Tranzila (proceed to payment) ──────────────── */
+document.getElementById('checkout-to-payment-btn').addEventListener('click', async () => {
+  showCheckoutStep(3); // show spinner
 
-/* ── Submit (pay) ─────────────────────────────────────────── */
-document.getElementById('checkout-form').addEventListener('submit', async e => {
-  e.preventDefault();
-  document.getElementById('checkout-error').style.display = 'none';
-
-  // Validate payment fields
-  const payFields = document.querySelectorAll('#checkout-step3 [required]');
-  let valid = true;
-  payFields.forEach(f => {
-    f.style.borderColor = '';
-    if (!f.value.trim()) { f.style.borderColor = '#c0392b'; valid = false; }
-  });
-  if (!valid) return;
-
-  const btn = document.getElementById('checkout-place-btn');
-  btn.textContent = 'Processing…';
-  btn.disabled = true;
+  const errEl = document.getElementById('checkout-error');
+  const backBtn = document.getElementById('checkout-payment-back-btn');
+  if (errEl) errEl.style.display = 'none';
+  if (backBtn) backBtn.style.display = 'none';
 
   const f       = document.getElementById('checkout-form');
   const orderId = generateOrderId();
@@ -127,7 +95,7 @@ document.getElementById('checkout-form').addEventListener('submit', async e => {
   const dateStr = now.toLocaleString('he-IL', { timeZone: 'Asia/Jerusalem', hour12: false });
   const total   = cart.reduce((s, i) => s + i.price * i.quantity, 0);
 
-  const orderPayload = {
+  const payload = {
     order_id:    orderId,
     date:        dateStr,
     name:        f['co-name'].value.trim(),
@@ -139,54 +107,38 @@ document.getElementById('checkout-form').addEventListener('submit', async e => {
     postal_code: f['co-postal'].value.trim(),
     country:     f['co-country'].value.trim(),
     notes:       f['co-notes'].value.trim(),
-    website:     f['co-website'].value.trim(),   // honeypot — should always be empty
-    items:       cart.map(i => ({ name: i.name, category: i.category, qty: i.quantity, price: i.price })),
+    website:     f['co-website'].value.trim(),
+    items:       cart.map(i => ({ id: i.id, name: i.name, category: i.category, qty: i.quantity, price: i.price })),
     total,
   };
 
-  // Payment payload — card details go to server only, never stored
-  const paymentPayload = {
-    order_id:       orderId,
-    amount:         total,
-    cardholder:     f['co-card-name'].value.trim(),
-    card_number:    f['co-card-number'].value.replace(/\s/g, ''),
-    expiry:         f['co-card-expiry'].value.trim(),
-    cvv:            f['co-card-cvv'].value.trim(),
-    email:          f['co-email'].value.trim(),
-    phone:          f['co-phone'].value.trim(),
-  };
-
   try {
-    // 1. Charge via Tranzila
-    const payRes  = await fetch('/payment/charge', {
+    const res  = await fetch('/payment/init', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify(paymentPayload),
+      body:    JSON.stringify(payload),
     });
-    const payData = await payRes.json();
-    if (!payData.ok) throw new Error(payData.error || 'Payment failed');
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'Could not initiate payment');
 
-    // 2. Save order to Google Sheets
-    await fetch('/order', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ ...orderPayload, payment_ref: payData.transaction_id }),
-    });
-
-    // 3. Show confirmation
-    document.getElementById('checkout-confirm-id').textContent = orderId;
-    document.getElementById('checkout-step3').style.display = 'none';
-    document.getElementById('checkout-confirmation').style.display = 'block';
-    document.getElementById('checkout-modal-body').scrollTop = 0;
+    // Clear cart before redirecting so it's empty when user comes back
     cart = [];
     syncCart();
 
+    window.location.href = data.redirect_url;
   } catch (err) {
-    btn.textContent = 'Pay Now';
-    btn.disabled = false;
-    document.getElementById('checkout-error').textContent = err.message || 'Payment failed. Please try again.';
-    document.getElementById('checkout-error').style.display = 'block';
+    showCheckoutStep(2);
+    const errEl2 = document.getElementById('checkout-error');
+    if (errEl2) {
+      errEl2.textContent = err.message || 'Could not connect to payment. Please try again.';
+      errEl2.style.display = 'block';
+    }
   }
+});
+
+/* ── Step 3 back ──────────────────────────────────────────── */
+document.getElementById('checkout-payment-back-btn').addEventListener('click', () => {
+  showCheckoutStep(2);
 });
 
 /* ── Close / overlay ──────────────────────────────────────── */
