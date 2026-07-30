@@ -124,6 +124,7 @@ def append_order_to_sheet(service, order):
 
 # ── Tranzila hosted payment page ──────────────────────────────────────────────
 TRANZILA_TERMINAL    = os.environ.get('TRANZILA_TERMINAL', 'fxpsteelo')
+TRANZILA_PASSWORD    = os.environ.get('TRANZILA_PASSWORD', '')
 TRANZILA_HANDSHAKE_URL = 'https://api.tranzila.com/v1/handshake/create'
 TRANZILA_IFRAME_BASE   = f'https://direct.tranzila.com/{TRANZILA_TERMINAL}/iframenew.php'
 
@@ -410,9 +411,7 @@ class Handler(SimpleHTTPRequestHandler):
 
             import urllib.request as _req, urllib.error as _uerr
 
-            tranzila_pw = os.environ.get('TRANZILA_PASSWORD', '')
-            print(f'  [Debug] TRANZILA_PASSWORD set: {bool(tranzila_pw)}, length: {len(tranzila_pw)}')
-            print(f'  [Debug] All TRANZILA env vars: { {k:v[:3]+"***" for k,v in os.environ.items() if "TRANZILA" in k} }')
+            tranzila_pw = TRANZILA_PASSWORD
             if not tranzila_pw:
                 raise Exception('TRANZILA_PASSWORD not configured in Railway')
 
@@ -482,6 +481,7 @@ if __name__ == '__main__':
     print(f'\n  Steelo store  →  http://localhost:{PORT}')
     print(f'  Admin panel   →  http://localhost:{PORT}/admin.html')
     print(f'  Google Sheets →  {"✓ configured" if sheets_ready else "⚠ not configured (add SHEET_ID + credentials.json)"}')
+    print(f'  Tranzila      →  {"✓ password set" if TRANZILA_PASSWORD else "⚠ TRANZILA_PASSWORD not set"}')
     print()
     try:
         httpd.serve_forever()
