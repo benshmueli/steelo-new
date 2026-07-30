@@ -121,20 +121,12 @@ document.getElementById('checkout-to-payment-btn').addEventListener('click', asy
     const data = await res.json();
     if (!data.ok) throw new Error(data.error || 'Could not initiate payment');
 
-    // Clear cart now — payment page is loading
+    // Clear cart before leaving — payment page is loading
     cart = [];
     syncCart();
 
-    // Show Tranzila iframe in step 3
-    const iframeWrap = document.getElementById('checkout-iframe-wrap');
-    const spinner    = document.getElementById('checkout-spinner');
-    if (spinner)    spinner.style.display = 'none';
-    if (iframeWrap) {
-      iframeWrap.innerHTML = `<iframe src="${data.iframe_url}"
-        style="width:100%;height:520px;border:none;display:block;"
-        allow="payment" title="Secure Payment"></iframe>`;
-      iframeWrap.style.display = 'block';
-    }
+    // Redirect full page to Tranzila payment form
+    window.location.href = data.iframe_url;
   } catch (err) {
     showCheckoutStep(2);
     const errEl2 = document.getElementById('checkout-pay-error');
