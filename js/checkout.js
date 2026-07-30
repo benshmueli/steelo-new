@@ -137,7 +137,7 @@ document.getElementById('checkout-to-payment-btn').addEventListener('click', asy
     }
   } catch (err) {
     showCheckoutStep(2);
-    const errEl2 = document.getElementById('checkout-error');
+    const errEl2 = document.getElementById('checkout-pay-error');
     if (errEl2) {
       errEl2.textContent = err.message || 'Could not connect to payment. Please try again.';
       errEl2.style.display = 'block';
