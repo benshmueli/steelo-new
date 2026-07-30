@@ -408,18 +408,42 @@ class Handler(SimpleHTTPRequestHandler):
 
             _pending_orders[order_id] = order
 
-            tranzila_pw = os.environ.get('TRANZILA_PASSWORD', '')
+            import urllib.request as _req, hashlib as _hs, secrets as _sec, time as _time
+
+            api_key    = os.environ.get('TRANZILA_API_KEY', '')
+            api_secret = os.environ.get('TRANZILA_API_SECRET', '')
+            if not api_key or not api_secret:
+                raise Exception('Tranzila API keys not configured (set TRANZILA_API_KEY and TRANZILA_API_SECRET in Railway)')
+
+            # Build HMAC-SHA256 access token
+            ts    = str(int(_time.time()))
+            nonce = _sec.token_hex(20)          # 40 hex chars = 20 bytes
+            msg   = api_key + api_secret + ts + nonce
+            token = _hs.sha256(msg.encode()).hexdigest()
 
             # Step 1: get handshake token from Tranzila
-            import urllib.request as _req
-            hw_qs = urllib.parse.urlencode({
-                'supplier':   TRANZILA_TERMINAL,
-                'sum':        f"{order['total']:.2f}",
-                'TranzilaPW': tranzila_pw,
-            })
-            hw_resp = _req.urlopen(
-                f'{TRANZILA_HANDSHAKE_URL}?{hw_qs}', timeout=10
-            ).read().decode()
+            hw_body = json.dumps({
+                'supplier': TRANZILA_TERMINAL,
+                'sum':      f"{order['total']:.2f}",
+                'currency': '1',
+            }).encode()
+            hw_req = _req.Request(
+                TRANZILA_HANDSHAKE_URL,
+                data=hw_body,
+                method='POST',
+                headers={
+                    'Content-Type':              'application/json',
+                    'X-tranzila-api-app-key':    api_key,
+                    'X-tranzila-api-request-time': ts,
+                    'X-tranzila-api-nonce':      nonce,
+                    'X-tranzila-api-access-token': token,
+                },
+            )
+            try:
+                hw_resp = _req.urlopen(hw_req, timeout=10).read().decode()
+            except _req.HTTPError as e:
+                hw_resp = e.read().decode()
+                raise Exception(f'Tranzila handshake error: {hw_resp}')
             hw_data = json.loads(hw_resp)
             thtk = hw_data.get('thtk', '')
             if not thtk:
