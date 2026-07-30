@@ -239,6 +239,9 @@ class Handler(SimpleHTTPRequestHandler):
     def do_GET(self):
         if self.path.startswith('/payment/confirm'):
             self._handle_payment_confirm()
+        elif self.path == '/debug/env':
+            keys = [k for k in os.environ if 'TRANZILA' in k or 'ADMIN' in k or 'PORT' in k]
+            self._json(200, {'env_keys': keys, 'tranzila_pw_len': len(TRANZILA_PASSWORD)})
         else:
             super().do_GET()
 
