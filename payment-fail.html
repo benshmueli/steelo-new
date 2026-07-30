@@ -57,5 +57,9 @@
       </div>
     </div>
   </div>
+  <script>
+    // Break out of iframe if loaded inside one
+    if (window !== window.top) { window.top.location.href = window.location.href; }
+  </script>
 </body>
 </html>

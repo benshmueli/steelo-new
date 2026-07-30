@@ -58,6 +58,10 @@
   </div>
 
   <script>
+    // Break out of iframe if loaded inside one
+    if (window !== window.top) { window.top.location.href = window.location.href; }
+  </script>
+  <script>
     (function () {
       const params = new URLSearchParams(window.location.search);
       const orderId = params.get('order_id') || params.get('Order_ID') || '';
