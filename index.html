@@ -389,16 +389,19 @@
             </div>
           </div>
 
-          <!-- STEP 3: Redirecting to payment -->
-          <div id="checkout-step3" style="display:none;text-align:center;padding:3rem 0;">
-            <div style="margin-bottom:1.5rem;">
-              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" style="color:var(--ink-400);animation:spin 1.2s linear infinite;">
-                <circle cx="12" cy="12" r="10" stroke-dasharray="40" stroke-dashoffset="20"/>
-              </svg>
+          <!-- STEP 3: Tranzila payment iframe -->
+          <div id="checkout-step3" style="display:none;padding:1rem 0;">
+            <div id="checkout-spinner" style="text-align:center;padding:3rem 0;">
+              <div style="margin-bottom:1.5rem;">
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" style="color:var(--ink-400);animation:spin 1.2s linear infinite;">
+                  <circle cx="12" cy="12" r="10" stroke-dasharray="40" stroke-dashoffset="20"/>
+                </svg>
+              </div>
+              <p style="font-family:Montserrat;font-size:0.75rem;letter-spacing:0.15em;text-transform:uppercase;color:var(--ink-400);">Loading secure payment…</p>
             </div>
-            <p style="font-family:Montserrat;font-size:0.75rem;letter-spacing:0.15em;text-transform:uppercase;color:var(--ink-400);">Redirecting to secure payment…</p>
-            <p id="checkout-error" style="display:none;font-family:Montserrat;font-size:0.75rem;color:#c0392b;margin:1.5rem 0 0;"></p>
-            <button type="button" id="checkout-payment-back-btn" class="btn-outline" style="margin-top:2rem;display:none;">← Back</button>
+            <div id="checkout-iframe-wrap" style="display:none;"></div>
+            <p id="checkout-error" style="display:none;font-family:Montserrat;font-size:0.75rem;color:#c0392b;margin:1.5rem 0 0;text-align:center;"></p>
+            <button type="button" id="checkout-payment-back-btn" class="btn-outline" style="margin-top:1rem;display:none;">← Back</button>
           </div>
 
         </form>

@@ -123,8 +123,9 @@ def append_order_to_sheet(service, order):
 
 
 # ── Tranzila hosted payment page ──────────────────────────────────────────────
-TRANZILA_TERMINAL = os.environ.get('TRANZILA_TERMINAL', 'fxpsteelo')
-TRANZILA_HOSTED_URL = 'https://secure5.tranzila.com/cgi-bin/tranzila71u.cgi'
+TRANZILA_TERMINAL    = os.environ.get('TRANZILA_TERMINAL', 'fxpsteelo')
+TRANZILA_HANDSHAKE_URL = 'https://api.tranzila.com/v1/handshake/create'
+TRANZILA_IFRAME_BASE   = f'https://direct.tranzila.com/{TRANZILA_TERMINAL}/iframenew.php'
 
 # In-memory pending orders (order_id → order dict).
 # Tranzila redirects back to us after payment; we look up the order then save it.
@@ -408,22 +409,40 @@ class Handler(SimpleHTTPRequestHandler):
             _pending_orders[order_id] = order
 
             tranzila_pw = os.environ.get('TRANZILA_PASSWORD', '')
-            p = {
-                'supplier':  TRANZILA_TERMINAL,
-                'sum':       f"{order['total']:.2f}",
-                'currency':  '1',
-                'cred_type': '1',
-                'contact':   order.get('name', ''),
-                'email':     order.get('email', ''),
-                'phone':     order.get('phone', ''),
-                'Order_ID':  order_id,
-            }
-            if tranzila_pw:
-                p['TranzilaPW'] = tranzila_pw
-            params = urllib.parse.urlencode(p)
-            redirect_url = f'{TRANZILA_HOSTED_URL}?{params}'
-            print(f'  [Payment] Init {order_id} — ₪{order["total"]} — redirecting to Tranzila')
-            self._json(200, {'ok': True, 'redirect_url': redirect_url, 'order_id': order_id})
+
+            # Step 1: get handshake token from Tranzila
+            import urllib.request as _req
+            hw_qs = urllib.parse.urlencode({
+                'supplier':   TRANZILA_TERMINAL,
+                'sum':        f"{order['total']:.2f}",
+                'TranzilaPW': tranzila_pw,
+            })
+            hw_resp = _req.urlopen(
+                f'{TRANZILA_HANDSHAKE_URL}?{hw_qs}', timeout=10
+            ).read().decode()
+            hw_data = json.loads(hw_resp)
+            thtk = hw_data.get('thtk', '')
+            if not thtk:
+                raise Exception(f'Handshake failed: {hw_resp}')
+
+            # Step 2: build iframe URL
+            base_site = 'https://www.steelo-design.com'
+            iframe_params = urllib.parse.urlencode({
+                'sum':         f"{order['total']:.2f}",
+                'thtk':        thtk,
+                'new_process': '1',
+                'cred_type':   '1',
+                'currency':    '1',
+                'contact':     order.get('name', ''),
+                'email':       order.get('email', ''),
+                'phone':       order.get('phone', ''),
+                'Order_ID':    order_id,
+                'success_url': f'{base_site}/payment-success.html',
+                'fail_url':    f'{base_site}/payment-fail.html',
+            })
+            iframe_url = f'{TRANZILA_IFRAME_BASE}?{iframe_params}'
+            print(f'  [Payment] Init {order_id} — ₪{order["total"]} — handshake OK')
+            self._json(200, {'ok': True, 'iframe_url': iframe_url, 'order_id': order_id})
         except Exception as e:
             print(f'  [Payment/init] Error: {e}')
             self._json(500, {'ok': False, 'error': str(e)})
