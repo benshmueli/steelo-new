@@ -411,6 +411,8 @@ class Handler(SimpleHTTPRequestHandler):
             import urllib.request as _req, urllib.error as _uerr
 
             tranzila_pw = os.environ.get('TRANZILA_PASSWORD', '')
+            print(f'  [Debug] TRANZILA_PASSWORD set: {bool(tranzila_pw)}, length: {len(tranzila_pw)}')
+            print(f'  [Debug] All TRANZILA env vars: { {k:v[:3]+"***" for k,v in os.environ.items() if "TRANZILA" in k} }')
             if not tranzila_pw:
                 raise Exception('TRANZILA_PASSWORD not configured in Railway')
 
