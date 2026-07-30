@@ -430,11 +430,17 @@ class Handler(SimpleHTTPRequestHandler):
                 ).read().decode()
             except _uerr.HTTPError as e:
                 hw_resp = e.read().decode()
-                raise Exception(f'Tranzila handshake error {e.code}: {hw_resp}')
-            hw_data = json.loads(hw_resp)
+                raise Exception(f'Tranzila handshake HTTP {e.code}: {hw_resp[:300]}')
+            except Exception as e:
+                raise Exception(f'Tranzila handshake request failed: {e}')
+            print(f'  [Tranzila] Handshake raw response: {hw_resp[:200]}')
+            try:
+                hw_data = json.loads(hw_resp)
+            except Exception:
+                raise Exception(f'Tranzila returned non-JSON: {hw_resp[:300]}')
             thtk = hw_data.get('thtk', '')
             if not thtk:
-                raise Exception(f'Handshake failed: {hw_resp}')
+                raise Exception(f'No thtk in response: {hw_resp[:300]}')
 
             # Step 2: build iframe URL
             base_site = 'https://www.steelo-design.com'
