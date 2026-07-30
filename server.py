@@ -407,7 +407,8 @@ class Handler(SimpleHTTPRequestHandler):
 
             _pending_orders[order_id] = order
 
-            params = urllib.parse.urlencode({
+            tranzila_pw = os.environ.get('TRANZILA_PASSWORD', '')
+            p = {
                 'supplier':  TRANZILA_TERMINAL,
                 'sum':       f"{order['total']:.2f}",
                 'currency':  '1',
@@ -416,7 +417,10 @@ class Handler(SimpleHTTPRequestHandler):
                 'email':     order.get('email', ''),
                 'phone':     order.get('phone', ''),
                 'Order_ID':  order_id,
-            })
+            }
+            if tranzila_pw:
+                p['TranzilaPW'] = tranzila_pw
+            params = urllib.parse.urlencode(p)
             redirect_url = f'{TRANZILA_HOSTED_URL}?{params}'
             print(f'  [Payment] Init {order_id} — ₪{order["total"]} — redirecting to Tranzila')
             self._json(200, {'ok': True, 'redirect_url': redirect_url, 'order_id': order_id})
