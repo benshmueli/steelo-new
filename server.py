@@ -434,11 +434,14 @@ class Handler(SimpleHTTPRequestHandler):
             except Exception as e:
                 raise Exception(f'Tranzila handshake request failed: {e}')
             print(f'  [Tranzila] Handshake raw response: {hw_resp[:200]}')
-            try:
-                hw_data = json.loads(hw_resp)
-            except Exception:
-                raise Exception(f'Tranzila returned non-JSON: {hw_resp[:300]}')
-            thtk = hw_data.get('thtk', '')
+            # Response is plain text: "thtk=abc123" or JSON
+            thtk = ''
+            if hw_resp.startswith('{'):
+                thtk = json.loads(hw_resp).get('thtk', '')
+            else:
+                for part in hw_resp.replace('\n', '&').split('&'):
+                    if part.startswith('thtk='):
+                        thtk = part.split('=', 1)[1].strip()
             if not thtk:
                 raise Exception(f'No thtk in response: {hw_resp[:300]}')
 
