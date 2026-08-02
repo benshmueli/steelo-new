@@ -104,7 +104,7 @@ def append_order_to_sheet(service, order):
         order.get('notes', ''),
         items_summary,
         order.get('total', 0),
-        'New',
+        order.get('status_override', 'New'),
     ]
     try:
         ensure_header_row(service)
@@ -510,6 +510,18 @@ class Handler(SimpleHTTPRequestHandler):
                 return
 
             _pending_orders[order_id] = order
+
+            # Save immediately to Sheets as "Pending Payment" so we never lose order data
+            # (Railway may run multiple instances; _pending_orders is not shared across them)
+            try:
+                service = get_sheets_service()
+                if service:
+                    order['status_override'] = 'Pending Payment'
+                    append_order_to_sheet(service, order)
+                    del order['status_override']
+                    print(f'  [Sheets] Order {order_id} saved as Pending Payment')
+            except Exception as _se:
+                print(f'  [Sheets] Pre-save failed: {_se}')
 
             import urllib.request as _req, urllib.error as _uerr
 
