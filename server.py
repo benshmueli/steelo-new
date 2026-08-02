@@ -377,8 +377,9 @@ class Handler(SimpleHTTPRequestHandler):
                 self._json(500, {'ok': False, 'error': str(e)})
 
         else:
-            self.send_response(404)
-            self.end_headers()
+            # Return 200 for any unhandled POST (e.g. Tranzila server-to-server notification)
+            print(f'  [POST] Unhandled: {self.path}')
+            self._json(200, {'ok': True})
 
     def _handle_payment_init(self, raw, ip):
         if not rate_check(ip):
