@@ -241,6 +241,10 @@ class Handler(SimpleHTTPRequestHandler):
             self._handle_payment_confirm()
         elif self.path.startswith('/payment-result'):
             self._handle_payment_result()
+        elif self.path.startswith('/payment-success'):
+            self._handle_payment_success_redirect()
+        elif self.path.startswith('/payment-fail'):
+            self._handle_payment_fail_redirect()
         else:
             super().do_GET()
 
@@ -272,33 +276,52 @@ class Handler(SimpleHTTPRequestHandler):
             self._json(400, {'ok': False, 'error': f'Payment not confirmed (Response={response})'})
 
     def _handle_payment_result(self):
-        """Tranzila redirects here after payment. We redirect on to /?payment=success or fail."""
+        """Legacy /payment-result handler — kept for backwards compat."""
         import urllib.parse
         parsed = urllib.parse.urlparse(self.path)
         params = urllib.parse.parse_qs(parsed.query)
-        status    = params.get('status',           ['fail'])[0]
-        response  = params.get('Response',         [''])[0]
-        conf_code = params.get('ConfirmationCode', [''])[0]
-        order_id  = (params.get('Order_ID', None) or params.get('order_id', ['']))[0]
-
-        print(f'  [PaymentResult] status={status} response={response} conf={conf_code} order={order_id}')
-
-        if status == 'success' and response == '000' and conf_code:
-            order = _pending_orders.pop(order_id, None)
-            if order:
-                service = get_sheets_service()
-                if service:
-                    append_order_to_sheet(service, order)
-                else:
-                    print(f'  [Sheets] Not configured — order {order_id} logged.')
-                    print(f'  [Order] {json.dumps(order, ensure_ascii=False)}')
+        status   = params.get('status', ['fail'])[0]
+        order_id = (params.get('Order_ID', None) or params.get('order_id', ['']))[0]
+        print(f'  [PaymentResult/legacy] status={status} path={self.path}')
+        if 'success' in status:
+            self._save_order_from_params(params, order_id)
             redirect_url = f'/?payment=success&order_id={urllib.parse.quote(order_id)}'
         else:
-            print(f'  [PaymentResult] Treating as failure — status={status} response={response}')
             redirect_url = '/?payment=fail'
+        self._redirect(redirect_url)
 
+    def _handle_payment_success_redirect(self):
+        """Tranzila GET-redirects here on successful payment."""
+        import urllib.parse
+        parsed = urllib.parse.urlparse(self.path)
+        params = urllib.parse.parse_qs(parsed.query)
+        order_id  = (params.get('Order_ID', None) or params.get('order_id', ['']))[0]
+        response  = params.get('Response',         [''])[0]
+        conf_code = params.get('ConfirmationCode', [''])[0]
+        print(f'  [PaymentSuccess] order={order_id} response={response} conf={conf_code} path={self.path}')
+        self._save_order_from_params(params, order_id)
+        self._redirect(f'/?payment=success&order_id={urllib.parse.quote(order_id)}')
+
+    def _handle_payment_fail_redirect(self):
+        """Tranzila GET-redirects here on failed/cancelled payment."""
+        print(f'  [PaymentFail] path={self.path}')
+        self._redirect('/?payment=fail')
+
+    def _save_order_from_params(self, params, order_id):
+        order = _pending_orders.pop(order_id, None)
+        if not order:
+            print(f'  [Sheets] Order {order_id} not found in pending — already saved or expired')
+            return
+        service = get_sheets_service()
+        if service:
+            append_order_to_sheet(service, order)
+        else:
+            print(f'  [Sheets] Not configured — order {order_id}:')
+            print(f'  [Order] {json.dumps(order, ensure_ascii=False)}')
+
+    def _redirect(self, location):
         self.send_response(302)
-        self.send_header('Location', redirect_url)
+        self.send_header('Location', location)
         self.send_header('Content-Length', '0')
         self._cors()
         self.end_headers()
@@ -489,8 +512,8 @@ class Handler(SimpleHTTPRequestHandler):
                 'email':       order.get('email', ''),
                 'phone':       order.get('phone', ''),
                 'Order_ID':    order_id,
-                'success_url': f'{base_site}/payment-result?status=success&order_id={order_id}',
-                'fail_url':    f'{base_site}/payment-result?status=fail',
+                'success_url': f'{base_site}/payment-success?order_id={order_id}',
+                'fail_url':    f'{base_site}/payment-fail',
             })
             iframe_url = f'{TRANZILA_IFRAME_BASE}?{iframe_params}'
             print(f'  [Payment] Init {order_id} — ₪{order["total"]} — handshake OK')

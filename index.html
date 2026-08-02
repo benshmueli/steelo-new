@@ -452,7 +452,7 @@
   const title = document.getElementById('payment-result-title');
   const msg   = document.getElementById('payment-result-msg');
   const orderEl = document.getElementById('payment-result-order');
-  if (status === 'success') {
+  if (status && status.startsWith('success')) {
     icon.innerHTML  = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="20 6 9 17 4 12"/></svg>';
     title.textContent = 'Thank you for your order';
     msg.textContent   = 'Your payment was received. We will be in touch shortly with delivery details.';
