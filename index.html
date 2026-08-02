@@ -429,5 +429,43 @@
   <script src="js/checkout.js?v=4"></script>
   <script src="js/main.js?v=4"></script>
 
+
+<div id="payment-result-modal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(20,18,16,0.5);align-items:center;justify-content:center;">
+  <div style="background:var(--sand);max-width:480px;width:90%;padding:3rem 2.5rem;text-align:center;position:relative;">
+    <div id="payment-result-icon" style="width:3rem;height:3rem;border-radius:50%;background:var(--sand-300);display:flex;align-items:center;justify-content:center;margin:0 auto 1.5rem;"></div>
+    <h2 id="payment-result-title" style="font-family:'Cormorant',Georgia,serif;font-weight:300;font-size:2rem;color:var(--ink);margin:0 0 1rem;"></h2>
+    <p id="payment-result-msg" style="font-family:Montserrat;font-weight:300;font-size:0.875rem;line-height:1.9;color:var(--ink-400);margin:0 0 2rem;"></p>
+    <p id="payment-result-order" style="font-family:Montserrat;font-size:0.7rem;letter-spacing:0.15em;color:var(--ink-400);margin:0 0 2rem;"></p>
+    <button onclick="document.getElementById('payment-result-modal').style.display='none';history.replaceState(null,'',location.pathname);" class="btn-primary">Back to Store</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  const p = new URLSearchParams(location.search);
+  const status = p.get('payment');
+  if (!status) return;
+  const modal = document.getElementById('payment-result-modal');
+  const icon  = document.getElementById('payment-result-icon');
+  const title = document.getElementById('payment-result-title');
+  const msg   = document.getElementById('payment-result-msg');
+  const orderEl = document.getElementById('payment-result-order');
+  if (status === 'success') {
+    icon.innerHTML  = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="20 6 9 17 4 12"/></svg>';
+    title.textContent = 'Thank you for your order';
+    msg.textContent   = 'Your payment was received. We will be in touch shortly with delivery details.';
+    const orderId = p.get('order_id');
+    if (orderId) orderEl.textContent = 'Order ' + orderId;
+    // Notify server to save to Sheets
+    const qs = new URLSearchParams({ order_id: orderId, Response: '000', ConfirmationCode: p.get('ConfirmationCode') || '' });
+    fetch('/payment/confirm?' + qs.toString()).catch(()=>{});
+  } else {
+    icon.innerHTML  = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+    title.textContent = 'Payment not completed';
+    msg.textContent   = 'Your card was not charged. You can try again or contact us.';
+  }
+  modal.style.display = 'flex';
+})();
+</script>
 </body>
 </html>

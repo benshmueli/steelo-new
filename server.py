@@ -454,8 +454,8 @@ class Handler(SimpleHTTPRequestHandler):
                 'email':       order.get('email', ''),
                 'phone':       order.get('phone', ''),
                 'Order_ID':    order_id,
-                'success_url': f'{base_site}/payment-success.html',
-                'fail_url':    f'{base_site}/payment-fail.html',
+                'success_url': f'{base_site}/?payment=success&order_id={order_id}',
+                'fail_url':    f'{base_site}/?payment=fail',
             })
             iframe_url = f'{TRANZILA_IFRAME_BASE}?{iframe_params}'
             print(f'  [Payment] Init {order_id} — ₪{order["total"]} — handshake OK')
