@@ -235,6 +235,7 @@ def products_to_js(products):
 
 # ── HTTP handler ──────────────────────────────────────────────────────────────
 class Handler(SimpleHTTPRequestHandler):
+    protocol_version = 'HTTP/1.1'
 
     def do_GET(self):
         if self.path.startswith('/payment/confirm'):
