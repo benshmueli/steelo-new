@@ -283,8 +283,13 @@ class Handler(SimpleHTTPRequestHandler):
         parsed = urllib.parse.urlparse(self.path)
         params = urllib.parse.parse_qs(parsed.query)
         order_id = (params.get('order_id', ['']) or params.get('Order_ID', ['']))[0]
-        print(f'  [PaymentQuery] Saving from query — order_id={order_id} path={self.path}')
-        self._save_order_from_params(params, order_id)
+        # If Tranzila didn't include order_id in the redirect URL, use the pending order
+        if not order_id and _pending_orders:
+            order_id = list(_pending_orders.keys())[-1]
+            print(f'  [PaymentQuery] No order_id in URL — using pending: {order_id}')
+        print(f'  [PaymentQuery] order_id={order_id} path={self.path}')
+        if order_id:
+            self._save_order_from_params(params, order_id)
 
     def _debug_sheets(self):
         try:
