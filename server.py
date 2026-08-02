@@ -84,6 +84,31 @@ def ensure_header_row(service):
         print(f'  [Sheets] Header row error: {e}')
 
 
+def mark_order_paid(service, order_id):
+    """Find the row with this order_id and set its Status column to Paid."""
+    try:
+        result = service.spreadsheets().values().get(
+            spreadsheetId=SHEET_ID, range='Sheet1!A:A'
+        ).execute()
+        rows = result.get('values', [])
+        for i, row in enumerate(rows):
+            if row and row[0] == order_id:
+                row_num = i + 1  # 1-indexed
+                service.spreadsheets().values().update(
+                    spreadsheetId=SHEET_ID,
+                    range=f'Sheet1!N{row_num}',
+                    valueInputOption='RAW',
+                    body={'values': [['Paid']]},
+                ).execute()
+                print(f'  [Sheets] Order {order_id} marked Paid (row {row_num}) ✓')
+                return True
+        print(f'  [Sheets] Order {order_id} not found in sheet to mark Paid')
+        return False
+    except Exception as e:
+        print(f'  [Sheets] mark_order_paid error: {e}')
+        return False
+
+
 def append_order_to_sheet(service, order):
     """Append one order row to the Google Sheet."""
     items_summary = '; '.join(
@@ -341,27 +366,13 @@ class Handler(SimpleHTTPRequestHandler):
         self._redirect('/?payment=fail')
 
     def _save_order_from_params(self, params, order_id):
-        order = _pending_orders.pop(order_id, None)
-        if not order:
-            print(f'  [Sheets] Order {order_id} not in pending — saving from redirect params. Pending keys: {list(_pending_orders.keys())}')
-            # Fallback: build minimal order from what Tranzila gives us
-            order = {
-                'order_id':   order_id,
-                'date':       __import__('datetime').datetime.now().strftime('%d/%m/%Y %H:%M'),
-                'name':       params.get('contact', [''])[0],
-                'email':      params.get('email',   [''])[0],
-                'phone':      params.get('phone',   [''])[0],
-                'address':    '', 'apartment': '', 'city': '',
-                'postal_code': '', 'country': 'Israel', 'notes': '',
-                'items':      [{'name': 'Unknown', 'qty': 1, 'price': params.get('sum', ['0'])[0]}],
-                'total':      params.get('sum', ['0'])[0],
-            }
+        _pending_orders.pop(order_id, None)
+        print(f'  [Sheets] Payment confirmed for {order_id} — marking Paid')
         service = get_sheets_service()
         if service:
-            append_order_to_sheet(service, order)
-        else:
-            print(f'  [Sheets] Not configured — order {order_id}:')
-            print(f'  [Order] {json.dumps(order, ensure_ascii=False)}')
+            marked = mark_order_paid(service, order_id)
+            if not marked:
+                print(f'  [Sheets] Could not find row to mark Paid — row was already saved at init')
 
     def _redirect(self, location):
         self.send_response(302)
