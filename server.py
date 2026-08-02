@@ -245,8 +245,30 @@ class Handler(SimpleHTTPRequestHandler):
             self._handle_payment_success_redirect()
         elif self.path.startswith('/payment-fail'):
             self._handle_payment_fail_redirect()
+        elif self.path.startswith('/debug/sheets'):
+            self._debug_sheets()
         else:
             super().do_GET()
+
+    def _debug_sheets(self):
+        try:
+            service = get_sheets_service()
+            if not service:
+                creds_set = bool(os.environ.get('GOOGLE_CREDENTIALS_JSON'))
+                self._json(200, {'ok': False, 'sheets': False,
+                    'GOOGLE_CREDENTIALS_JSON': creds_set,
+                    'SHEET_ID': bool(SHEET_ID),
+                    'pending_orders': list(_pending_orders.keys())})
+                return
+            result = service.spreadsheets().values().get(
+                spreadsheetId=SHEET_ID, range='Sheet1!A1:A3'
+            ).execute()
+            self._json(200, {'ok': True, 'sheets': True,
+                'rows': result.get('values', []),
+                'pending_orders': list(_pending_orders.keys())})
+        except Exception as e:
+            self._json(500, {'ok': False, 'error': str(e),
+                'pending_orders': list(_pending_orders.keys())})
 
     def _handle_payment_confirm(self):
         import urllib.parse
@@ -310,8 +332,19 @@ class Handler(SimpleHTTPRequestHandler):
     def _save_order_from_params(self, params, order_id):
         order = _pending_orders.pop(order_id, None)
         if not order:
-            print(f'  [Sheets] Order {order_id} not found in pending — already saved or expired')
-            return
+            print(f'  [Sheets] Order {order_id} not in pending — saving from redirect params. Pending keys: {list(_pending_orders.keys())}')
+            # Fallback: build minimal order from what Tranzila gives us
+            order = {
+                'order_id':   order_id,
+                'date':       __import__('datetime').datetime.now().strftime('%d/%m/%Y %H:%M'),
+                'name':       params.get('contact', [''])[0],
+                'email':      params.get('email',   [''])[0],
+                'phone':      params.get('phone',   [''])[0],
+                'address':    '', 'apartment': '', 'city': '',
+                'postal_code': '', 'country': 'Israel', 'notes': '',
+                'items':      [{'name': 'Unknown', 'qty': 1, 'price': params.get('sum', ['0'])[0]}],
+                'total':      params.get('sum', ['0'])[0],
+            }
         service = get_sheets_service()
         if service:
             append_order_to_sheet(service, order)
