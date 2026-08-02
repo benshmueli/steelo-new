@@ -115,6 +115,13 @@ document.getElementById('modal-add-cart').addEventListener('click', () => {
   closeModal();
 });
 
+document.getElementById('modal-buy-now').addEventListener('click', () => {
+  if (!activeProd) return;
+  addToCart(activeProd);
+  closeModal();
+  setTimeout(openCheckout, 300);
+});
+
 /* Lightbox */
 let lbIdx = 0;
 
