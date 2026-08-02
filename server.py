@@ -4,7 +4,9 @@ Steelo dev server — serves static files + handles admin save + order endpoints
 Run: python3 server.py
 """
 from http.server import HTTPServer, SimpleHTTPRequestHandler
-import json, os, re, hashlib, time
+import json, os, re, hashlib, time, smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 
 # Railway injects PORT; fall back to 8891 for local dev
 PORT     = int(os.environ.get('PORT', 8891))
@@ -144,6 +146,99 @@ def append_order_to_sheet(service, order):
         return True
     except Exception as e:
         print(f'  [Sheets] Append error: {e}')
+        return False
+
+
+# ── Email receipts ───────────────────────────────────────────────────────────
+GMAIL_USER     = 'steelo.designers@gmail.com'
+GMAIL_PASSWORD = os.environ.get('GMAIL_APP_PASSWORD', '')
+
+def send_receipt_email(order):
+    if not GMAIL_PASSWORD:
+        print('  [Email] GMAIL_APP_PASSWORD not set — skipping receipt email')
+        return False
+    to_email = order.get('email', '')
+    if not to_email:
+        print('  [Email] No customer email in order — skipping')
+        return False
+
+    order_id  = order.get('order_id', '')
+    name      = order.get('name', 'Valued Customer')
+    items     = order.get('items', [])
+    total     = order.get('total', 0)
+    date      = order.get('date', '')
+    address_parts = [
+        order.get('address', ''), order.get('apartment', ''),
+        order.get('city', ''), order.get('postal_code', ''),
+        order.get('country', ''),
+    ]
+    address = ', '.join(p for p in address_parts if p)
+
+    items_html = ''.join(
+        f'<tr><td style="padding:8px 0;border-bottom:1px solid #e8e2da;">{i.get("name","")}</td>'
+        f'<td style="padding:8px 0;border-bottom:1px solid #e8e2da;text-align:center;">×{i.get("qty",1)}</td>'
+        f'<td style="padding:8px 0;border-bottom:1px solid #e8e2da;text-align:right;">₪{i.get("price",0)}</td></tr>'
+        for i in items
+    )
+
+    html = f"""
+<html><body style="margin:0;padding:0;background:#f5f0eb;font-family:Georgia,serif;">
+<div style="max-width:560px;margin:40px auto;background:#faf7f4;border:1px solid #e8e2da;">
+  <div style="background:#1a1714;padding:32px 40px;">
+    <p style="font-family:Helvetica,sans-serif;font-size:10px;letter-spacing:4px;text-transform:uppercase;color:#c8b89a;margin:0;">STEELO</p>
+  </div>
+  <div style="padding:40px;">
+    <h1 style="font-weight:300;font-size:28px;color:#1a1714;margin:0 0 8px;">Thank you, {name}.</h1>
+    <p style="font-family:Helvetica,sans-serif;font-size:13px;color:#6b6560;margin:0 0 32px;">Your order has been received and is being processed.</p>
+
+    <table width="100%" cellpadding="0" cellspacing="0" style="font-family:Helvetica,sans-serif;font-size:13px;color:#1a1714;">
+      <tr>
+        <th style="text-align:left;padding-bottom:12px;border-bottom:2px solid #1a1714;font-size:10px;letter-spacing:2px;text-transform:uppercase;font-weight:500;">Item</th>
+        <th style="text-align:center;padding-bottom:12px;border-bottom:2px solid #1a1714;font-size:10px;letter-spacing:2px;text-transform:uppercase;font-weight:500;">Qty</th>
+        <th style="text-align:right;padding-bottom:12px;border-bottom:2px solid #1a1714;font-size:10px;letter-spacing:2px;text-transform:uppercase;font-weight:500;">Price</th>
+      </tr>
+      {items_html}
+      <tr>
+        <td colspan="2" style="padding:16px 0 0;font-size:10px;letter-spacing:2px;text-transform:uppercase;font-weight:500;">Total</td>
+        <td style="padding:16px 0 0;text-align:right;font-size:18px;font-family:Georgia,serif;">₪{total}</td>
+      </tr>
+    </table>
+
+    <div style="margin-top:32px;padding-top:24px;border-top:1px solid #e8e2da;font-family:Helvetica,sans-serif;font-size:12px;color:#6b6560;line-height:1.8;">
+      <p style="margin:0 0 4px;"><strong style="color:#1a1714;">Order</strong> {order_id}</p>
+      <p style="margin:0 0 4px;"><strong style="color:#1a1714;">Date</strong> {date}</p>
+      {'<p style="margin:0;"><strong style="color:#1a1714;">Delivery to</strong> ' + address + '</p>' if address else ''}
+    </div>
+
+    <p style="margin:32px 0 0;font-family:Helvetica,sans-serif;font-size:12px;color:#6b6560;line-height:1.8;">
+      Each piece is made to order. Lead time is 4–6 weeks.<br>
+      We will be in touch with delivery details.<br><br>
+      <a href="mailto:steelo.designers@gmail.com" style="color:#1a1714;">steelo.designers@gmail.com</a>
+    </p>
+  </div>
+  <div style="background:#1a1714;padding:20px 40px;">
+    <p style="font-family:Helvetica,sans-serif;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#6b6560;margin:0;">Sculptural Steel Furniture · Made in Israel</p>
+  </div>
+</div>
+</body></html>"""
+
+    try:
+        msg = MIMEMultipart('alternative')
+        msg['Subject'] = f'Your STEELO order — {order_id}'
+        msg['From']    = f'STEELO <{GMAIL_USER}>'
+        msg['To']      = to_email
+        msg['Reply-To'] = GMAIL_USER
+        msg.attach(MIMEText(html, 'html', 'utf-8'))
+
+        with smtplib.SMTP('smtp.gmail.com', 587) as smtp:
+            smtp.starttls()
+            smtp.login(GMAIL_USER, GMAIL_PASSWORD)
+            smtp.sendmail(GMAIL_USER, to_email, msg.as_string())
+
+        print(f'  [Email] Receipt sent to {to_email} ✓')
+        return True
+    except Exception as e:
+        print(f'  [Email] Failed to send to {to_email}: {e}')
         return False
 
 
@@ -371,13 +466,15 @@ class Handler(SimpleHTTPRequestHandler):
         self._redirect('/?payment=fail')
 
     def _save_order_from_params(self, params, order_id):
-        _pending_orders.pop(order_id, None)
+        order = _pending_orders.pop(order_id, None)
         print(f'  [Sheets] Payment confirmed for {order_id} — marking Paid')
         service = get_sheets_service()
         if service:
             marked = mark_order_paid(service, order_id)
             if not marked:
                 print(f'  [Sheets] Could not find row to mark Paid — row was already saved at init')
+        if order:
+            send_receipt_email(order)
 
     def _redirect(self, location):
         self.send_response(302)
