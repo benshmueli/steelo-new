@@ -3,7 +3,7 @@ const PRODUCTS = [
     id: 'loop',
     name: 'Loop',
     category: 'Side Table',
-    price: 1200,
+    price: 1,
     discount: 0,
     dimensions: '30 x 40 x 50 cm',
     description: 'A tall side table that opens an arch. The void is as important as the steel — presence through negative space. Stands beside any chair or sofa with quiet authority.',
