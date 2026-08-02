@@ -248,7 +248,18 @@ class Handler(SimpleHTTPRequestHandler):
         elif self.path.startswith('/debug/sheets'):
             self._debug_sheets()
         else:
+            # Tranzila may redirect to /?payment=success via dashboard URL — save order here too
+            if 'payment=success' in self.path:
+                self._try_save_from_query()
             super().do_GET()
+
+    def _try_save_from_query(self):
+        import urllib.parse
+        parsed = urllib.parse.urlparse(self.path)
+        params = urllib.parse.parse_qs(parsed.query)
+        order_id = (params.get('order_id', ['']) or params.get('Order_ID', ['']))[0]
+        print(f'  [PaymentQuery] Saving from query — order_id={order_id} path={self.path}')
+        self._save_order_from_params(params, order_id)
 
     def _debug_sheets(self):
         try:
