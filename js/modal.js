@@ -4,6 +4,25 @@
 let activeProd = null;
 let activeImgIdx = 0;
 
+function formatDimensions(value) {
+  if (!value) return '—';
+  const lang = document.documentElement.lang || 'he';
+  const unit = lang.startsWith('en') ? 'cm' : 'ס״מ';
+  const labels = lang.startsWith('en')
+    ? ['Length', 'Width', 'Height']
+    : ['אורך', 'רוחב', 'גובה'];
+  const parts = value.replace(/\s*cm\s*$/i, '').split('x').map(p => p.trim());
+  if (parts.length === 3) {
+    const [width, length, height] = parts;
+    if (width === length) {
+      const diameterLabel = lang.startsWith('en') ? 'Diameter' : 'קוטר';
+      return `${diameterLabel} : ${width} ${unit}\n${lang.startsWith('en') ? 'Height' : 'גובה'} : ${height} ${unit}`;
+    }
+    return `${labels[0]} : ${length} ${unit}\n${labels[1]} : ${width} ${unit}\n${labels[2]} : ${height} ${unit}`;
+  }
+  return value;
+}
+
 function openModal(productId) {
   const p = PRODUCTS.find(x => x.id === productId);
   if (!p) return;
@@ -13,7 +32,7 @@ function openModal(productId) {
   document.getElementById('modal-category').textContent    = p.category;
   document.getElementById('modal-name').textContent        = p.name;
   document.getElementById('modal-description').textContent = p.description;
-  document.getElementById('modal-dimensions').textContent  = p.dimensions || '—';
+  document.getElementById('modal-dimensions').textContent  = formatDimensions(p.dimensions);
   document.getElementById('modal-price').innerHTML = (p.discount > 0)
     ? `<span style="text-decoration:line-through;opacity:0.4;font-size:0.7em;margin-right:0.5rem;">${fmt(p.price)}</span><span style="color:#B85C38;">${fmt(salePrice(p.price, p.discount))}</span>`
     : fmt(p.price);
@@ -35,7 +54,7 @@ function closeModal() {
 function buildModalImages(p) {
   const container = document.getElementById('modal-images-container');
   container.innerHTML = '';
-  container.style.transform = 'translateX(0)';
+  container.style.cssText = 'display:flex; width:100%; height:100%; transition:transform 0.45s cubic-bezier(0.4, 0, 0.2, 1); transform:translateX(0);';
 
   p.images.forEach((src, i) => {
     const slide = document.createElement('div');
