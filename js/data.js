@@ -7,7 +7,7 @@ const PRODUCTS = [
     discount: 0,
     dimensions: '30 x 40 x 50 cm',
     description: 'A tall side table that opens an arch. The void is as important as the steel — presence through negative space. Stands beside any chair or sofa with quiet authority.',
-    images: ['images/products/LoopSideTable/1.png', 'images/products/LoopSideTable/2.png', 'images/products/LoopSideTable/3.png'],
+    images: ['/images/products/LoopSideTable/1.png', '/images/products/LoopSideTable/2.png', '/images/products/LoopSideTable/3.png'],
   },
   {
     id: 'elephant-dining',
@@ -17,7 +17,7 @@ const PRODUCTS = [
     discount: 0,
     dimensions: '120 x 120 x 75 cm',
     description: 'An organic oval surface carried by three cylindrical legs. Inspired by the forms of nature — this dining table feels alive, sculptural yet grounded enough for daily life.',
-    images: ['images/products/ElephantDining/1.png', 'images/products/ElephantDining/2.png'],
+    images: ['/images/products/ElephantDining/1.png', '/images/products/ElephantDining/2.png'],
   },
   {
     id: 'c-table',
@@ -27,7 +27,7 @@ const PRODUCTS = [
     discount: 0,
     dimensions: '35 x 45 x 50 cm',
     description: 'A minimal side companion. The C-form in 201 stainless steel is designed to slide under sofas and beside beds — always close, never in the way.',
-    images: ['images/products/C-Table/1.png', 'images/products/C-Table/2.png', 'images/products/C-Table/3.png', 'images/products/C-Table/4.png'],
+    images: ['/images/products/C-Table/1.png', '/images/products/C-Table/2.png', '/images/products/C-Table/3.png', '/images/products/C-Table/4.png'],
   },
   {
     id: 'ripple',
@@ -37,7 +37,7 @@ const PRODUCTS = [
     discount: 0,
     dimensions: '37 x 32 x 48 cm',
     description: 'Parallel wires trace a continuous loop, creating a stool from a single rhythmic gesture. Chrome wire steel, light and layered — sculpture you can sit on.',
-    images: ['images/products/RippleStool/1.png', 'images/products/RippleStool/2.png'],
+    images: ['/images/products/RippleStool/1.png', '/images/products/RippleStool/2.png'],
   },
   {
     id: 'nordic',
@@ -47,7 +47,7 @@ const PRODUCTS = [
     discount: 0,
     dimensions: '35 x 45 x 45 cm',
     description: 'Two nesting forms echo the same gesture at different scales. Brushed steel tables that stack inside each other — expanding or compacting your living space as needed.',
-    images: ['images/products/Nordic/1.png', 'images/products/Nordic/2.png', 'images/products/Nordic/3.png'],
+    images: ['/images/products/Nordic/1.png', '/images/products/Nordic/2.png', '/images/products/Nordic/3.png'],
   },
   {
     id: 'three-level',
@@ -57,7 +57,7 @@ const PRODUCTS = [
     discount: 0,
     dimensions: '70 x 70 x 47 cm',
     description: 'Geometric circles and rectangles interlock at different heights — architecture in miniature. A coffee table that works as display surface, side table, and sculptural object.',
-    images: ['images/products/ThreeLevel/1.png', 'images/products/ThreeLevel/2.png'],
+    images: ['/images/products/ThreeLevel/1.png', '/images/products/ThreeLevel/2.png'],
   },
   {
     id: 'plie',
@@ -67,7 +67,7 @@ const PRODUCTS = [
     discount: 0,
     dimensions: '50 x 90 x 44 cm',
     description: 'Named after the ballet movement. The surface folds into vertical legs without seam or visible weld — one continuous gesture in steel, lowered to the ground.',
-    images: ['images/products/PLIE/1.png', 'images/products/PLIE/2.png', 'images/products/PLIE/3.png', 'images/products/PLIE/4.png'],
+    images: ['/images/products/PLIE/1.png', '/images/products/PLIE/2.png', '/images/products/PLIE/3.png', '/images/products/PLIE/4.png'],
   },
   {
     id: 'elephant-low',
@@ -77,7 +77,7 @@ const PRODUCTS = [
     discount: 0,
     dimensions: '85 x 85 x 42 cm',
     description: 'The Elephant form, lowered to the ground. An organic coffee table with quiet, monumental presence — its oval surface hovering above three cylindrical columns.',
-    images: ['images/products/ElephantLowTable/1.png'],
+    images: ['/images/products/ElephantLowTable/1.png'],
   },
   {
     id: 'rectangular-s',
@@ -87,7 +87,7 @@ const PRODUCTS = [
     discount: 0,
     dimensions: '60 x 100 x 42 cm ',
     description: 'The simplest gesture: a rectangle that folds into legs. Brushed steel flows from surface to floor without interruption — pure form, zero ornament.',
-    images: ['images/products/RectangularLivingRoom/1.png', 'images/products/RectangularLivingRoom/2.png'],
+    images: ['/images/products/RectangularLivingRoom/1.png', '/images/products/RectangularLivingRoom/2.png'],
   },
   {
     id: 'magazine-rack-curves',
@@ -97,7 +97,7 @@ const PRODUCTS = [
     discount: 0,
     dimensions: '30 x 46 x 37 cm',
     description: '',
-    images: ['images/products/MagazineRackCurves/1.png', 'images/products/MagazineRackCurves/2.png'],
+    images: ['/images/products/MagazineRackCurves/1.png', '/images/products/MagazineRackCurves/2.png'],
   },
   {
     id: 'river-box-table',
@@ -107,7 +107,7 @@ const PRODUCTS = [
     discount: 0,
     dimensions: '',
     description: '',
-    images: ['images/products/RiverBoxTable/1.png', 'images/products/RiverBoxTable/2.png'],
+    images: ['/images/products/RiverBoxTable/1.png', '/images/products/RiverBoxTable/2.png'],
   },
   {
     id: 'rectangular-l',
@@ -117,6 +117,6 @@ const PRODUCTS = [
     discount: 0,
     dimensions: '60 x 120 x 42 cm',
     description: '',
-    images: ['images/products/RectangularLivingRoom/1.png', 'images/products/RectangularLivingRoom/2.png'],
+    images: ['/images/products/RectangularLivingRoom/1.png', '/images/products/RectangularLivingRoom/2.png'],
   },
 ];
