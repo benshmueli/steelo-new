@@ -6,7 +6,7 @@ const PRODUCTS = [
     price: 1,
     discount: 0,
     dimensions: '30 x 40 x 50 cm',
-    description: 'A tall side table that opens an arch. The void is as important as the steel — presence through negative space. Stands beside any chair or sofa with quiet authority.',
+    description: 'שולחן Loop בעיצוב מינימליסטי וייחודי שמתאים לכל מקום בבית. בזכות המראה הנקי והמבריק שלו, הוא משדרג בקלות כל חלל ומשלב בין סטייל לפרקטיקה. רב-שימושי: מתאים כשולחן צד לסלון, שולחן קפה קטן או כשידת לילה מעוצבת ליד המיטה. עשוי נירוסטה איכותית עם ליטוש ידני למראה יוקרתי ועמידות לאורך זמן.',
     images: ['/images/products/LoopSideTable/1.png', '/images/products/LoopSideTable/2.png', '/images/products/LoopSideTable/3.png'],
   },
   {
@@ -16,7 +16,7 @@ const PRODUCTS = [
     price: 5000,
     discount: 0,
     dimensions: '120 x 120 x 75 cm',
-    description: 'An organic oval surface carried by three cylindrical legs. Inspired by the forms of nature — this dining table feels alive, sculptural yet grounded enough for daily life.',
+    description: 'שולחן אוכל Elephant Leg הוא הצהרה עיצובית יוצאת דופן. השולחן מציג נוכחות מרשימה, המשלבת בין חומריות תעשייתית לבין קווים גיאומטריים מתוחכמים. השולחן מתאים לאירוח של 5-7 סועדים, עשוי נירוסטה איכותית בגימור מלוטש ויוקרתי. המבנה שלו מדגיש את היופי הגולמי של המתכת תוך שמירה על מראה נקי, מודרני וקליל באופן מפתיע.',
     images: ['/images/products/ElephantDining/1.png', '/images/products/ElephantDining/2.png'],
   },
   {
@@ -26,7 +26,7 @@ const PRODUCTS = [
     price: 990,
     discount: 0,
     dimensions: '35 x 45 x 50 cm',
-    description: 'A minimal side companion. The C-form in 201 stainless steel is designed to slide under sofas and beside beds — always close, never in the way.',
+    description: 'נשכן עשוי 100% נירוסטה מרשים, מלא בסטייל, נקי, קלאסי ויוקרתי, ניתן לשימוש גם בתור שולחן צד',
     images: ['/images/products/C-Table/1.png', '/images/products/C-Table/2.png', '/images/products/C-Table/3.png', '/images/products/C-Table/4.png'],
   },
   {
