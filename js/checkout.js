@@ -119,7 +119,7 @@ document.getElementById('checkout-to-payment-btn').addEventListener('click', asy
       body:    JSON.stringify(payload),
     });
     const data = await res.json();
-    if (!data.ok) throw new Error(data.error || 'Could not initiate payment');
+    if (!data.ok) throw new Error(data.error || t('pay_init_fail'));
 
     // Clear cart before leaving — payment page is loading
     cart = [];
@@ -131,7 +131,7 @@ document.getElementById('checkout-to-payment-btn').addEventListener('click', asy
     showCheckoutStep(2);
     const errEl2 = document.getElementById('checkout-pay-error');
     if (errEl2) {
-      errEl2.textContent = err.message || 'Could not connect to payment. Please try again.';
+      errEl2.textContent = err.message || t('pay_conn_fail');
       errEl2.style.display = 'block';
     }
   }

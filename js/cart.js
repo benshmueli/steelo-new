@@ -64,7 +64,7 @@ function renderCartItems() {
           <line x1="3" y1="6" x2="21" y2="6"/>
           <path d="M16 10a4 4 0 01-8 0"/>
         </svg>
-        <p style="font-family:Montserrat;font-size:0.65rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--ink-300);">Your cart is empty</p>
+        <p style="font-family:Montserrat,Heebo;font-size:0.65rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--ink-300);">${t('cart_empty')}</p>
       </div>`;
     return;
   }
@@ -81,16 +81,16 @@ function renderCartItems() {
         <h4 style="font-family:Cormorant,Georgia,serif;font-weight:300;font-size:1.4rem;color:var(--ink);margin:0 0 0.4rem;line-height:1.1;">${item.name}</h4>
         <p style="font-family:Cormorant,Georgia,serif;font-weight:300;font-size:1.15rem;color:var(--ink);margin:0 0 0.75rem;">${item.originalPrice && item.originalPrice !== item.price ? `<span style="text-decoration:line-through;opacity:0.4;font-size:0.85em;margin-right:0.35rem;">${fmt(item.originalPrice)}</span><span style="color:#B85C38;">${fmt(item.price)}</span>` : fmt(item.price)}</p>
         <div style="display:flex;align-items:center;gap:0.75rem;">
-          <button class="qty-btn" onclick="changeQty('${item.id}',-1)" aria-label="Decrease">
+          <button class="qty-btn" onclick="changeQty('${item.id}',-1)" aria-label="${t('decrease')}">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/></svg>
           </button>
           <span style="font-family:Montserrat;font-size:0.85rem;width:1rem;text-align:center;">${item.quantity}</span>
-          <button class="qty-btn" onclick="changeQty('${item.id}',1)" aria-label="Increase">
+          <button class="qty-btn" onclick="changeQty('${item.id}',1)" aria-label="${t('increase')}">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           </button>
           <button onclick="removeItem('${item.id}')"
-            style="margin-left:auto;background:none;border:none;cursor:pointer;font-family:Montserrat;font-size:0.65rem;color:var(--ink-300);transition:color 0.2s;"
-            onmouseover="this.style.color='var(--ink)'" onmouseout="this.style.color='var(--ink-300)'">Remove</button>
+            style="margin-inline-start:auto;background:none;border:none;cursor:pointer;font-family:Montserrat,Heebo;font-size:0.65rem;color:var(--ink-300);transition:color 0.2s;"
+            onmouseover="this.style.color='var(--ink)'" onmouseout="this.style.color='var(--ink-300)'">${t('remove')}</button>
         </div>
       </div>`;
     el.appendChild(row);

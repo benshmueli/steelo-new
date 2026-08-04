@@ -497,3 +497,12 @@ body {
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
+
+/* ── RTL / Hebrew polish ───────────────────────────────────────────────── */
+html[dir="rtl"] .marquee-track { animation-direction: reverse; }
+/* Hebrew reads better without forced letter-spacing on short labels */
+html[dir="rtl"] .nav-link { letter-spacing: 0.05em; }
+/* The animated nav underline should grow from the reading (right) edge */
+html[dir="rtl"] .nav-link::after { left: auto; right: 0; }
+/* Cart drawer: keep its divider on the edge that meets the page */
+html[dir="rtl"] #cart-sidebar { border-left: none; border-right: 1px solid var(--sand-300); }
