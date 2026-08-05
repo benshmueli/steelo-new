@@ -22,14 +22,14 @@ function renderGrid() {
     imgBox.style.cssText = 'position:relative;overflow:hidden;aspect-ratio:3/4;';
 
     const img1 = document.createElement('img');
-    img1.src = p.images[0];
-    img1.alt = p.name;
+    img1.src = p.images.length > 1 ? p.images[1] : p.images[0];
+    img1.alt = p.name + ' close view';
     img1.className = 'img-primary';
     img1.loading = 'lazy';
     img1.style.cssText = 'width:100%;height:100%;object-fit:cover;object-position:center center;display:block;';
 
     const img2 = document.createElement('img');
-    img2.src = p.images.length > 1 ? p.images[1] : p.images[0];
+    img2.src = p.images[0];
     img2.alt = p.name + ' alternate view';
     img2.className = 'img-secondary';
     img2.loading = 'lazy';
@@ -97,5 +97,13 @@ window.addEventListener('scroll', () => {
   document.getElementById('navbar').classList.toggle('scrolled', window.scrollY > 80);
 }, { passive: true });
 
+function updateCollectionCount() {
+  const countEl = document.getElementById('collection-count');
+  if (!countEl) return;
+  const label = countEl.dataset.label || '';
+  countEl.textContent = PRODUCTS.length + label;
+}
+
 /* ---- Init ---- */
 renderGrid();
+updateCollectionCount();
