@@ -8,13 +8,10 @@ function renderGrid() {
   grid.innerHTML = '';
 
   PRODUCTS.forEach(p => {
-    const wrap = document.createElement('div');
-    wrap.style.cssText = 'background:var(--sand);display:flex;flex-direction:column;cursor:pointer;';
-    wrap.setAttribute('tabindex', '0');
-    wrap.setAttribute('role', 'button');
-    wrap.setAttribute('aria-label', 'View ' + p.name);
-    wrap.addEventListener('click', () => openModal(p.id));
-    wrap.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') openModal(p.id); });
+    const wrap = document.createElement('a');
+    wrap.href = '/products/' + p.id + '/';
+    wrap.style.cssText = 'background:var(--sand);display:flex;flex-direction:column;cursor:pointer;text-decoration:none;color:inherit;';
+    wrap.setAttribute('aria-label', p.name);
 
     /* image box */
     const imgBox = document.createElement('div');
@@ -36,9 +33,9 @@ function renderGrid() {
 
     const overlay = document.createElement('div');
     overlay.className = 'card-overlay';
-    const viewBtn = document.createElement('button');
+    const viewBtn = document.createElement('span');
     viewBtn.textContent = t('view_details');
-    viewBtn.style.cssText = 'width:100%;padding:0.75rem;border:1px solid rgba(245,240,235,0.7);background:transparent;color:#F5F0EB;font-family:Montserrat;font-size:0.65rem;letter-spacing:0.2em;text-transform:uppercase;cursor:pointer;transition:background 0.2s,color 0.2s;';
+    viewBtn.style.cssText = 'display:block;width:100%;box-sizing:border-box;padding:0.75rem;border:1px solid rgba(245,240,235,0.7);background:transparent;color:#F5F0EB;font-family:Montserrat;font-size:0.65rem;letter-spacing:0.2em;text-transform:uppercase;text-align:center;cursor:pointer;transition:background 0.2s,color 0.2s;';
     viewBtn.addEventListener('mouseover', () => { viewBtn.style.background = '#F5F0EB'; viewBtn.style.color = 'var(--ink)'; });
     viewBtn.addEventListener('mouseout',  () => { viewBtn.style.background = 'transparent'; viewBtn.style.color = '#F5F0EB'; });
     overlay.appendChild(viewBtn);
