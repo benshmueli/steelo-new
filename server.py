@@ -211,7 +211,7 @@ def send_receipt_email(order):
     </div>
 
     <p style="margin:32px 0 0;font-family:Helvetica,sans-serif;font-size:12px;color:#6b6560;line-height:1.8;">
-      Each piece is made to order. Lead time is 4–6 weeks.<br>
+      Each piece is made to order. Lead time is 5-10 business days.<br>
       We will be in touch with delivery details.<br><br>
       <a href="mailto:steelo.designers@gmail.com" style="color:#1a1714;">steelo.designers@gmail.com</a>
     </p>
