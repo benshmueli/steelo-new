@@ -29,10 +29,25 @@ function openModal(productId) {
   activeProd = p;
   activeImgIdx = 0;
 
-  document.getElementById('modal-category').textContent    = p.category;
+  const categoryKey = (p.category || '').toLowerCase();
+  const categoryLabel = categoryKey === 'coffee table'
+    ? 'שולחן סלון'
+    : categoryKey === 'living room table'
+      ? 'שולחן סלון'
+      : categoryKey === 'dining table'
+        ? 'שולחן אוכל'
+        : categoryKey === 'side table'
+          ? 'שידת צד'
+          : categoryKey === 'nesting tables'
+            ? 'שידת צד'
+            : categoryKey === 'stool'
+              ? 'מגזינים'
+              : p.category;
+  document.getElementById('modal-category').textContent    = categoryLabel;
   document.getElementById('modal-name').textContent        = p.name;
   document.getElementById('modal-description').textContent = p.description;
   document.getElementById('modal-dimensions').textContent  = formatDimensions(p.dimensions);
+  document.getElementById('modal-material').textContent    = p.material || 'נירוסטה 304';
   document.getElementById('modal-price').innerHTML = (p.discount > 0)
     ? `<span style="text-decoration:line-through;opacity:0.4;font-size:0.7em;margin-right:0.5rem;">${fmt(p.price)}</span><span style="color:#B85C38;">${fmt(salePrice(p.price, p.discount))}</span>`
     : fmt(p.price);

@@ -217,7 +217,7 @@ def send_receipt_email(order):
     </p>
   </div>
   <div style="background:#1a1714;padding:20px 40px;">
-    <p style="font-family:Helvetica,sans-serif;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#6b6560;margin:0;">Sculptural Steel Furniture · Made in Israel</p>
+      <p style="font-family:Helvetica,sans-serif;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#6b6560;margin:0;">ריהיאי נירוסטה על-זמניים · Made in Israel</p>
   </div>
 </div>
 </body></html>"""
