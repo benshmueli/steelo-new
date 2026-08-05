@@ -234,7 +234,7 @@ MODALS = '''  <!-- CART -->
 '''
 
 SCRIPTS = '''  <script src="/js/i18n.js?v=1"></script>
-  <script src="/js/data.js?v=6"></script>
+  <script src="/js/data.js?v=7"></script>
   <script src="/js/cart.js?v=6"></script>
   <script src="/js/checkout.js?v=5"></script>
   <script>
