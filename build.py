@@ -388,14 +388,14 @@ def product_page(p):
   <meta property="product:price:amount" content="{price}">
   <meta property="product:price:currency" content="ILS">
   {FONTS}
-  <link rel="stylesheet" href="/css/styles.css?v=14">
+  <link rel="stylesheet" href="/css/styles.css?v=15">
   <script type="application/ld+json">{json.dumps(ld_product, ensure_ascii=False)}</script>
   <script type="application/ld+json">{json.dumps(ld_crumbs, ensure_ascii=False)}</script>
 </head>
 <body>
 {NAV}
   <div id="page-wrap">
-    <main style="padding:7rem 6rem 5rem;max-width:1200px;margin:0 auto;">
+    <main class="pdp-main">
 
       <!-- Breadcrumb -->
       <nav aria-label="breadcrumb" style="font-family:Montserrat,Heebo;font-size:0.7rem;letter-spacing:0.05em;color:var(--ink-400);margin-bottom:2.5rem;">
@@ -406,7 +406,7 @@ def product_page(p):
         <span style="color:var(--ink);">{esc(name)}</span>
       </nav>
 
-      <div class="pdp-grid" style="display:grid;grid-template-columns:1.1fr 0.9fr;gap:4rem;align-items:start;">
+      <div class="pdp-grid">
         <!-- Gallery -->
         <div>
           <div style="background:var(--sand-200);aspect-ratio:1;overflow:hidden;">
