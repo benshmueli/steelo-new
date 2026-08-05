@@ -506,3 +506,15 @@ html[dir="rtl"] .nav-link { letter-spacing: 0.05em; }
 html[dir="rtl"] .nav-link::after { left: auto; right: 0; }
 /* Cart drawer: keep its divider on the edge that meets the page */
 html[dir="rtl"] #cart-sidebar { border-left: none; border-right: 1px solid var(--sand-300); }
+
+/* ── Product page (PDP) layout ─────────────────────────────────────────── */
+.pdp-main { padding: 7rem 6rem 5rem; max-width: 1200px; margin: 0 auto; }
+.pdp-grid { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 4rem; align-items: start; }
+@media (max-width: 900px) {
+  .pdp-main { padding: 6rem 2rem 3.5rem; }
+  .pdp-grid { grid-template-columns: 1fr; gap: 2.5rem; }
+}
+@media (max-width: 640px) {
+  .pdp-main { padding: 5.5rem 1.25rem 3rem; }
+  .pdp-grid { gap: 2rem; }
+}
