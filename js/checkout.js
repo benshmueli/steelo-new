@@ -10,6 +10,34 @@ function generateOrderId() {
   return `STL-${date}-${time}${rand}`;
 }
 
+/* ── Delivery method + fee (mirror of DELIVERY_FEE in build.py/server.py) ── */
+const DELIVERY_FEE = {
+  'dining table': 300, 'coffee table': 100, 'living room table': 100,
+  'side table': 70, 'nesting tables': 70, 'stool': 50,
+};
+function getDeliveryMethod() {
+  const el = document.getElementById('co-delivery-method');
+  return el && el.value ? el.value : 'ship';
+}
+function deliveryFee() {
+  if (getDeliveryMethod() === 'pickup') return 0;
+  return cart.reduce((s, i) => s + (DELIVERY_FEE[(i.category || '').toLowerCase()] || 0) * i.quantity, 0);
+}
+function selectDelivery(method) {
+  const hidden = document.getElementById('co-delivery-method');
+  if (hidden) hidden.value = method;
+  document.querySelectorAll('.cdt-btn').forEach(b => b.classList.toggle('active', b.dataset.method === method));
+  const isPickup = method === 'pickup';
+  const ship   = document.getElementById('checkout-ship-fields');
+  const pickup = document.getElementById('checkout-pickup-card');
+  if (ship)   ship.style.display   = isPickup ? 'none' : '';
+  if (pickup) pickup.style.display = isPickup ? '' : 'none';
+  ['co-address', 'co-city', 'co-postal'].forEach(id => {
+    const inp = document.getElementById(id);
+    if (inp) isPickup ? inp.removeAttribute('required') : inp.setAttribute('required', '');
+  });
+}
+
 /* ── Open / Close ─────────────────────────────────────────── */
 function openCheckout() {
   if (!cart || cart.length === 0) return;
@@ -58,8 +86,16 @@ function buildOrderSummary() {
       <span style="font-family:Cormorant,Georgia,serif;font-weight:300;font-size:1.1rem;color:var(--ink);white-space:nowrap;">${fmt(item.price * item.quantity)}</span>`;
     el.appendChild(row);
   });
-  const total = cart.reduce((s, i) => s + i.price * i.quantity, 0);
-  document.getElementById('checkout-order-total').innerHTML = fmt(total);
+  const itemsTotal = cart.reduce((s, i) => s + i.price * i.quantity, 0);
+  const isPickup = getDeliveryMethod() === 'pickup';
+  const fee = deliveryFee();
+  const drow = document.createElement('div');
+  drow.style.cssText = 'display:flex;justify-content:space-between;align-items:baseline;padding:0.6rem 0;gap:1rem;';
+  drow.innerHTML =
+    `<span style="font-family:Montserrat,Heebo;font-size:0.75rem;letter-spacing:0.05em;color:var(--ink-500);">${isPickup ? 'איסוף עצמי' : 'משלוח'}</span>` +
+    `<span style="font-family:Cormorant,Georgia,serif;font-weight:300;font-size:1.1rem;color:var(--ink);white-space:nowrap;">${isPickup ? 'חינם' : fmt(fee)}</span>`;
+  el.appendChild(drow);
+  document.getElementById('checkout-order-total').innerHTML = fmt(itemsTotal + fee);
 }
 
 /* ── Step 1 → Step 2 (details → summary) ─────────────────── */
@@ -93,7 +129,12 @@ document.getElementById('checkout-to-payment-btn').addEventListener('click', asy
   const orderId = generateOrderId();
   const now     = new Date();
   const dateStr = now.toLocaleString('he-IL', { timeZone: 'Asia/Jerusalem', hour12: false });
-  const total   = cart.reduce((s, i) => s + i.price * i.quantity, 0);
+  const method    = getDeliveryMethod();
+  const fee       = deliveryFee();
+  const itemsTotal = cart.reduce((s, i) => s + i.price * i.quantity, 0);
+  const total     = itemsTotal + fee;
+  const val = id => (f[id] ? f[id].value.trim() : '');
+  const checked = id => { const el = document.getElementById(id); return !!(el && el.checked); };
 
   const payload = {
     order_id:    orderId,
@@ -101,12 +142,17 @@ document.getElementById('checkout-to-payment-btn').addEventListener('click', asy
     name:        f['co-name'].value.trim(),
     email:       f['co-email'].value.trim(),
     phone:       f['co-phone'].value.trim(),
-    address:     f['co-address'].value.trim(),
-    apartment:   f['co-apartment'].value.trim(),
-    city:        f['co-city'].value.trim(),
-    postal_code: f['co-postal'].value.trim(),
-    country:     f['co-country'].value.trim(),
+    delivery_method: method,
+    delivery_fee:    fee,
+    address:     val('co-address'),
+    floor:       val('co-floor'),
+    apartment:   val('co-apartment'),
+    city:        val('co-city'),
+    postal_code: val('co-postal'),
+    country:     val('co-country'),
     notes:       f['co-notes'].value.trim(),
+    optin_email: checked('co-optin-email'),
+    optin_wa:    checked('co-optin-wa'),
     website:     f['co-website'].value.trim(),
     items:       cart.map(i => ({ id: i.id, name: i.name, category: i.category, qty: i.quantity, price: i.price })),
     total,
@@ -159,3 +205,8 @@ document.getElementById('checkout-modal').addEventListener('click', e => {
   if (e.target === document.getElementById('checkout-modal')) closeCheckout();
 });
 document.getElementById('checkout-done-btn').addEventListener('click', closeCheckout);
+
+/* ── Delivery method toggle (Ship / Pickup) ───────────────── */
+document.querySelectorAll('.cdt-btn').forEach(b =>
+  b.addEventListener('click', () => selectDelivery(b.dataset.method))
+);

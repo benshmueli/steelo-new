@@ -35,7 +35,24 @@ SHEET_COLUMNS = [
     'Order ID', 'Date', 'Name', 'Email', 'Phone',
     'Address', 'Apartment', 'City', 'Postal Code', 'Country',
     'Notes', 'Items', 'Total (₪)', 'Status',
+    'Floor', 'Delivery', 'Delivery Fee (₪)',
 ]
+
+# Marketing-list tab header (one row per customer who reaches payment).
+MARKETING_COLUMNS = [
+    'Date', 'Name', 'Email', 'Phone', 'Email Opt-in', 'WhatsApp Opt-in', 'Order ID',
+]
+
+# Delivery fee (₪) by lowercased product category — server-authoritative;
+# mirror of the map in build.py. Pickup is always free.
+DELIVERY_FEE = {
+    'dining table': 300,
+    'coffee table': 100,
+    'living room table': 100,
+    'side table': 70,
+    'nesting tables': 70,
+    'stool': 50,
+}
 
 def get_sheets_service():
     """Return an authenticated Google Sheets service, or None if not configured.
@@ -70,27 +87,53 @@ def get_sheets_service():
 
 
 def ensure_header_row(service):
-    """Write the header row if the sheet is empty."""
+    """Keep the 'orders' header row in sync with SHEET_COLUMNS (idempotent)."""
     try:
-        result = service.spreadsheets().values().get(
-            spreadsheetId=SHEET_ID, range='Sheet1!A1:N1'
+        service.spreadsheets().values().update(
+            spreadsheetId=SHEET_ID,
+            range='orders!A1',
+            valueInputOption='RAW',
+            body={'values': [SHEET_COLUMNS]},
         ).execute()
-        if not result.get('values'):
-            service.spreadsheets().values().update(
-                spreadsheetId=SHEET_ID,
-                range='Sheet1!A1',
-                valueInputOption='RAW',
-                body={'values': [SHEET_COLUMNS]},
-            ).execute()
     except Exception as e:
         print(f'  [Sheets] Header row error: {e}')
+
+
+def append_marketing_row(service, order):
+    """Append the customer's contact + consent to the 'marketing' tab."""
+    yes_no = lambda v: 'TRUE' if v else 'FALSE'
+    row = [
+        order.get('date', ''),
+        order.get('name', ''),
+        order.get('email', ''),
+        order.get('phone', ''),
+        yes_no(order.get('optin_email')),
+        yes_no(order.get('optin_wa')),
+        order.get('order_id', ''),
+    ]
+    try:
+        # Keep the marketing header in sync (idempotent).
+        service.spreadsheets().values().update(
+            spreadsheetId=SHEET_ID, range='marketing!A1',
+            valueInputOption='RAW', body={'values': [MARKETING_COLUMNS]},
+        ).execute()
+        service.spreadsheets().values().append(
+            spreadsheetId=SHEET_ID, range='marketing!A1',
+            valueInputOption='RAW', insertDataOption='INSERT_ROWS',
+            body={'values': [row]},
+        ).execute()
+        print(f'  [Sheets] Marketing row for {order.get("email","")} appended ✓')
+        return True
+    except Exception as e:
+        print(f'  [Sheets] Marketing append error: {e}')
+        return False
 
 
 def mark_order_paid(service, order_id):
     """Find the row with this order_id and set its Status column to Paid."""
     try:
         result = service.spreadsheets().values().get(
-            spreadsheetId=SHEET_ID, range='Sheet1!A:A'
+            spreadsheetId=SHEET_ID, range='orders!A:A'
         ).execute()
         rows = result.get('values', [])
         for i, row in enumerate(rows):
@@ -98,7 +141,7 @@ def mark_order_paid(service, order_id):
                 row_num = i + 1  # 1-indexed
                 service.spreadsheets().values().update(
                     spreadsheetId=SHEET_ID,
-                    range=f'Sheet1!N{row_num}',
+                    range=f'orders!N{row_num}',
                     valueInputOption='RAW',
                     body={'values': [['Paid']]},
                 ).execute()
@@ -132,12 +175,15 @@ def append_order_to_sheet(service, order):
         items_summary,
         order.get('total', 0),
         order.get('status_override', 'New'),
+        order.get('floor', ''),
+        'איסוף עצמי' if order.get('delivery_method') == 'pickup' else 'משלוח',
+        order.get('delivery_fee', 0),
     ]
     try:
         ensure_header_row(service)
         service.spreadsheets().values().append(
             spreadsheetId=SHEET_ID,
-            range='Sheet1!A1',
+            range='orders!A1',
             valueInputOption='RAW',
             insertDataOption='INSERT_ROWS',
             body={'values': [row]},
@@ -277,7 +323,10 @@ def validate_order(order):
     Validate required order fields server-side.
     Returns (ok: bool, error: str)
     """
-    required = ['name', 'email', 'phone', 'address', 'city', 'postal_code']
+    required = ['name', 'email', 'phone']
+    # Shipping address is only required when the order is delivered (not pickup).
+    if order.get('delivery_method') != 'pickup':
+        required += ['address', 'city', 'postal_code']
     for field in required:
         val = str(order.get(field, '')).strip()
         if not val:
@@ -327,6 +376,32 @@ def recalculate_total(order):
     except Exception as e:
         print(f'  [Validate] Total recalc failed: {e} — using client total')
         return order.get('total', 0)
+
+def _category_map():
+    """Parse id → category from data.js (server-authoritative)."""
+    try:
+        with open(DATA_JS, 'r', encoding='utf-8') as f:
+            src = f.read()
+        m = {}
+        for match in _re.finditer(r"id:\s*'([^']+)'.*?category:\s*'([^']+)'", src, _re.DOTALL):
+            m[match.group(1)] = match.group(2)
+        return m
+    except Exception:
+        return {}
+
+def compute_delivery_fee(order):
+    """Server-authoritative delivery fee. Pickup is free; shipping sums each
+    item's category fee × quantity. Never trusts the client's number."""
+    if order.get('delivery_method') == 'pickup':
+        return 0
+    cat_map = _category_map()
+    fee = 0
+    for item in order.get('items', []):
+        pid = item.get('id') or ''
+        qty = max(1, min(int(item.get('qty', 1)), 99))
+        cat = (cat_map.get(pid) or item.get('category', '') or '').lower()
+        fee += DELIVERY_FEE.get(cat, 0) * qty
+    return fee
 
 # ── Products helpers ──────────────────────────────────────────────────────────
 def products_to_js(products):
@@ -397,7 +472,7 @@ class Handler(SimpleHTTPRequestHandler):
                     'pending_orders': list(_pending_orders.keys())})
                 return
             result = service.spreadsheets().values().get(
-                spreadsheetId=SHEET_ID, range='Sheet1!A1:A3'
+                spreadsheetId=SHEET_ID, range='orders!A1:A3'
             ).execute()
             self._json(200, {'ok': True, 'sheets': True,
                 'rows': result.get('values', []),
@@ -639,7 +714,9 @@ class Handler(SimpleHTTPRequestHandler):
                 self._json(400, {'ok': False, 'error': err})
                 return
 
-            order['total'] = recalculate_total(order)
+            # Server-authoritative amount: items total + delivery fee (pickup = 0).
+            order['delivery_fee'] = compute_delivery_fee(order)
+            order['total'] = recalculate_total(order) + order['delivery_fee']
 
             now = __import__('datetime').datetime.now()
             order.setdefault('date', now.strftime('%d/%m/%Y %H:%M'))
@@ -660,6 +737,11 @@ class Handler(SimpleHTTPRequestHandler):
                     append_order_to_sheet(service, order)
                     del order['status_override']
                     print(f'  [Sheets] Order {order_id} saved as Pending Payment')
+                    # Add the customer to the marketing list (records consent flags).
+                    try:
+                        append_marketing_row(service, order)
+                    except Exception as _me:
+                        print(f'  [Sheets] Marketing save failed: {_me}')
             except Exception as _se:
                 print(f'  [Sheets] Pre-save failed: {_se}')
 
