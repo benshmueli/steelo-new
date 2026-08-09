@@ -238,7 +238,7 @@ SCRIPTS = '''  <script src="/js/i18n.js?v=1"></script>
   <script src="/js/cart.js?v=6"></script>
   <!-- jQuery required by Tranzila's embedded payment iframe (Apple Pay / Google Pay) -->
   <script src="/js/jquery.min.js?v=1"></script>
-  <script src="/js/checkout.js?v=6"></script>
+  <script src="/js/checkout.js?v=7"></script>
   <script>
     // Footer year
     document.querySelectorAll('.footer-year').forEach(function (el){ el.textContent = new Date().getFullYear(); });

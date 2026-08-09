@@ -131,7 +131,8 @@ document.getElementById('checkout-to-payment-btn').addEventListener('click', asy
     const iframe = document.createElement('iframe');
     iframe.src   = data.iframe_url;
     iframe.title = 'תשלום מאובטח';
-    iframe.setAttribute('allow', 'payment *');
+    iframe.setAttribute('allow', 'payment');
+    iframe.setAttribute('allowpaymentrequest', 'true'); // legacy Safari fallback
     iframe.style.cssText = 'width:100%;min-height:640px;border:0;display:block;background:var(--sand-100);';
     wrap.appendChild(iframe);
     if (spinner) spinner.style.display = 'none';
