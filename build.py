@@ -43,6 +43,54 @@ CATEGORY_HE = {
 def category_label(cat):
     return CATEGORY_HE.get((cat or "").lower(), cat or "")
 
+# Delivery fee (₪) by raw product category — informational, shown on the page.
+DELIVERY_FEE = {
+    "dining table": 300,
+    "coffee table": 100,
+    "living room table": 100,
+    "side table": 50,
+    "nesting tables": 50,
+    "stool": 50,
+}
+
+def delivery_section(name, cat, raw_category):
+    """Build the per-product 'מדיניות משלוחים' accordion (SEO content, no JS)."""
+    rows = [
+        ("שולחן אוכל מנירוסטה", 300, "שולחן אוכל"),
+        ("שולחן סלון מנירוסטה", 100, "שולחן סלון"),
+        ("שידת צד מנירוסטה", 50, "שידת צד"),
+        ("שרפרף / מעמד מגזינים מנירוסטה", 50, "מגזינים"),
+    ]
+    items = ""
+    for label, amt, key in rows:
+        active = (key == cat)
+        style = ("font-weight:600;color:var(--ink);" if active
+                 else "color:var(--ink-500);")
+        mark = ' <span style="color:var(--ink-400);">✓</span>' if active else ""
+        items += (f'<li style="{style}padding:0.3rem 0;">{esc(label)} — '
+                  f'<span dir="ltr">₪{amt}</span>{mark}</li>')
+    n = esc(name)
+    c = esc(cat)
+    return f'''
+      <details class="pdp-delivery">
+        <summary>מדיניות משלוחים ואספקה</summary>
+        <div class="pdp-delivery-body">
+          <p>המשלוח של {n} — {c} מנירוסטה — יוצא אליכם ארוז בקפידה, באותה תשומת לב שהושקעה בייצור הפריט. כאן מרוכזים דמי המשלוח, אפשרות האיסוף העצמי וזמני האספקה.</p>
+          <h3>דמי משלוח</h3>
+          <ul>{items}</ul>
+          <p class="pdp-delivery-note">דמי המשלוח מתווספים ומחושבים בעת השלמת ההזמנה.</p>
+          <h3>איסוף עצמי</h3>
+          <p>אפשר לאסוף את הפריט ללא עלות ממחסני Steelo, בתיאום מראש.</p>
+          <h3>זמני אספקה</h3>
+          <p>עד 14 ימי עסקים מרגע אישור ההזמנה.</p>
+          <h3>הובלה חריגה</h3>
+          <p>כשנדרשים אמצעי הרמה מיוחדים (למשל מנוף), ההזמנה והתשלום עבורם באחריות הלקוח. הובלת פריט גדול בחדר מדרגות מעל קומה 2 — בתוספת <span dir="ltr">₪60</span> לקומה. לא מבצעים משלוחים לאזור אילת.</p>
+          <h3>בדיקת המוצר ואחריות</h3>
+          <p>עם קבלת הפריט עומדות לרשותכם 24 שעות לבדיקה ולדיווח על כל פגם או אי-התאמה. פנייה שתגיע לאחר מכן לא תמיד תאפשר החזר או החלפה. בבחירת איסוף עצמי, האחריות לשלמות הפריט בדרך היא על הלקוח — מומלץ לבדוק ולארוז אותו היטב לפני הנסיעה.</p>
+          <p class="pdp-delivery-wa">יש שאלה על {n}? אנחנו כאן בוואטסאפ: <a href="https://wa.me/972554424206" target="_blank" rel="noopener" dir="ltr">055-4424206</a></p>
+        </div>
+      </details>'''
+
 def format_dimensions(value):
     """Mirror of formatDimensions() in modal.js → labelled Hebrew, one per line."""
     if not value:
@@ -403,7 +451,7 @@ def product_page(p):
   <meta property="product:price:amount" content="{price}">
   <meta property="product:price:currency" content="ILS">
   {FONTS}
-  <link rel="stylesheet" href="/css/styles.css?v=15">
+  <link rel="stylesheet" href="/css/styles.css?v=16">
   <script type="application/ld+json">{json.dumps(ld_product, ensure_ascii=False)}</script>
   <script type="application/ld+json">{json.dumps(ld_crumbs, ensure_ascii=False)}</script>
 </head>
@@ -451,6 +499,7 @@ def product_page(p):
           <a href="/#collection" style="display:inline-block;margin-top:2rem;font-family:Montserrat,Heebo;font-size:0.7rem;letter-spacing:0.15em;color:var(--ink-400);text-decoration:none;">→ חזרה לקולקציה</a>
         </div>
       </div>
+{delivery_section(name, cat, p["category"])}
     </main>
 {FOOTER}
   </div><!-- end page-wrap -->

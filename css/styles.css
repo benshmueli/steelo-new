@@ -518,3 +518,31 @@ html[dir="rtl"] #cart-sidebar { border-left: none; border-right: 1px solid var(-
   .pdp-main { padding: 5.5rem 1.25rem 3rem; }
   .pdp-grid { gap: 2rem; }
 }
+
+/* ── Product page: delivery accordion ──────────────────────────────────── */
+.pdp-delivery { margin-top: 3.5rem; border-top: 1px solid var(--sand-300); }
+.pdp-delivery > summary {
+  list-style: none; cursor: pointer; padding: 1.5rem 0;
+  display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+  font-family: Montserrat, Heebo; font-size: 0.85rem; letter-spacing: 0.18em;
+  text-transform: uppercase; color: var(--ink);
+}
+.pdp-delivery > summary::-webkit-details-marker { display: none; }
+.pdp-delivery > summary::after {
+  content: "+"; font-size: 1.35rem; line-height: 1; color: var(--ink-400); font-weight: 300;
+}
+.pdp-delivery[open] > summary::after { content: "\2013"; } /* – */
+.pdp-delivery-body {
+  padding: 0 0 2rem; font-family: Montserrat, Heebo; font-weight: 300;
+  color: var(--ink-500); line-height: 1.9; font-size: 0.9rem;
+}
+.pdp-delivery-body h3 {
+  font-family: Montserrat, Heebo; font-size: 0.7rem; letter-spacing: 0.2em;
+  text-transform: uppercase; color: var(--ink); font-weight: 500; margin: 1.75rem 0 0.5rem;
+}
+.pdp-delivery-body ul { list-style: none; padding: 0; margin: 0.25rem 0; }
+.pdp-delivery-body p { margin: 0.35rem 0; }
+.pdp-delivery-note { color: var(--ink-400); font-size: 0.8rem; }
+.pdp-delivery-wa { margin-top: 1.5rem; }
+.pdp-delivery-wa a { color: var(--ink); text-decoration: underline; }
+@media (max-width: 640px) { .pdp-delivery { margin-top: 2.5rem; } }
