@@ -21,7 +21,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Frank+Ruhl+Libre:wght@300;400;500;700&family=Heebo:wght@300;400;500;600&family=Montserrat:wght@300;400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/css/styles.css?v=16">
+  <link rel="stylesheet" href="/css/styles.css?v=17">
   <script type="application/ld+json">{"@context": "https://schema.org", "@type": "Product", "name": "Rectangular S", "image": ["https://www.steelo-design.com/images/products/RectangularLivingRoom/1.webp", "https://www.steelo-design.com/images/products/RectangularLivingRoom/2.webp"], "sku": "rectangular-s", "brand": {"@type": "Brand", "name": "Steelo"}, "category": "שולחן סלון", "material": "נירוסטה 304", "offers": {"@type": "Offer", "url": "https://www.steelo-design.com/products/rectangular-s/", "priceCurrency": "ILS", "price": 2300, "availability": "https://schema.org/InStock", "itemCondition": "https://schema.org/NewCondition"}, "description": "שולחן סלון נירוסטה בעיצוב נקי ועוצמתי. מציג סילואט מודרני ונקי, עשוי נירוסטה 304 מוברשת בעובי 3.5 מ\"מ. פריט בעל נוכחות דומיננטית המעניק לחלל המגורים מראה תעשייתי יוקרתי, על-זמני ומתוחכם."}</script>
   <script type="application/ld+json">{"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "בית", "item": "https://www.steelo-design.com/"}, {"@type": "ListItem", "position": 2, "name": "הקולקציה", "item": "https://www.steelo-design.com/#collection"}, {"@type": "ListItem", "position": 3, "name": "Rectangular S", "item": "https://www.steelo-design.com/products/rectangular-s/"}]}</script>
 </head>
@@ -193,18 +193,39 @@
             <div class="checkout-field"><label for="co-name">שם מלא *</label><input id="co-name" name="co-name" type="text" required class="form-input" placeholder="שם פרטי ומשפחה" autocomplete="name"></div>
             <div class="checkout-field"><label for="co-email">אימייל *</label><input id="co-email" name="co-email" type="email" required class="form-input" placeholder="your@email.com" autocomplete="email"></div>
             <div class="checkout-field"><label for="co-phone">טלפון / וואטסאפ *</label><input id="co-phone" name="co-phone" type="tel" required class="form-input" placeholder="+972 50 000 0000" autocomplete="tel"></div>
-            <p class="checkout-section-label" style="margin-top:1.75rem;">כתובת למשלוח</p>
-            <div class="checkout-field-row">
-              <div class="checkout-field" style="flex:2;"><label for="co-address">רחוב ומספר *</label><input id="co-address" name="co-address" type="text" required class="form-input" placeholder="Herzl 12" autocomplete="address-line1"></div>
-              <div class="checkout-field" style="flex:1;"><label for="co-apartment">דירה / קומה</label><input id="co-apartment" name="co-apartment" type="text" class="form-input" placeholder="4B" autocomplete="address-line2"></div>
+            <p class="checkout-section-label" style="margin-top:1.75rem;">אופן קבלת ההזמנה</p>
+            <div class="checkout-delivery-toggle">
+              <button type="button" class="cdt-btn active" data-method="ship">משלוח עד הבית</button>
+              <button type="button" class="cdt-btn" data-method="pickup">איסוף עצמי · חינם</button>
             </div>
-            <div class="checkout-field-row">
-              <div class="checkout-field" style="flex:2;"><label for="co-city">עיר *</label><input id="co-city" name="co-city" type="text" required class="form-input" placeholder="תל אביב" autocomplete="address-level2"></div>
-              <div class="checkout-field" style="flex:1;"><label for="co-postal">מיקוד *</label><input id="co-postal" name="co-postal" type="text" required class="form-input" placeholder="6100000" autocomplete="postal-code"></div>
+            <input type="hidden" id="co-delivery-method" name="co-delivery-method" value="ship">
+            <div id="checkout-ship-fields">
+              <p class="checkout-section-label" style="margin-top:1.5rem;">כתובת למשלוח</p>
+              <div class="checkout-field-row">
+                <div class="checkout-field" style="flex:2;"><label for="co-address">רחוב ומספר *</label><input id="co-address" name="co-address" type="text" required class="form-input" placeholder="הרצל 12" autocomplete="address-line1"></div>
+                <div class="checkout-field" style="flex:1;"><label for="co-city">עיר *</label><input id="co-city" name="co-city" type="text" required class="form-input" placeholder="תל אביב" autocomplete="address-level2"></div>
+              </div>
+              <div class="checkout-field-row">
+                <div class="checkout-field" style="flex:1;"><label for="co-floor">קומה</label><input id="co-floor" name="co-floor" type="text" class="form-input" placeholder="2"></div>
+                <div class="checkout-field" style="flex:1;"><label for="co-apartment">דירה</label><input id="co-apartment" name="co-apartment" type="text" class="form-input" placeholder="4"></div>
+                <div class="checkout-field" style="flex:1;"><label for="co-postal">מיקוד *</label><input id="co-postal" name="co-postal" type="text" required class="form-input" placeholder="6100000" autocomplete="postal-code"></div>
+              </div>
+              <div class="checkout-field"><label for="co-country">מדינה</label><input id="co-country" name="co-country" type="text" class="form-input" value="ישראל" autocomplete="country-name"></div>
             </div>
-            <div class="checkout-field"><label for="co-country">מדינה</label><input id="co-country" name="co-country" type="text" class="form-input" value="ישראל" autocomplete="country-name"></div>
+            <div id="checkout-pickup-card" style="display:none;">
+              <div class="checkout-pickup-box">
+                <p class="checkout-pickup-title">איסוף עצמי — ללא עלות</p>
+                <p>הכתובת שלנו: חומה ומגדל 26, תל אביב</p>
+                <p>זמין לאיסוף תוך 2–4 ימי עסקים, בתיאום מראש בוואטסאפ.</p>
+              </div>
+            </div>
             <p class="checkout-section-label" style="margin-top:1.75rem;">הערות להזמנה</p>
-            <div class="checkout-field"><label for="co-notes">בקשות מיוחדות (לא חובה)</label><textarea id="co-notes" name="co-notes" rows="3" class="form-input" style="resize:none;padding-top:0.75rem;" placeholder="גימור מותאם, העדפת זמן אספקה…"></textarea></div>
+            <div class="checkout-field"><label for="co-notes">בקשות מיוחדות (לא חובה)</label><textarea id="co-notes" name="co-notes" rows="3" class="form-input" style="resize:none;padding-top:0.75rem;" placeholder="גימור מותאם (בתשלום נוסף), העדפת זמן אספקה…"></textarea></div>
+            <div class="checkout-optins">
+              <label class="checkout-optin"><input type="checkbox" id="co-optin-email" checked> שלחו לי עדכונים ומבצעים במייל 💌</label>
+              <label class="checkout-optin"><input type="checkbox" id="co-optin-wa" checked> עדכנו אותי על דגמים חדשים ומבצעים בוואטסאפ</label>
+              <p class="checkout-optin-note">מבטיחים לא להציק — רק דברים ששווים ✨</p>
+            </div>
             <button type="button" id="checkout-next-btn" class="btn-primary" style="margin-top:1.5rem;">המשך לסיכום ←</button>
           </div>
           <div id="checkout-step2" style="display:none;">
@@ -248,10 +269,10 @@
 
   <script src="/js/i18n.js?v=1"></script>
   <script src="/js/data.js?v=7"></script>
-  <script src="/js/cart.js?v=6"></script>
+  <script src="/js/cart.js?v=7"></script>
   <!-- jQuery required by Tranzila's embedded payment iframe (Apple Pay / Google Pay) -->
   <script src="/js/jquery.min.js?v=1"></script>
-  <script src="/js/checkout.js?v=7"></script>
+  <script src="/js/checkout.js?v=8"></script>
   <script>
     // Footer year
     document.querySelectorAll('.footer-year').forEach(function (el){ el.textContent = new Date().getFullYear(); });
@@ -316,6 +337,7 @@
     const p = new URLSearchParams(location.search); const status = p.get('payment'); if (!status) return;
     const modal=document.getElementById('payment-result-modal'),icon=document.getElementById('payment-result-icon'),title=document.getElementById('payment-result-title'),msg=document.getElementById('payment-result-msg'),orderEl=document.getElementById('payment-result-order');
     if (status.startsWith('success')) {
+      if (typeof clearCart === 'function') clearCart();
       icon.innerHTML='<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="20 6 9 17 4 12"/></svg>';
       title.textContent='תודה על הזמנתכם'; msg.textContent='התשלום התקבל. ניצור קשר בקרוב עם פרטי המשלוח.';
       const orderId=p.get('order_id'); if (orderId) orderEl.textContent='הזמנה '+orderId;
