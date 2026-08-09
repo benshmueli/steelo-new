@@ -109,6 +109,16 @@ def price_html(n):
     return ('<span style="font-family:Heebo,sans-serif;font-weight:300;font-size:0.62em;'
             'color:inherit;vertical-align:0.12em;">₪</span>' + f"{int(n):,}")
 
+def price_cell_html(p):
+    """Mirror of fmtPrice() in cart.js — struck-through original + sale price."""
+    discount = p.get("discount") or 0
+    if discount <= 0:
+        return price_html(p["price"])
+    sale = round(p["price"] * (1 - discount / 100))
+    return ('<span style="text-decoration:line-through;opacity:0.45;font-size:0.85em;'
+            f'margin-right:0.4rem;">{price_html(p["price"])}</span>'
+            f'<span style="color:#B85C38;">{price_html(sale)}</span>')
+
 def meta_description(text, limit=155):
     t = re.sub(r"\s+", " ", (text or "")).strip()
     if len(t) <= limit:
@@ -545,26 +555,46 @@ def grid_cards(products):
         primary   = imgs[1] if len(imgs) > 1 else (imgs[0] if imgs else "/images/logo.png")
         secondary = imgs[0] if imgs else primary
         alt = f"{name} — {cat} מנירוסטה" if cat else name
+        discount = p.get("discount") or 0
+        badge = (f'\n          <div style="position:absolute;top:1rem;left:1rem;background:#B85C38;color:#fff;'
+                 f'font-family:Montserrat,sans-serif;font-size:0.55rem;font-weight:600;letter-spacing:0.18em;'
+                 f'padding:0.3rem 0.65rem;z-index:3;">{discount}% OFF</div>') if discount > 0 else ""
         out.append(
 f'''<a href="/products/{esc(pid)}/" aria-label="{esc(name)}" style="background:var(--sand);display:flex;flex-direction:column;cursor:pointer;text-decoration:none;color:inherit;">
         <div class="product-card" style="position:relative;overflow:hidden;aspect-ratio:3/4;">
           <img class="img-primary" src="{esc(primary)}" alt="{esc(alt)}" loading="lazy" style="width:100%;height:100%;object-fit:cover;object-position:center center;display:block;">
           <img class="img-secondary" src="{esc(secondary)}" alt="{esc(name)} — תמונה נוספת" loading="lazy">
-          <div class="card-overlay"><span style="display:block;width:100%;box-sizing:border-box;padding:0.75rem;border:1px solid rgba(245,240,235,0.7);background:transparent;color:#F5F0EB;font-family:Montserrat;font-size:0.65rem;letter-spacing:0.2em;text-transform:uppercase;text-align:center;">צפייה בפריט</span></div>
+          <div class="card-overlay"><span style="display:block;width:100%;box-sizing:border-box;padding:0.75rem;border:1px solid rgba(245,240,235,0.7);background:transparent;color:#F5F0EB;font-family:Montserrat;font-size:0.65rem;letter-spacing:0.2em;text-transform:uppercase;text-align:center;">צפייה בפריט</span></div>{badge}
         </div>
         <div style="padding:1.25rem 1.5rem;background:var(--sand-100);border-top:1px solid var(--sand-300);display:flex;align-items:baseline;justify-content:space-between;">
           <div>
             <p style="font-family:Montserrat;font-size:0.6rem;letter-spacing:0.25em;text-transform:uppercase;color:var(--ink-400);margin:0 0 0.25rem;">{esc(raw)}</p>
             <h3 style="font-family:Cormorant,Georgia,serif;font-weight:300;font-size:1.5rem;color:var(--ink);margin:0;">{esc(name)}</h3>
           </div>
-          <span style="font-family:Cormorant,Georgia,serif;font-weight:300;font-size:1.35rem;color:var(--ink);white-space:nowrap;">{price_html(p["price"])}</span>
+          <span style="font-family:Cormorant,Georgia,serif;font-weight:300;font-size:1.35rem;color:var(--ink);white-space:nowrap;">{price_cell_html(p)}</span>
         </div>
       </a>''')
     return "\n      ".join(out)
 
 
+def inject_collection_count(txt, products):
+    """Write len(products) into #collection-count so the served HTML already
+    carries the real number (js/main.js recomputes the same value at runtime)."""
+    pattern = re.compile(
+        r'(<span id="collection-count" data-label="(?P<label>[^"]*)"[^>]*>)(?P<body>.*?)(</span>)',
+        re.S)
+    m = pattern.search(txt)
+    if not m:
+        print("  ! #collection-count not found — skipped")
+        return txt
+    count = f"{len(products)}{html.unescape(m.group('label'))}"
+    print(f"  ✓ index.html collection count → {count.strip()}")
+    return pattern.sub(lambda mm: mm.group(1) + esc(count) + mm.group(4), txt, count=1)
+
+
 def inject_home_grid(products):
-    """Replace the marked region inside index.html #products-grid with static cards."""
+    """Replace the marked region inside index.html #products-grid with static
+    cards, and sync the collection count to len(products)."""
     path = os.path.join(BASE_DIR, "index.html")
     txt = open(path, encoding="utf-8").read()
     start, end = "<!--grid:start-->", "<!--grid:end-->"
@@ -572,10 +602,11 @@ def inject_home_grid(products):
         before = txt.split(start)[0]
         after  = txt.split(end, 1)[1]
         txt = before + start + "\n      " + grid_cards(products) + "\n      " + end + after
-        open(path, "w", encoding="utf-8").write(txt)
         print("  ✓ index.html collection grid injected (static, crawlable)")
     else:
         print("  ! index.html grid markers not found — skipped")
+    txt = inject_collection_count(txt, products)
+    open(path, "w", encoding="utf-8").write(txt)
 
 
 def write_sitemap(products):
