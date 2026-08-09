@@ -562,3 +562,6 @@ html[dir="rtl"] #cart-sidebar { border-left: none; border-right: 1px solid var(-
   font-family:Montserrat,Heebo; font-weight:300; font-size:0.85rem; line-height:1.5; color:var(--ink-600); }
 .checkout-optin input { margin-top:0.15rem; width:1rem; height:1rem; accent-color:var(--ink); flex-shrink:0; cursor:pointer; }
 .checkout-optin-note { font-family:Montserrat,Heebo; font-weight:300; font-size:0.72rem; color:var(--ink-400); margin:0.15rem 0 0; }
+
+/* Collection card "view" button hover (static grid — was JS-driven) */
+.card-overlay span:hover { background:#F5F0EB; color:var(--ink); }

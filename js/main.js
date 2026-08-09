@@ -5,6 +5,10 @@
 /* ---- Render product grid ---- */
 function renderGrid() {
   const grid = document.getElementById('products-grid');
+  if (!grid) return;
+  // The grid is pre-rendered as static HTML (for SEO/crawlability). If it's
+  // already populated with product links, leave it as-is (CSS handles hover).
+  if (grid.querySelector('a[href^="/products/"]')) return;
   grid.innerHTML = '';
 
   PRODUCTS.forEach(p => {
