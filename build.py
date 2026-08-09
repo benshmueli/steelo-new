@@ -48,8 +48,8 @@ DELIVERY_FEE = {
     "dining table": 300,
     "coffee table": 100,
     "living room table": 100,
-    "side table": 50,
-    "nesting tables": 50,
+    "side table": 70,
+    "nesting tables": 70,
     "stool": 50,
 }
 
@@ -58,7 +58,7 @@ def delivery_section(name, cat, raw_category):
     rows = [
         ("שולחן אוכל מנירוסטה", 300, "שולחן אוכל"),
         ("שולחן סלון מנירוסטה", 100, "שולחן סלון"),
-        ("שידת צד מנירוסטה", 50, "שידת צד"),
+        ("שידת צד מנירוסטה", 70, "שידת צד"),
         ("שרפרף / מעמד מגזינים מנירוסטה", 50, "מגזינים"),
     ]
     items = ""
