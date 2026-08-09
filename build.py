@@ -473,7 +473,7 @@ def product_page(p):
   <meta property="product:price:amount" content="{price}">
   <meta property="product:price:currency" content="ILS">
   {FONTS}
-  <link rel="stylesheet" href="/css/styles.css?v=17">
+  <link rel="stylesheet" href="/css/styles.css?v=18">
   <script type="application/ld+json">{json.dumps(ld_product, ensure_ascii=False)}</script>
   <script type="application/ld+json">{json.dumps(ld_crumbs, ensure_ascii=False)}</script>
 </head>
@@ -532,6 +532,52 @@ def product_page(p):
 '''
 
 # ── Sitemap + robots ─────────────────────────────────────────────────────────
+def grid_cards(products):
+    """Static HTML for the homepage collection grid — crawlable <a> links to
+    each product, mirroring js/main.js renderGrid so it renders identically."""
+    out = []
+    for p in products:
+        pid  = p["id"]
+        name = p["name"]
+        cat  = category_label(p["category"])
+        raw  = p.get("category", "")
+        imgs = p.get("images", [])
+        primary   = imgs[1] if len(imgs) > 1 else (imgs[0] if imgs else "/images/logo.png")
+        secondary = imgs[0] if imgs else primary
+        alt = f"{name} — {cat} מנירוסטה" if cat else name
+        out.append(
+f'''<a href="/products/{esc(pid)}/" aria-label="{esc(name)}" style="background:var(--sand);display:flex;flex-direction:column;cursor:pointer;text-decoration:none;color:inherit;">
+        <div class="product-card" style="position:relative;overflow:hidden;aspect-ratio:3/4;">
+          <img class="img-primary" src="{esc(primary)}" alt="{esc(alt)}" loading="lazy" style="width:100%;height:100%;object-fit:cover;object-position:center center;display:block;">
+          <img class="img-secondary" src="{esc(secondary)}" alt="{esc(name)} — תמונה נוספת" loading="lazy">
+          <div class="card-overlay"><span style="display:block;width:100%;box-sizing:border-box;padding:0.75rem;border:1px solid rgba(245,240,235,0.7);background:transparent;color:#F5F0EB;font-family:Montserrat;font-size:0.65rem;letter-spacing:0.2em;text-transform:uppercase;text-align:center;">צפייה בפריט</span></div>
+        </div>
+        <div style="padding:1.25rem 1.5rem;background:var(--sand-100);border-top:1px solid var(--sand-300);display:flex;align-items:baseline;justify-content:space-between;">
+          <div>
+            <p style="font-family:Montserrat;font-size:0.6rem;letter-spacing:0.25em;text-transform:uppercase;color:var(--ink-400);margin:0 0 0.25rem;">{esc(raw)}</p>
+            <h3 style="font-family:Cormorant,Georgia,serif;font-weight:300;font-size:1.5rem;color:var(--ink);margin:0;">{esc(name)}</h3>
+          </div>
+          <span style="font-family:Cormorant,Georgia,serif;font-weight:300;font-size:1.35rem;color:var(--ink);white-space:nowrap;">{price_html(p["price"])}</span>
+        </div>
+      </a>''')
+    return "\n      ".join(out)
+
+
+def inject_home_grid(products):
+    """Replace the marked region inside index.html #products-grid with static cards."""
+    path = os.path.join(BASE_DIR, "index.html")
+    txt = open(path, encoding="utf-8").read()
+    start, end = "<!--grid:start-->", "<!--grid:end-->"
+    if start in txt and end in txt:
+        before = txt.split(start)[0]
+        after  = txt.split(end, 1)[1]
+        txt = before + start + "\n      " + grid_cards(products) + "\n      " + end + after
+        open(path, "w", encoding="utf-8").write(txt)
+        print("  ✓ index.html collection grid injected (static, crawlable)")
+    else:
+        print("  ! index.html grid markers not found — skipped")
+
+
 def write_sitemap(products):
     urls = [f"{SITE}/", f"{SITE}/returns.html"] + [f"{SITE}/products/{p['id']}/" for p in products]
     items = "\n".join(f"  <url><loc>{u}</loc></url>" for u in urls)
@@ -551,6 +597,7 @@ def main():
         os.makedirs(d, exist_ok=True)
         open(os.path.join(d, "index.html"), "w", encoding="utf-8").write(product_page(p))
         print(f"  ✓ /products/{p['id']}/")
+    inject_home_grid(products)
     write_sitemap(products)
     print(f"  ✓ sitemap.xml + robots.txt")
     print(f"\nGenerated {len(products)} product pages.")
