@@ -1,7 +1,12 @@
 /* ============================================================
    Cart & Inquiry
    ============================================================ */
+/* Cart persists in localStorage so it survives page navigation + refresh. */
+const CART_KEY = 'steelo_cart';
 let cart = [];
+try { cart = JSON.parse(localStorage.getItem(CART_KEY)) || []; } catch (e) { cart = []; }
+function saveCart()  { try { localStorage.setItem(CART_KEY, JSON.stringify(cart)); } catch (e) {} }
+function clearCart() { cart = []; try { localStorage.removeItem(CART_KEY); } catch (e) {} syncCart(); }
 
 function fmt(n)      { return '<span style="font-family:Heebo,sans-serif;font-weight:300;font-size:0.65em;color:inherit;vertical-align:0.1em;">₪</span>' + n.toLocaleString('he-IL'); }
 function fmtPlain(n) { return '₪' + n.toLocaleString('he-IL'); }
@@ -52,6 +57,7 @@ function syncCart() {
 
   document.getElementById('cart-total').innerHTML = fmt(total);
   renderCartItems();
+  saveCart();
 }
 
 function renderCartItems() {

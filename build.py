@@ -304,7 +304,7 @@ MODALS = '''  <!-- CART -->
 
 SCRIPTS = '''  <script src="/js/i18n.js?v=1"></script>
   <script src="/js/data.js?v=7"></script>
-  <script src="/js/cart.js?v=6"></script>
+  <script src="/js/cart.js?v=7"></script>
   <!-- jQuery required by Tranzila's embedded payment iframe (Apple Pay / Google Pay) -->
   <script src="/js/jquery.min.js?v=1"></script>
   <script src="/js/checkout.js?v=8"></script>
@@ -372,6 +372,7 @@ SCRIPTS = '''  <script src="/js/i18n.js?v=1"></script>
     const p = new URLSearchParams(location.search); const status = p.get('payment'); if (!status) return;
     const modal=document.getElementById('payment-result-modal'),icon=document.getElementById('payment-result-icon'),title=document.getElementById('payment-result-title'),msg=document.getElementById('payment-result-msg'),orderEl=document.getElementById('payment-result-order');
     if (status.startsWith('success')) {
+      if (typeof clearCart === 'function') clearCart();
       icon.innerHTML='<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="20 6 9 17 4 12"/></svg>';
       title.textContent='תודה על הזמנתכם'; msg.textContent='התשלום התקבל. ניצור קשר בקרוב עם פרטי המשלוח.';
       const orderId=p.get('order_id'); if (orderId) orderEl.textContent='הזמנה '+orderId;
