@@ -121,12 +121,22 @@ document.getElementById('checkout-to-payment-btn').addEventListener('click', asy
     const data = await res.json();
     if (!data.ok) throw new Error(data.error || t('pay_init_fail'));
 
-    // Clear cart before leaving — payment page is loading
-    cart = [];
-    syncCart();
-
-    // Redirect full page to Tranzila payment form
-    window.location.href = data.iframe_url;
+    // Embed Tranzila's payment form in-page (enables Apple Pay / Google Pay).
+    // The cart is in-memory only, so it clears naturally when Tranzila redirects
+    // the top window back to /?payment=… on completion; leaving via the Back
+    // button keeps the cart intact.
+    const wrap    = document.getElementById('checkout-iframe-wrap');
+    const spinner = document.getElementById('checkout-spinner');
+    wrap.innerHTML = '';
+    const iframe = document.createElement('iframe');
+    iframe.src   = data.iframe_url;
+    iframe.title = 'תשלום מאובטח';
+    iframe.setAttribute('allow', 'payment *');
+    iframe.style.cssText = 'width:100%;min-height:640px;border:0;display:block;background:var(--sand-100);';
+    wrap.appendChild(iframe);
+    if (spinner) spinner.style.display = 'none';
+    wrap.style.display = 'block';
+    if (backBtn) backBtn.style.display = '';
   } catch (err) {
     showCheckoutStep(2);
     const errEl2 = document.getElementById('checkout-pay-error');

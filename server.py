@@ -458,12 +458,12 @@ class Handler(SimpleHTTPRequestHandler):
         conf_code = params.get('ConfirmationCode', [''])[0]
         print(f'  [PaymentSuccess] order={order_id} response={response} conf={conf_code} path={self.path}')
         self._save_order_from_params(params, order_id)
-        self._redirect(f'/?payment=success&order_id={urllib.parse.quote(order_id)}')
+        self._frame_bust(f'/?payment=success&order_id={urllib.parse.quote(order_id)}')
 
     def _handle_payment_fail_redirect(self):
         """Tranzila GET-redirects here on failed/cancelled payment."""
         print(f'  [PaymentFail] path={self.path}')
-        self._redirect('/?payment=fail')
+        self._frame_bust('/?payment=fail')
 
     def _save_order_from_params(self, params, order_id):
         order = _pending_orders.pop(order_id, None)
@@ -482,6 +482,33 @@ class Handler(SimpleHTTPRequestHandler):
         self.send_header('Content-Length', '0')
         self._cors()
         self.end_headers()
+
+    def _frame_bust(self, location):
+        """Navigate the TOP window to `location`.
+
+        Tranzila redirects the embedded payment iframe to our success/fail URL,
+        which is same-origin with the parent, so we can drive window.top to break
+        out of the iframe. If this page is loaded top-level (redirect fallback),
+        window.top === window and it just navigates normally.
+        """
+        js_url = json.dumps(location)  # safely quoted JS string literal
+        safe   = location.replace('&', '&amp;').replace('"', '&quot;').replace('<', '&lt;')
+        body = (
+            '<!doctype html><html lang="he"><head><meta charset="utf-8">'
+            '<meta name="viewport" content="width=device-width, initial-scale=1">'
+            '<title>...</title></head>'
+            '<body style="margin:0;background:#F5F0EB;">'
+            '<script>(function(){var u=' + js_url + ';'
+            'try{(window.top||window).location.replace(u);}catch(e){window.location.replace(u);}})();</script>'
+            '<noscript><a href="' + safe + '">המשך</a></noscript>'
+            '</body></html>'
+        ).encode('utf-8')
+        self.send_response(200)
+        self.send_header('Content-Type', 'text/html; charset=utf-8')
+        self.send_header('Content-Length', str(len(body)))
+        self._cors()
+        self.end_headers()
+        self.wfile.write(body)
 
     def do_OPTIONS(self):
         self.send_response(200)
