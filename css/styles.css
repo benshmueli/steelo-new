@@ -489,6 +489,9 @@ body {
 }
 @media (max-width: 640px) {
   #products-grid { grid-template-columns: 1fr !important; }
+  #products-grid a { flex-direction: column-reverse !important; }
+  #products-grid a > div:last-child { order: 1; }
+  #products-grid a .product-card { order: 2; }
   #collection .collection-header { padding: 0 1.5rem 2rem !important; }
   #collection .grid-wrap { padding: 0 !important; }
   #hero img { object-position: center center !important; }
