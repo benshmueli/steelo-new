@@ -57,7 +57,7 @@ const PRODUCTS = [
   {
     id: 'three-level',
     name: 'Three Level',
-    category: 'Coffee Table',
+    category: 'Living Room Table',
     price: 1900,
     discount: 0,
     dimensions: '70 x 70 x 47 cm',
@@ -68,7 +68,7 @@ const PRODUCTS = [
   {
     id: 'plie',
     name: 'Plié',
-    category: 'Coffee Table',
+    category: 'Living Room Table',
     price: 2700,
     discount: 0,
     dimensions: '50 x 90 x 44 cm',
@@ -79,7 +79,7 @@ const PRODUCTS = [
   {
     id: 'elephant-low',
     name: 'Elephant Low',
-    category: 'Coffee Table',
+    category: 'Living Room Table',
     price: 2500,
     discount: 0,
     dimensions: '85 x 85 x 42 cm',
