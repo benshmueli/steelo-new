@@ -86,12 +86,27 @@ def get_sheets_service():
         return None
 
 
-def ensure_header_row(service):
-    """Keep the 'orders' header row in sync with SHEET_COLUMNS (idempotent)."""
+def ensure_sheet_tab(service, tab):
+    """Create the tab if it doesn't exist (used for the auto test tabs)."""
+    try:
+        meta = service.spreadsheets().get(spreadsheetId=SHEET_ID).execute()
+        titles = [s['properties']['title'] for s in meta.get('sheets', [])]
+        if tab not in titles:
+            service.spreadsheets().batchUpdate(
+                spreadsheetId=SHEET_ID,
+                body={'requests': [{'addSheet': {'properties': {'title': tab}}}]},
+            ).execute()
+            print(f'  [Sheets] Created tab "{tab}"')
+    except Exception as e:
+        print(f'  [Sheets] ensure_sheet_tab({tab}) error: {e}')
+
+
+def ensure_header_row(service, tab='orders'):
+    """Keep the orders/orders_test header row in sync with SHEET_COLUMNS."""
     try:
         service.spreadsheets().values().update(
             spreadsheetId=SHEET_ID,
-            range='orders!A1',
+            range=f'{tab}!A1',
             valueInputOption='RAW',
             body={'values': [SHEET_COLUMNS]},
         ).execute()
@@ -99,8 +114,8 @@ def ensure_header_row(service):
         print(f'  [Sheets] Header row error: {e}')
 
 
-def append_marketing_row(service, order):
-    """Append the customer's contact + consent to the 'marketing' tab."""
+def append_marketing_row(service, order, tab='marketing'):
+    """Append the customer's contact + consent to the marketing tab."""
     yes_no = lambda v: 'TRUE' if v else 'FALSE'
     row = [
         order.get('date', ''),
@@ -112,17 +127,17 @@ def append_marketing_row(service, order):
         order.get('order_id', ''),
     ]
     try:
-        # Keep the marketing header in sync (idempotent).
+        ensure_sheet_tab(service, tab)
         service.spreadsheets().values().update(
-            spreadsheetId=SHEET_ID, range='marketing!A1',
+            spreadsheetId=SHEET_ID, range=f'{tab}!A1',
             valueInputOption='RAW', body={'values': [MARKETING_COLUMNS]},
         ).execute()
         service.spreadsheets().values().append(
-            spreadsheetId=SHEET_ID, range='marketing!A1',
+            spreadsheetId=SHEET_ID, range=f'{tab}!A1',
             valueInputOption='RAW', insertDataOption='INSERT_ROWS',
             body={'values': [row]},
         ).execute()
-        print(f'  [Sheets] Marketing row for {order.get("email","")} appended ✓')
+        print(f'  [Sheets] Marketing row for {order.get("email","")} → {tab} ✓')
         return True
     except Exception as e:
         print(f'  [Sheets] Marketing append error: {e}')
@@ -154,8 +169,8 @@ def mark_order_paid(service, order_id):
         return False
 
 
-def append_order_to_sheet(service, order):
-    """Append one order row to the Google Sheet."""
+def append_order_to_sheet(service, order, tab='orders'):
+    """Append one order row to the orders (or orders_test) tab."""
     items_summary = '; '.join(
         f"{i['name']} ×{i['qty']} (₪{i['price']})"
         for i in order.get('items', [])
@@ -180,15 +195,16 @@ def append_order_to_sheet(service, order):
         order.get('delivery_fee', 0),
     ]
     try:
-        ensure_header_row(service)
+        ensure_sheet_tab(service, tab)
+        ensure_header_row(service, tab)
         service.spreadsheets().values().append(
             spreadsheetId=SHEET_ID,
-            range='orders!A1',
+            range=f'{tab}!A1',
             valueInputOption='RAW',
             insertDataOption='INSERT_ROWS',
             body={'values': [row]},
         ).execute()
-        print(f'  [Sheets] Order {order["order_id"]} appended ✓')
+        print(f'  [Sheets] Order {order["order_id"]} appended → {tab} ✓')
         return True
     except Exception as e:
         print(f'  [Sheets] Append error: {e}')
@@ -430,6 +446,46 @@ def products_to_js(products):
 
 # ── HTTP handler ──────────────────────────────────────────────────────────────
 class Handler(SimpleHTTPRequestHandler):
+
+    # ── Cache policy ─────────────────────────────────────────────────────────
+    # Sending no Cache-Control at all makes browsers, proxies and the Railway
+    # edge fall back to *heuristic* caching off Last-Modified — which is how a
+    # stale homepage (old product count, missing product cards) can keep being
+    # served, and crawled, long after a deploy. So be explicit:
+    #   HTML           → always revalidate; 304s off Last-Modified keep it cheap
+    #   ?v=… assets    → immutable for a year (the URL changes when they change)
+    #   everything else→ short TTL, so a replaced image can't stick around
+    def _cache_control_for(self, path):
+        route, _, query = path.partition('?')
+        route = route.partition('#')[0]
+        last = route.rsplit('/', 1)[-1]
+        if route.endswith('/') or last.endswith('.html') or '.' not in last:
+            return 'no-cache, must-revalidate'
+        if re.search(r'(^|&)v=', query):
+            return 'public, max-age=31536000, immutable'
+        return 'public, max-age=86400'
+
+    def end_headers(self):
+        if not getattr(self, '_cache_hdr_sent', False):
+            self._cache_hdr_sent = True
+            self.send_header('Cache-Control', self._cache_control_for(self.path))
+        super().end_headers()
+
+    def send_response(self, *args, **kwargs):
+        # New response on this connection — allow a fresh Cache-Control header.
+        self._cache_hdr_sent = False
+        super().send_response(*args, **kwargs)
+
+    def guess_type(self, path):
+        """Tag text responses as UTF-8 — the storefront is Hebrew, and a bare
+        `text/html` leaves the encoding to the client to guess."""
+        ctype = super().guess_type(path)
+        base = ctype.split(';', 1)[0].strip()
+        if base in ('text/html', 'text/css', 'text/plain', 'text/javascript',
+                    'application/javascript', 'application/xml', 'text/xml',
+                    'application/json'):
+            return base + '; charset=utf-8'
+        return ctype
 
     def do_GET(self):
         if self.path.startswith('/payment/confirm'):
@@ -728,18 +784,24 @@ class Handler(SimpleHTTPRequestHandler):
 
             _pending_orders[order_id] = order
 
+            # Internal test orders (the hidden 'test' product) go to separate
+            # tabs so the real orders/marketing data stays clean.
+            is_test = any(str(it.get('id')) == 'test' for it in order.get('items', []))
+            orders_tab = 'orders_test' if is_test else 'orders'
+            mkt_tab    = 'marketing_test' if is_test else 'marketing'
+
             # Save immediately to Sheets as "Pending Payment" so we never lose order data
             # (Railway may run multiple instances; _pending_orders is not shared across them)
             try:
                 service = get_sheets_service()
                 if service:
-                    order['status_override'] = 'Pending Payment'
-                    append_order_to_sheet(service, order)
+                    order['status_override'] = 'TEST' if is_test else 'Pending Payment'
+                    append_order_to_sheet(service, order, tab=orders_tab)
                     del order['status_override']
-                    print(f'  [Sheets] Order {order_id} saved as Pending Payment')
+                    print(f'  [Sheets] Order {order_id} saved → {orders_tab}')
                     # Add the customer to the marketing list (records consent flags).
                     try:
-                        append_marketing_row(service, order)
+                        append_marketing_row(service, order, tab=mkt_tab)
                     except Exception as _me:
                         print(f'  [Sheets] Marketing save failed: {_me}')
             except Exception as _se:
