@@ -2,6 +2,12 @@
    Main — grid render, hero cycle, navbar scroll
    ============================================================ */
 
+/* Internal test items keep a working URL (for ₪1 payment checks) but stay out
+   of the grid and the item count. Mirrors is_public() in build.py. */
+function publicProducts() {
+  return PRODUCTS.filter(p => p.id !== 'test');
+}
+
 /* ---- Render product grid ---- */
 function renderGrid() {
   const grid = document.getElementById('products-grid');
@@ -11,7 +17,7 @@ function renderGrid() {
   if (grid.querySelector('a[href^="/products/"]')) return;
   grid.innerHTML = '';
 
-  PRODUCTS.forEach(p => {
+  publicProducts().forEach(p => {
     const wrap = document.createElement('a');
     wrap.href = '/products/' + p.id + '/';
     wrap.style.cssText = 'background:var(--sand);display:flex;flex-direction:column;cursor:pointer;text-decoration:none;color:inherit;';
@@ -102,7 +108,7 @@ function updateCollectionCount() {
   const countEl = document.getElementById('collection-count');
   if (!countEl) return;
   const label = countEl.dataset.label || '';
-  countEl.textContent = PRODUCTS.length + label;
+  countEl.textContent = publicProducts().length + label;
 }
 
 /* ---- Init ---- */

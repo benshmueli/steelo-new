@@ -43,6 +43,12 @@ CATEGORY_HE = {
 def category_label(cat):
     return CATEGORY_HE.get((cat or "").lower(), cat or "")
 
+def is_public(p):
+    """Internal test items keep a working URL (for ₪1 payment checks) but stay
+    out of the grid, the item count and the sitemap. One rule, used everywhere,
+    so the count can't drift away from the cards again."""
+    return p.get("id") != "test"
+
 # Delivery fee (₪) by raw product category — informational, shown on the page.
 DELIVERY_FEE = {
     "dining table": 300,
@@ -313,7 +319,7 @@ MODALS = '''  <!-- CART -->
 '''
 
 SCRIPTS = '''  <script src="/js/i18n.js?v=1"></script>
-  <script src="/js/data.js?v=7"></script>
+  <script src="/js/data.js?v=8"></script>
   <script src="/js/cart.js?v=7"></script>
   <!-- jQuery required by Tranzila's embedded payment iframe (Apple Pay / Google Pay) -->
   <script src="/js/jquery.min.js?v=1"></script>
@@ -470,7 +476,7 @@ def product_page(p):
   <title>{esc(title)}</title>
   <meta name="description" content="{esc(mdesc)}">
   <link rel="canonical" href="{url}">
-  <meta name="robots" content="index, follow">
+  <meta name="robots" content="{'noindex, nofollow' if pid == 'test' else 'index, follow'}">
   <meta name="theme-color" content="#1A1715">
   <link rel="icon" type="image/png" href="/images/logo.png">
   <meta property="og:type" content="product">
@@ -547,6 +553,8 @@ def grid_cards(products):
     each product, mirroring js/main.js renderGrid so it renders identically."""
     out = []
     for p in products:
+        if not is_public(p):
+            continue
         pid  = p["id"]
         name = p["name"]
         cat  = category_label(p["category"])
@@ -578,8 +586,9 @@ f'''<a href="/products/{esc(pid)}/" aria-label="{esc(name)}" style="background:v
 
 
 def inject_collection_count(txt, products):
-    """Write len(products) into #collection-count so the served HTML already
-    carries the real number (js/main.js recomputes the same value at runtime)."""
+    """Write the public product count into #collection-count so the served HTML
+    already carries the real number — same list that produced the cards, so the
+    two can't disagree. js/main.js recomputes the identical value at runtime."""
     pattern = re.compile(
         r'(<span id="collection-count" data-label="(?P<label>[^"]*)"[^>]*>)(?P<body>.*?)(</span>)',
         re.S)
@@ -587,7 +596,8 @@ def inject_collection_count(txt, products):
     if not m:
         print("  ! #collection-count not found — skipped")
         return txt
-    count = f"{len(products)}{html.unescape(m.group('label'))}"
+    n = len([p for p in products if is_public(p)])
+    count = f"{n}{html.unescape(m.group('label'))}"
     print(f"  ✓ index.html collection count → {count.strip()}")
     return pattern.sub(lambda mm: mm.group(1) + esc(count) + mm.group(4), txt, count=1)
 
@@ -610,7 +620,7 @@ def inject_home_grid(products):
 
 
 def write_sitemap(products):
-    urls = [f"{SITE}/", f"{SITE}/returns.html"] + [f"{SITE}/products/{p['id']}/" for p in products]
+    urls = [f"{SITE}/", f"{SITE}/returns.html"] + [f"{SITE}/products/{p['id']}/" for p in products if is_public(p)]
     items = "\n".join(f"  <url><loc>{u}</loc></url>" for u in urls)
     xml = ('<?xml version="1.0" encoding="UTF-8"?>\n'
            '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
