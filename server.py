@@ -748,6 +748,15 @@ class Handler(SimpleHTTPRequestHandler):
                 print(f'  [Order] Error: {e}')
                 self._json(500, {'ok': False, 'error': str(e)})
 
+        # Apple Pay (Tranzila's bridge) POSTs to the success/fail URL instead of
+        # GET-redirecting like the card flow — route it through the same handlers
+        # so the customer lands on the confirmation screen (not a raw JSON page).
+        elif self.path.startswith('/payment-success'):
+            self._handle_payment_success_redirect()
+
+        elif self.path.startswith('/payment-fail'):
+            self._handle_payment_fail_redirect()
+
         else:
             # Return 200 for any unhandled POST (e.g. Tranzila server-to-server notification)
             print(f'  [POST] Unhandled: {self.path}')
