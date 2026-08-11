@@ -153,34 +153,143 @@ h1, h2, h3, h4, h5, h6, .hero-display {
   font-size: clamp(3.5rem, 7vw, 7rem);
   color: var(--ink);
 }
-/* HERO TITLE POSITIONING — ensure title sits over wall area, not on table */
+/* ============================================================
+   HERO — band positioning
+
+   The photo behind the hero has three horizontal regions: empty wall on top,
+   the furniture in the middle, empty floor at the bottom. The hero is a grid
+   with one row per region, so the copy sits on the wall, the CTA sits on the
+   floor, and the middle row — the furniture — never holds text.
+
+   Because `object-fit: cover` crops by aspect ratio, the on-screen size of
+   those regions differs per device. That is what the three variables are for.
+   Breakpoints below re-declare ONLY the variables, never the layout; add a
+   `margin-top` to an element here and the guarantee is gone.
+
+   Measured source bands (first/last row containing furniture pixels):
+     Hero_mobile.JPG      941x1672   wall 0-38%   furniture 38-75%   floor 75-100%
+     hero_desktop_wide    2400x1350  wall 0-26%   furniture 26-78%   floor 78-100%
+   ============================================================ */
+#hero {
+  --band-wall: 38%;    /* row 1 — title + paragraph      */
+  --band-floor: 25%;   /* row 3 — CTA buttons            */
+  --nav-clear: 7rem;   /* keeps the title off the navbar */
+
+  position: relative;
+  height: 100svh;
+  min-height: 600px;
+  overflow: hidden;
+}
+
+#hero picture img {
+  object-position: 50% 50%;
+}
+
 #hero .hero-content {
   position: absolute;
   inset: 0;
+  z-index: 2;
+  display: grid;
+  grid-template-rows: var(--band-wall) 1fr var(--band-floor);
+  justify-items: center;
+  padding: 0 1.5rem;
+  text-align: center;
+}
+
+#hero .hero-copy {
+  grid-row: 1;
+  align-self: start;
+  padding-top: var(--nav-clear);
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: flex-start !important;
-  padding: var(--hero-padding-top, clamp(2.5rem, 12vh, 9rem)) 1.5rem 0;
-  text-align: center;
-  pointer-events: none;
+  gap: clamp(1rem, 2.5vh, 1.75rem);
 }
 
-/* Make hero taller than viewport to reveal more wall above the table */
-#hero { position: relative; height: calc(100vh + 8vh); overflow: hidden; }
+#hero .hero-copy h1 {
+  font-size: clamp(1.85rem, 5.5vw, 4.25rem);
+  line-height: 1.05;
+  letter-spacing: 0.14em;
+}
 
-/* Image focus: move focal Y up so the wall is visible behind the title */
-#hero picture img { object-position: 75% 14% !important; }
+#hero .hero-copy p {
+  font-size: clamp(1rem, 1.6vw, 1.15rem);
+  line-height: 1.75;
+  max-width: 52ch;
+}
 
+#hero .hero-cta {
+  grid-row: 3;
+  align-self: center;
+}
+
+/* Kept in the stylesheet, not inline, so the phone rule below can hide it —
+   an inline `display:flex` would outrank `display:none` and the cue would
+   keep drawing itself through the WhatsApp button. */
+#hero .scroll-cue {
+  position: absolute;
+  bottom: 2.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* The bands are keyed on ASPECT RATIO, not width, because aspect ratio is what
+   decides how `cover` crops. Width tells you nothing here: a 1180px iPad in
+   landscape and a 1180px-wide window need completely different bands.
+   The portrait asset is 941x1672 — an aspect of 0.563, i.e. almost exactly 9/16,
+   which is the hinge below. */
+
+/* Taller than the photo: it is scaled to fit the height, cropped left and
+   right, so the full height shows and the source bands map straight across. */
+@media (max-aspect-ratio: 9/16) {
+  #hero {
+    --band-wall: 38%;
+    --band-floor: 25%;
+    --nav-clear: 7rem;
+  }
+}
+
+/* Portrait but wider than the photo (tablets): scaled to fit the width, so
+   ~19% of the height is cropped away, split between top and bottom. The wall
+   band loses about half of that. */
+@media (min-aspect-ratio: 9/16) and (max-aspect-ratio: 1/1) {
+  #hero {
+    --band-wall: 32%;
+    --band-floor: 20%;
+    --nav-clear: 6.5rem;
+  }
+}
+
+/* Any landscape viewport gets the 16:9 asset, which is scaled to fit the height
+   on everything from an iPad to an ultrawide. The bands therefore land in the
+   same place on every landscape screen — that is the point of the wide crop. */
+@media (min-aspect-ratio: 1/1) {
+  #hero {
+    --band-wall: 34%;
+    --band-floor: 20%;
+    --nav-clear: 5.5rem;
+  }
+  /* One line reads better across a wide frame, and the two-line stack does not
+     fit the wall band on a short landscape screen such as an iPad. */
+  #hero .hero-copy h1 br { display: none; }
+  #hero .hero-copy h1 { font-size: clamp(2.2rem, 3.6vw, 3.5rem); }
+  #hero .hero-copy p { max-width: 74ch; }
+}
+
+/* The CTA now occupies the floor band, which is where the scroll cue used to
+   live — on every screen size, not just phones. Two elements competing for the
+   same band drew the cue's line straight through the WhatsApp button. Delete
+   this rule to bring the cue back, but move the CTA first. */
+#hero .scroll-cue { display: none; }
+
+/* Phone typography and controls — width is the right question for these. */
 @media (max-width: 768px) {
-  #hero { height: calc(100vh + 4vh); }
-  #hero .hero-content { padding-top: clamp(2rem, 10vh, 6rem); }
-  #hero picture img { object-position: 50% 12% !important; }
-}
-
-@media (min-width: 1200px) {
-  #hero .hero-content { padding-top: clamp(6rem, 15vh, 11rem); }
-  #hero picture img { object-position: 75% 10% !important; }
+  #hero .hero-copy h1 { letter-spacing: 0.08em; }
+  #hero .hero-cta { width: min(100%, 560px); }
 }
 
 /* ============================================================
