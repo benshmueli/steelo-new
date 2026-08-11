@@ -1,3 +1,21 @@
+/* Order the collection grid groups by category, so all the side tables sit
+   together instead of being interleaved by whatever order products were added.
+   Read by BOTH renderers — build.py (the static, crawlable grid) and
+   main.js publicProducts() (the runtime fallback) — so the two can't drift.
+
+   Matching is case-insensitive: the data contains both 'Stool' and 'STOOL',
+   and a literal comparison would split that group in two. Anything not listed
+   here sorts last, so a newly added category shows up at the end of the grid
+   rather than silently leading it. */
+const CATEGORY_ORDER = [
+  'side table',
+  'nesting tables',   // rendered as "שידת צד" by category_label() in build.py
+  'living room table',
+  'coffee table',
+  'dining table',
+  'stool',
+];
+
 const PRODUCTS = [
   {
     id: 'loop',

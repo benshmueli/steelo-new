@@ -5,7 +5,15 @@
 /* Internal test items keep a working URL (for ₪1 payment checks) but stay out
    of the grid and the item count. Mirrors is_public() in build.py. */
 function publicProducts() {
-  return PRODUCTS.filter(p => p.id !== 'test');
+  // Grouped by category via CATEGORY_ORDER in data.js — the same list build.py
+  // sorts the static grid by, so the two renderers can't disagree. Matching is
+  // case-insensitive ('Stool' vs 'STOOL'), unlisted categories sort last, and
+  // Array.sort is stable so order within a category stays as authored.
+  const rank = new Map(CATEGORY_ORDER.map((c, i) => [c.toLowerCase(), i]));
+  const of = p => rank.has((p.category || '').toLowerCase())
+    ? rank.get((p.category || '').toLowerCase())
+    : rank.size;
+  return PRODUCTS.filter(p => p.id !== 'test').sort((a, b) => of(a) - of(b));
 }
 
 /* ---- Render product grid ---- */
