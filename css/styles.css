@@ -11,7 +11,12 @@
   --ink-800:  #2D2926;
   --ink-600:  #433F3C;
   --ink-500:  #6B6460;
-  --ink-400:  #8C7F77;
+  /* Body text. Was #8C7F77, which is 3.24:1 on --sand — below the 4.5:1 WCAG AA
+     needs for normal text, and the reason the philosophy copy read as faint.
+     #746862 is 4.50:1. Used in ~356 places, so this one line carries all of it. */
+  --ink-400:  #746862;
+  /* 2.38:1 and 1.56:1 respectively — far below AA and not fixable while staying
+     lighter than --ink-400. RULES AND BORDERS ONLY; never put text on these. */
   --ink-300:  #A09890;
   --ink-200:  #C9BBB5;
 }
@@ -312,11 +317,44 @@ h1, h2, h3, h4, h5, h6, .hero-display {
 /* ============================================================
    MARQUEE
    ============================================================ */
+/* The strip used to run empty for part of every cycle. Two separate causes:
+
+   1. In RTL the track already overflows to the LEFT of its container, so
+      translating negative walks it off the screen entirely — measured at 390px,
+      the track's right edge reached -181px, i.e. nothing on screen at all.
+      `animation-direction: reverse` did not save it: that reverses time, not
+      the sign of the transform. RTL needs its own keyframe moving POSITIVE.
+
+   2. The content is repeated N times and the track shifts by exactly one
+      repeat, so the strip stays covered only while
+          (N - 1) x setWidth  >=  viewport width
+      There were 3 repeats and the shift was 50% — one and a half repeats, so
+      the loop was not even seamless. It is now 5 repeats shifted by 20%, one
+      repeat exactly, which covers a viewport of about 4100px.
+
+   Add or remove items in index.html and the maths still holds; change the
+   number of repeats and this percentage must change with it. */
 @keyframes marquee {
   from { transform: translateX(0); }
-  to   { transform: translateX(-50%); }
+  to   { transform: translateX(-20%); }
 }
-.marquee-track { animation: marquee 22s linear infinite; animation-delay: -11s; display: flex; width: max-content; }
+@keyframes marquee-rtl {
+  from { transform: translateX(0); }
+  to   { transform: translateX(20%); }
+}
+.marquee { overflow: hidden; background: var(--ink); padding: 1rem 0; }
+.marquee-track { animation: marquee 22s linear infinite; display: flex; width: max-content; }
+
+.mq {
+  font-family: Montserrat, Heebo, sans-serif;
+  font-size: 0.7rem;
+  letter-spacing: 0.4em;
+  text-transform: uppercase;
+  color: var(--sand-400);
+  padding: 0 2rem;
+  white-space: nowrap;
+}
+.mq-sep { color: var(--ink-600); padding: 0 1rem; }
 
 /* ============================================================
    SECTION UTILITIES
@@ -364,8 +402,52 @@ h1, h2, h3, h4, h5, h6, .hero-display {
   transition: opacity 0.4s ease;
   display: flex; flex-direction: column; justify-content: flex-end;
   padding: 1.5rem;
+  z-index: 2;
 }
 .product-card:hover .card-overlay { opacity: 1; }
+
+/* ---- Card header: category + name, above the image ---- */
+#products-grid .card-head {
+  padding: 1.1rem 1.35rem 0.9rem;
+  background: var(--sand-100);
+  border-bottom: 1px solid var(--sand-300);
+}
+#products-grid .card-cat {
+  font-family: Montserrat, Heebo, sans-serif;
+  font-size: 0.7rem;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: var(--ink-400);
+  margin: 0 0 0.3rem;
+}
+#products-grid .card-name {
+  font-family: Cormorant, Georgia, serif;
+  font-weight: 300;
+  font-size: 1.5rem;
+  color: var(--ink);
+  margin: 0;
+}
+
+/* ---- Price, over the foot of the image ----
+   Sits on its own scrim so it stays legible on a pale product shot, and fades
+   on hover because .card-overlay puts its button in the same corner. */
+.product-card .card-price {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  z-index: 1;
+  padding: 3rem 1.35rem 1.1rem;
+  background: linear-gradient(to top,
+              rgba(20,18,16,0.62) 0%, rgba(20,18,16,0.30) 45%, transparent 100%);
+  font-family: Cormorant, Georgia, serif;
+  font-weight: 300;
+  font-size: 1.4rem;
+  color: #F5F0EB;
+  direction: ltr;
+  text-align: left;
+  text-shadow: 0 1px 10px rgba(20,18,16,0.55);
+  transition: opacity 0.4s ease;
+}
+.product-card:hover .card-price { opacity: 0; }
 
 /* ============================================================
    PRODUCT MODAL
@@ -475,7 +557,7 @@ h1, h2, h3, h4, h5, h6, .hero-display {
   transition: background 0.2s, border-color 0.2s;
   background: transparent;
 }
-.qty-btn:hover { background: var(--sand-200); border-color: var(--ink-300); }
+.qty-btn:hover { background: var(--sand-200); border-color: var(--ink-400); }
 
 .form-input {
   width: 100%; padding: 0.75rem 1rem;
@@ -489,7 +571,7 @@ h1, h2, h3, h4, h5, h6, .hero-display {
   box-sizing: border-box;
 }
 .form-input:focus { border-color: var(--ink); }
-.form-input::placeholder { color: var(--ink-300); }
+.form-input::placeholder { color: var(--ink-400); }
 
 /* ============================================================
    BUTTONS
@@ -585,7 +667,7 @@ h1, h2, h3, h4, h5, h6, .hero-display {
 
 .checkout-section-label {
   font-family: 'Montserrat', sans-serif;
-  font-size: 0.6rem; letter-spacing: 0.25em;
+  font-size:0.7rem; letter-spacing: 0.25em;
   text-transform: uppercase; color: var(--ink-400);
   margin: 0 0 0.875rem;
 }
@@ -677,6 +759,13 @@ h1, h2, h3, h4, h5, h6, .hero-display {
   #navbar { padding: 1.25rem 1.5rem; }
   .nav-desktop { display: none; }
   .nav-burger  { display: block; }
+  /* Burger outermost, cart inside it. Done with `order` rather than by moving
+     the elements, so the tab order and the desktop layout stay as they are.
+     The `auto` margin that pushes the pair away from the logo has to travel
+     with the order — left on .nav-burger it would strand the cart beside the
+     logo instead of keeping the two together. */
+  .nav-burger { order: 2; margin-inline-start: 0; margin-inline-end: 0; }
+  #cart-btn   { order: 1; margin-inline-start: auto; margin-inline-end: 1.25rem; }
   #hero { flex-direction: column !important; min-height: unset !important; }
   #hero > .hero-left  { width: 100% !important; padding: 6rem 1.5rem 2rem !important; }
   #hero > .hero-right { display: none !important; }
@@ -692,9 +781,8 @@ h1, h2, h3, h4, h5, h6, .hero-display {
 }
 @media (max-width: 640px) {
   #products-grid { grid-template-columns: 1fr !important; }
-  #products-grid a { flex-direction: column-reverse !important; }
-  #products-grid a > div:last-child { order: 1; }
-  #products-grid a .product-card { order: 2; }
+  /* The header/image order used to be flipped here. The card now puts the name
+     above the image at every width, so re-ordering would undo it. */
   #collection .collection-header { padding: 0 1.5rem 2rem !important; }
   #collection .grid-wrap { padding: 0 !important; }
   #hero img { object-position: center center !important; }
@@ -705,7 +793,8 @@ h1, h2, h3, h4, h5, h6, .hero-display {
 }
 
 /* ── RTL / Hebrew polish ───────────────────────────────────────────────── */
-html[dir="rtl"] .marquee-track { animation-direction: reverse; }
+/* Not `animation-direction: reverse` — see the marquee block above. */
+html[dir="rtl"] .marquee-track { animation-name: marquee-rtl; }
 /* Hebrew reads better without forced letter-spacing on short labels */
 html[dir="rtl"] .nav-link { letter-spacing: 0.05em; }
 /* The animated nav underline should grow from the reading (right) edge */
