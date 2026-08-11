@@ -14,7 +14,6 @@
   --ink-400:  #8C7F77;
   --ink-300:  #A09890;
   --ink-200:  #C9BBB5;
-  --hero-padding-top: clamp(2.5rem, 12vh, 9rem);
 }
 
 /* ============================================================
@@ -154,7 +153,6 @@ h1, h2, h3, h4, h5, h6, .hero-display {
   font-size: clamp(3.5rem, 7vw, 7rem);
   color: var(--ink);
 }
-
 /* HERO TITLE POSITIONING — ensure title sits over wall area, not on table */
 #hero .hero-content {
   position: absolute;
@@ -163,7 +161,7 @@ h1, h2, h3, h4, h5, h6, .hero-display {
   flex-direction: column;
   align-items: center;
   justify-content: flex-start !important;
-  padding: var(--hero-padding-top) 1.5rem 0;
+  padding: clamp(2.5rem, 12vh, 9rem) 1.5rem 0;
   text-align: center;
   pointer-events: none;
 }
