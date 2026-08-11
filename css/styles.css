@@ -30,11 +30,17 @@ body {
   margin: 0;
   background: var(--sand);
   color: var(--ink);
-  font-family: 'Montserrat', sans-serif;
+  font-family: 'Heebo', 'Montserrat', sans-serif;
   -webkit-font-smoothing: antialiased;
   /* Do NOT set overflow-x: hidden here — it fails to clip fixed elements.
      Instead the #page-wrap div clips content, and the cart lives inside
      a fixed viewport container so it never creates horizontal overflow. */
+}
+
+/* Typography: prefer Heebo for Hebrew UI — force for headings to override inline serif use */
+body, button, input, textarea, select, a, p, li { font-family: 'Heebo', 'Montserrat', sans-serif; }
+h1, h2, h3, h4, h5, h6, .hero-display {
+  font-family: 'Heebo', 'Montserrat', sans-serif !important;
 }
 
 ::selection { background: var(--sand-300); }
