@@ -21,7 +21,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Frank+Ruhl+Libre:wght@300;400;500;700&family=Heebo:wght@300;400;500;600&family=Montserrat:wght@300;400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/css/styles.css?v=18">
+  <link rel="stylesheet" href="/css/styles.css?v=19">
   <script type="application/ld+json">{"@context": "https://schema.org", "@type": "Product", "name": "Rectangular L", "image": ["https://www.steelo-design.com/images/products/RectangularLivingRoom/1.webp", "https://www.steelo-design.com/images/products/RectangularLivingRoom/2.webp"], "sku": "rectangular-l", "brand": {"@type": "Brand", "name": "Steelo"}, "category": "שולחן סלון", "material": "נירוסטה 304", "offers": {"@type": "Offer", "url": "https://www.steelo-design.com/products/rectangular-l/", "priceCurrency": "ILS", "price": 2500, "availability": "https://schema.org/InStock", "itemCondition": "https://schema.org/NewCondition"}, "description": "שולחן סלון נירוסטה בעיצוב נקי ועוצמתי. מציג סילואט מודרני ונקי, עשוי נירוסטה 304 מוברשת בעובי 3.5 מ\"מ. פריט בעל נוכחות דומיננטית המעניק לחלל המגורים מראה תעשייתי יוקרתי, על-זמני ומתוחכם."}</script>
   <script type="application/ld+json">{"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "בית", "item": "https://www.steelo-design.com/"}, {"@type": "ListItem", "position": 2, "name": "הקולקציה", "item": "https://www.steelo-design.com/#collection"}, {"@type": "ListItem", "position": 3, "name": "Rectangular L", "item": "https://www.steelo-design.com/products/rectangular-l/"}]}</script>
 </head>
@@ -34,14 +34,24 @@
     <div class="nav-desktop">
       <a href="/#collection" class="nav-link" style="font-family:Montserrat,Heebo;font-size:1.3rem;letter-spacing:0.15em;color:var(--ink);">הקולקציה</a>
       <a href="/#about"      class="nav-link" style="font-family:Montserrat,Heebo;font-size:1.3rem;letter-spacing:0.15em;color:var(--ink);">אודות</a>
+      <a href="/professionals/" class="nav-link" style="font-family:Montserrat,Heebo;font-size:1.3rem;letter-spacing:0.15em;color:var(--ink);">אנשי מקצוע ועסקים</a>
       <a href="/#contact"    class="nav-link" style="font-family:Montserrat,Heebo;font-size:1.3rem;letter-spacing:0.15em;color:var(--ink);">צור קשר</a>
     </div>
+    <button id="nav-toggle" class="nav-burger" aria-label="תפריט" aria-expanded="false" aria-controls="nav-mobile">
+      <span></span><span></span><span></span>
+    </button>
     <button id="cart-btn" aria-label="פתיחת סל" style="display:flex;align-items:center;gap:0.5rem;background:none;border:none;cursor:pointer;color:var(--ink);padding:0;">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
         <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/>
       </svg>
       <span id="cart-count" style="font-family:Montserrat,Heebo;font-size:0.75rem;font-weight:500;display:none;"></span>
     </button>
+    <div id="nav-mobile" class="nav-mobile">
+      <a href="/#collection">הקולקציה</a>
+      <a href="/#about">אודות</a>
+      <a href="/professionals/">אנשי מקצוע ועסקים</a>
+      <a href="/#contact">צור קשר</a>
+    </div>
   </nav>
 
   <div id="page-wrap">
@@ -116,6 +126,7 @@
         <div class="footer-links" style="display:flex;gap:3rem;align-items:center;flex-wrap:wrap;">
           <a href="/#collection" class="nav-link" style="font-family:Montserrat,Heebo;font-size:0.7rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--ink-400);">הקולקציה</a>
           <a href="/#about"      class="nav-link" style="font-family:Montserrat,Heebo;font-size:0.7rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--ink-400);">אודות</a>
+          <a href="/professionals/" class="nav-link" style="font-family:Montserrat,Heebo;font-size:0.7rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--ink-400);">אנשי מקצוע ועסקים</a>
           <a href="/#contact"    class="nav-link" style="font-family:Montserrat,Heebo;font-size:0.7rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--ink-400);">צור קשר</a>
           <a href="/returns.html" class="nav-link" style="font-family:Montserrat,Heebo;font-size:0.7rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--ink-400);">מדיניות החזרות</a>
         </div>
@@ -267,6 +278,7 @@
     <img id="pdp-lb-img" src="" alt="" style="max-width:92%;max-height:90%;object-fit:contain;">
   </div>
 
+  <script src="/js/nav.js?v=1"></script>
   <script src="/js/i18n.js?v=1"></script>
   <script src="/js/data.js?v=8"></script>
   <script src="/js/cart.js?v=7"></script>

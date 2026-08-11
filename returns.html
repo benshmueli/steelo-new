@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Montserrat:wght@300;400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/styles.css?v=13">
+  <link rel="stylesheet" href="css/styles.css?v=19">
   <style>
     html { direction: rtl; }
     body { text-align: right; }
@@ -41,7 +41,17 @@
     <div class="nav-desktop" style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);">
       <a href="/#collection" class="nav-link" style="font-family:Montserrat,Heebo;font-size:1.3rem;letter-spacing:0.15em;color:var(--ink);">הקולקציה</a>
       <a href="/#about"      class="nav-link" style="font-family:Montserrat,Heebo;font-size:1.3rem;letter-spacing:0.15em;color:var(--ink);">אודות</a>
+      <a href="/professionals/" class="nav-link" style="font-family:Montserrat,Heebo;font-size:1.3rem;letter-spacing:0.15em;color:var(--ink);">אנשי מקצוע ועסקים</a>
       <a href="/#contact"    class="nav-link" style="font-family:Montserrat,Heebo;font-size:1.3rem;letter-spacing:0.15em;color:var(--ink);">צור קשר</a>
+    </div>
+    <button id="nav-toggle" class="nav-burger" aria-label="תפריט" aria-expanded="false" aria-controls="nav-mobile">
+      <span></span><span></span><span></span>
+    </button>
+    <div id="nav-mobile" class="nav-mobile">
+      <a href="/#collection">הקולקציה</a>
+      <a href="/#about">אודות</a>
+      <a href="/professionals/">אנשי מקצוע ועסקים</a>
+      <a href="/#contact">צור קשר</a>
     </div>
   </nav>
 
@@ -98,6 +108,7 @@
         <div class="footer-links" style="display:flex;gap:3rem;align-items:center;flex-wrap:wrap;">
           <a href="/#collection" class="nav-link" style="font-family:Montserrat;font-size:0.7rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--ink-400);">Collection</a>
           <a href="/#about"      class="nav-link" style="font-family:Montserrat;font-size:0.7rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--ink-400);">About</a>
+          <a href="/professionals/" class="nav-link" style="font-family:Montserrat,Heebo;font-size:0.7rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--ink-400);">אנשי מקצוע ועסקים</a>
           <a href="/#contact"    class="nav-link" style="font-family:Montserrat;font-size:0.7rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--ink-400);">Contact</a>
         </div>
       </div>
@@ -108,5 +119,6 @@
     </footer>
   </div>
 
+  <script src="/js/nav.js?v=1"></script>
 </body>
 </html>

@@ -15,7 +15,7 @@ Design goals:
 
 Run:  python3 build.py
 """
-import json, os, re, subprocess, html
+import json, os, re, subprocess, html, urllib.parse
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 SITE     = "https://www.steelo-design.com"
@@ -143,14 +143,24 @@ NAV = '''  <!-- NAVBAR -->
     <div class="nav-desktop">
       <a href="/#collection" class="nav-link" style="font-family:Montserrat,Heebo;font-size:1.3rem;letter-spacing:0.15em;color:var(--ink);">הקולקציה</a>
       <a href="/#about"      class="nav-link" style="font-family:Montserrat,Heebo;font-size:1.3rem;letter-spacing:0.15em;color:var(--ink);">אודות</a>
+      <a href="/professionals/" class="nav-link" style="font-family:Montserrat,Heebo;font-size:1.3rem;letter-spacing:0.15em;color:var(--ink);">אנשי מקצוע ועסקים</a>
       <a href="/#contact"    class="nav-link" style="font-family:Montserrat,Heebo;font-size:1.3rem;letter-spacing:0.15em;color:var(--ink);">צור קשר</a>
     </div>
+    <button id="nav-toggle" class="nav-burger" aria-label="תפריט" aria-expanded="false" aria-controls="nav-mobile">
+      <span></span><span></span><span></span>
+    </button>
     <button id="cart-btn" aria-label="פתיחת סל" style="display:flex;align-items:center;gap:0.5rem;background:none;border:none;cursor:pointer;color:var(--ink);padding:0;">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
         <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/>
       </svg>
       <span id="cart-count" style="font-family:Montserrat,Heebo;font-size:0.75rem;font-weight:500;display:none;"></span>
     </button>
+    <div id="nav-mobile" class="nav-mobile">
+      <a href="/#collection">הקולקציה</a>
+      <a href="/#about">אודות</a>
+      <a href="/professionals/">אנשי מקצוע ועסקים</a>
+      <a href="/#contact">צור קשר</a>
+    </div>
   </nav>
 '''
 
@@ -164,6 +174,7 @@ FOOTER = '''    <!-- FOOTER -->
         <div class="footer-links" style="display:flex;gap:3rem;align-items:center;flex-wrap:wrap;">
           <a href="/#collection" class="nav-link" style="font-family:Montserrat,Heebo;font-size:0.7rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--ink-400);">הקולקציה</a>
           <a href="/#about"      class="nav-link" style="font-family:Montserrat,Heebo;font-size:0.7rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--ink-400);">אודות</a>
+          <a href="/professionals/" class="nav-link" style="font-family:Montserrat,Heebo;font-size:0.7rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--ink-400);">אנשי מקצוע ועסקים</a>
           <a href="/#contact"    class="nav-link" style="font-family:Montserrat,Heebo;font-size:0.7rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--ink-400);">צור קשר</a>
           <a href="/returns.html" class="nav-link" style="font-family:Montserrat,Heebo;font-size:0.7rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--ink-400);">מדיניות החזרות</a>
         </div>
@@ -318,7 +329,8 @@ MODALS = '''  <!-- CART -->
   </div>
 '''
 
-SCRIPTS = '''  <script src="/js/i18n.js?v=1"></script>
+SCRIPTS = '''  <script src="/js/nav.js?v=1"></script>
+  <script src="/js/i18n.js?v=1"></script>
   <script src="/js/data.js?v=8"></script>
   <script src="/js/cart.js?v=7"></script>
   <!-- jQuery required by Tranzila's embedded payment iframe (Apple Pay / Google Pay) -->
@@ -493,7 +505,7 @@ def product_page(p):
   <meta property="product:price:amount" content="{price}">
   <meta property="product:price:currency" content="ILS">
   {FONTS}
-  <link rel="stylesheet" href="/css/styles.css?v=18">
+  <link rel="stylesheet" href="/css/styles.css?v=19">
   <script type="application/ld+json">{json.dumps(ld_product, ensure_ascii=False)}</script>
   <script type="application/ld+json">{json.dumps(ld_crumbs, ensure_ascii=False)}</script>
 </head>
@@ -550,6 +562,148 @@ def product_page(p):
 </body>
 </html>
 '''
+
+# ── Static content pages ─────────────────────────────────────────────────────
+# Prefilled WhatsApp lead message. Must use the phone-number form of the link —
+# the short wa.me/message/<id> links silently ignore ?text=.
+WA_PRO = ("https://wa.me/972554424206?text="
+          + urllib.parse.quote("היי, אני מעוניין/ת בפתרון בהתאמה אישית לפרויקט"))
+
+CONTENT_CSS = '''    .content-wrap { max-width: 760px; margin: 0 auto; padding: 9rem 2rem 5rem; }
+    .content-wrap h1 {
+      font-family: 'Cormorant','Frank Ruhl Libre',Georgia,serif; font-weight: 300;
+      font-size: clamp(2.25rem,5vw,3.75rem); line-height: 1.12; color: var(--ink);
+      margin: 0 0 2.5rem; }
+    .content-wrap p {
+      font-family: Montserrat, Heebo, sans-serif; font-weight: 300;
+      font-size: 1rem; line-height: 1.95; color: var(--ink-500); margin: 0 0 1.75rem; }
+    .content-divider { width: 2.5rem; height: 1px; background: var(--ink); margin-bottom: 2.5rem; }
+    .content-cta { margin-top: 3.5rem; padding-top: 2.5rem; border-top: 1px solid var(--sand-300); }
+    .content-cta h2 {
+      font-family: 'Cormorant','Frank Ruhl Libre',Georgia,serif; font-weight: 300;
+      font-size: clamp(1.6rem,3vw,2.25rem); color: var(--ink); margin: 0 0 1rem; }
+    .content-cta p { margin-bottom: 2rem; }
+    .wa-cta {
+      display: inline-flex; align-items: center; gap: 0.75rem;
+      font-family: Montserrat, Heebo, sans-serif; font-size: 0.75rem;
+      letter-spacing: 0.2em; text-transform: uppercase; text-decoration: none;
+      color: var(--ink); border: 1px solid var(--ink); padding: 1.15rem 3rem;
+      transition: background 0.3s, color 0.3s; }
+    .wa-cta:hover { background: var(--ink); color: #F5F0EB; }
+    @media (max-width: 768px) {
+      .content-wrap { padding: 7rem 1.5rem 4rem; }
+      .wa-cta { width: 100%; justify-content: center; padding: 1.15rem 1.5rem; }
+    }'''
+
+WA_ICON = ('<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+           'stroke-width="1.5"><path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 '
+           '8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 '
+           '013.8-.9h.5a8.48 8.48 0 018 8v.5z"/></svg>')
+
+
+def content_page(slug, title, mdesc, h1, body_html, crumb, ld_extra=None):
+    """A crawlable static content page using the site's exact chrome, so the
+    nav, footer and cart behave the same as everywhere else."""
+    url = f"{SITE}/{slug}/"
+    ld_crumbs = {
+        "@context": "https://schema.org", "@type": "BreadcrumbList",
+        "itemListElement": [
+            {"@type": "ListItem", "position": 1, "name": "בית", "item": SITE + "/"},
+            {"@type": "ListItem", "position": 2, "name": crumb, "item": url},
+        ],
+    }
+    extra_ld = (f'\n  <script type="application/ld+json">'
+                f'{json.dumps(ld_extra, ensure_ascii=False)}</script>') if ld_extra else ""
+    return f'''<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{esc(title)}</title>
+  <meta name="description" content="{esc(mdesc)}">
+  <link rel="canonical" href="{url}">
+  <meta name="robots" content="index, follow">
+  <meta name="theme-color" content="#1A1715">
+  <link rel="icon" type="image/png" href="/images/logo.png">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Steelo">
+  <meta property="og:locale" content="he_IL">
+  <meta property="og:title" content="{esc(title)}">
+  <meta property="og:description" content="{esc(mdesc)}">
+  <meta property="og:url" content="{url}">
+  <meta property="og:image" content="{SITE}/images/logo.png">
+  {FONTS}
+  <link rel="stylesheet" href="/css/styles.css?v=19">
+  <style>
+{CONTENT_CSS}
+  </style>
+  <script type="application/ld+json">{json.dumps(ld_crumbs, ensure_ascii=False)}</script>{extra_ld}
+</head>
+<body>
+{NAV}
+  <div id="page-wrap">
+    <main class="content-wrap">
+
+      <nav aria-label="breadcrumb" style="font-family:Montserrat,Heebo;font-size:0.7rem;letter-spacing:0.05em;color:var(--ink-400);margin-bottom:2.5rem;">
+        <a href="/" style="color:var(--ink-400);text-decoration:none;">בית</a>
+        <span style="margin:0 0.5rem;">/</span>
+        <span style="color:var(--ink);">{esc(crumb)}</span>
+      </nav>
+
+      <div class="content-divider"></div>
+      <h1>{esc(h1)}</h1>
+{body_html}
+    </main>
+{FOOTER}
+  </div><!-- end page-wrap -->
+{MODALS}
+{SCRIPTS}
+</body>
+</html>
+'''
+
+
+def professionals_page():
+    """B2B / trade landing page — architects, interior designers, hospitality."""
+    h1 = "פתרונות בהתאמה אישית לאדריכלים, מעצבים ועסקים"
+    paras = [
+        "אנחנו עובדים בשיתוף פעולה עם מעצבי פנים, אדריכלים, בתי קפה, מסעדות, מלונות ועסקים נוספים, ומציעים אפשרות לייצור פריטים בהתאמה אישית ישירות דרך המפעלים שלנו.",
+        "בין אם מדובר במידות מיוחדות, התאמות עיצוביות, חומרים, צבעים, כמויות גדולות או פריטים ייחודיים לפרויקט — אנחנו יודעים ללוות את התהליך משלב הרעיון ועד לייצור, ולהתאים את הפתרון לאופי החלל, לצרכים התפעוליים ולשפה העיצובית של הפרויקט.",
+        "אנחנו מלווים פרויקטים פרטיים ומסחריים כאחד, עם גמישות בייצור ויכולת לתת מענה גם לפרויקטים בהיקפים גדולים.",
+    ]
+    body = "\n".join(f"      <p>{esc(t)}</p>" for t in paras)
+    body += f'''
+
+      <div class="content-cta">
+        <h2>מחפשים פתרון מותאם לפרויקט שלכם?</h2>
+        <p>לפרטים נוספים, התייעצות והצעת מחיר — צרו איתנו קשר ישירות בוואטסאפ.</p>
+        <a class="wa-cta" href="{WA_PRO}" target="_blank" rel="noopener">
+          {WA_ICON}
+          דברו איתנו בוואטסאפ
+        </a>
+      </div>
+'''
+    ld_service = {
+        "@context": "https://schema.org", "@type": "Service",
+        "name": "ייצור רהיטי נירוסטה בהתאמה אישית לאדריכלים, מעצבים ועסקים",
+        "serviceType": "ייצור רהיטים בהתאמה אישית",
+        "provider": {"@type": "Organization", "name": "Steelo", "url": SITE + "/"},
+        "areaServed": {"@type": "Country", "name": "IL"},
+        "audience": {"@type": "BusinessAudience",
+                     "audienceType": "אדריכלים, מעצבי פנים, בתי קפה, מסעדות, מלונות ועסקים"},
+        "description": meta_description(paras[0], 300),
+        "url": f"{SITE}/professionals/",
+    }
+    return content_page(
+        slug="professionals",
+        title="אנשי מקצוע ועסקים — ריהוט נירוסטה בהתאמה אישית | Steelo",
+        mdesc=meta_description(paras[0]),
+        h1=h1,
+        body_html=body,
+        crumb="אנשי מקצוע ועסקים",
+        ld_extra=ld_service,
+    )
+
 
 # ── Sitemap + robots ─────────────────────────────────────────────────────────
 def grid_cards(products):
@@ -624,7 +778,8 @@ def inject_home_grid(products):
 
 
 def write_sitemap(products):
-    urls = [f"{SITE}/", f"{SITE}/returns.html"] + [f"{SITE}/products/{p['id']}/" for p in products if is_public(p)]
+    urls = ([f"{SITE}/", f"{SITE}/professionals/", f"{SITE}/returns.html"]
+            + [f"{SITE}/products/{p['id']}/" for p in products if is_public(p)])
     items = "\n".join(f"  <url><loc>{u}</loc></url>" for u in urls)
     xml = ('<?xml version="1.0" encoding="UTF-8"?>\n'
            '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
@@ -642,6 +797,10 @@ def main():
         os.makedirs(d, exist_ok=True)
         open(os.path.join(d, "index.html"), "w", encoding="utf-8").write(product_page(p))
         print(f"  ✓ /products/{p['id']}/")
+    pro_dir = os.path.join(BASE_DIR, "professionals")
+    os.makedirs(pro_dir, exist_ok=True)
+    open(os.path.join(pro_dir, "index.html"), "w", encoding="utf-8").write(professionals_page())
+    print("  ✓ /professionals/")
     inject_home_grid(products)
     write_sitemap(products)
     print(f"  ✓ sitemap.xml + robots.txt")
