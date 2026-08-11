@@ -31,6 +31,11 @@ html {
   background: var(--sand);
 }
 
+/* The navbar is fixed, so an anchor jump used to land with the section's first
+   line hidden underneath it — measured at 0px against a navbar reaching 84px.
+   Keep this above the navbar's height. */
+#collection, #about, #contact { scroll-margin-top: 6.5rem; }
+
 body {
   margin: 0;
   background: var(--sand);

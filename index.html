@@ -28,7 +28,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Frank+Ruhl+Libre:wght@300;400;500;700&family=Heebo:wght@300;400;500;600&family=Montserrat:wght@300;400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/styles.css?v=24">
+  <link rel="stylesheet" href="css/styles.css?v=25">
 
   <!-- Organization structured data -->
   <script type="application/ld+json">
@@ -135,32 +135,11 @@
       </div>
     </div>
 
-    <!-- PHILOSOPHY -->
-    <section id="about" style="padding:7rem 6rem;">
-      <p dir="ltr" style="font-family:Montserrat,Heebo;font-size:0.75rem;letter-spacing:0.35em;text-transform:uppercase;color:var(--ink-400);margin-bottom:1.5rem;direction:ltr;text-align:left;unicode-bidi:plaintext;">OUR PHILOSOPHY</p>
-      <h2 style="font-family:'Cormorant','Frank Ruhl Libre',Georgia,serif;font-weight:400;font-size:clamp(2rem,4.5vw,4rem);line-height:1.15;color:var(--ink);max-width:900px;margin:0;">
-        אנחנו מאמינים שרהיט הוא פיס שנשאר איתך לאורך זמן.
-        הוא צורה וחומר שמלווים אותך יום יום.
-        בדיוק בגלל זה בחרנו ליצור רהיטים על-זמניים מנירוסטה.
-      </h2>
-      <div class="philosophy-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:4rem;margin-top:5rem;">
-        <div><div class="section-line"></div>
-          <p style="font-family:Montserrat,Heebo;font-size:0.75rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--ink);margin-bottom:0.75rem;">חומר</p>
-          <p style="font-family:Montserrat,Heebo;font-weight:300;font-size:1rem;line-height:1.8;color:var(--ink-400);">נירוסטה בדרגה 304. עמידה בפני חלודה, כתמים וזמן. היא לוכדת את האור אחרת בכל שעה ביום.</p>
-        </div>
-        <div><div class="section-line"></div>
-          <p style="font-family:Montserrat,Heebo;font-size:0.75rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--ink);margin-bottom:0.75rem;">תהליך</p>
-          <p style="font-family:Montserrat,Heebo;font-weight:300;font-size:1rem;line-height:1.8;color:var(--ink-400);">כל פריט נחתך, מכופף, מרותך ומלוטש ביד. הגימור המוברש מיושם ידנית. אין שני פריטים זהים.</p>
-        </div>
-        <div><div class="section-line"></div>
-          <p style="font-family:Montserrat,Heebo;font-size:0.75rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--ink);margin-bottom:0.75rem;">צורה</p>
-          <p style="font-family:Montserrat,Heebo;font-weight:300;font-size:1rem;line-height:1.8;color:var(--ink-400);">מעוצב קודם כפיסול, ורק אחר כך כרהיט. החלל הריק חשוב לא פחות מהנירוסטה עצמה.</p>
-        </div>
-      </div>
-    </section>
-
     <!-- COLLECTION -->
-    <section id="collection" style="padding:2rem 0 6rem;">
+    <!-- Top padding is 6rem, not the 2rem it carried when this sat under the
+         philosophy section's 7rem of bottom padding — it now follows the black
+         marquee strip directly and needs its own breathing room. -->
+    <section id="collection" style="padding:6rem 0 6rem;">
       <div class="collection-header" style="display:flex;align-items:baseline;justify-content:space-between;padding:0 6rem 3rem;direction:ltr;">
         <div>
           <p dir="ltr" style="font-family:Montserrat,Arial,sans-serif;font-weight:300;font-size:0.75rem;letter-spacing:0.35em;text-transform:uppercase;color:var(--ink-400);margin-bottom:0.5rem;direction:ltr;text-align:left;unicode-bidi:plaintext;">complete works</p>
@@ -314,6 +293,32 @@
         </div>
       </a>
       <!--grid:end--></div>
+      </div>
+    </section>
+
+    <!-- PHILOSOPHY -->
+    <!-- 5rem on top rather than 7rem: the grid above already ends on 6rem, and
+         13rem of combined gap read as dead space. -->
+    <section id="about" style="padding:5rem 6rem 7rem;">
+      <p dir="ltr" style="font-family:Montserrat,Heebo;font-size:0.75rem;letter-spacing:0.35em;text-transform:uppercase;color:var(--ink-400);margin-bottom:1.5rem;direction:ltr;text-align:left;unicode-bidi:plaintext;">OUR PHILOSOPHY</p>
+      <h2 style="font-family:'Cormorant','Frank Ruhl Libre',Georgia,serif;font-weight:400;font-size:clamp(2rem,4.5vw,4rem);line-height:1.15;color:var(--ink);max-width:900px;margin:0;">
+        אנחנו מאמינים שרהיט הוא פיס שנשאר איתך לאורך זמן.
+        הוא צורה וחומר שמלווים אותך יום יום.
+        בדיוק בגלל זה בחרנו ליצור רהיטים על-זמניים מנירוסטה.
+      </h2>
+      <div class="philosophy-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:4rem;margin-top:5rem;">
+        <div><div class="section-line"></div>
+          <p style="font-family:Montserrat,Heebo;font-size:0.75rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--ink);margin-bottom:0.75rem;">חומר</p>
+          <p style="font-family:Montserrat,Heebo;font-weight:300;font-size:1rem;line-height:1.8;color:var(--ink-400);">נירוסטה בדרגה 304. עמידה בפני חלודה, כתמים וזמן. היא לוכדת את האור אחרת בכל שעה ביום.</p>
+        </div>
+        <div><div class="section-line"></div>
+          <p style="font-family:Montserrat,Heebo;font-size:0.75rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--ink);margin-bottom:0.75rem;">תהליך</p>
+          <p style="font-family:Montserrat,Heebo;font-weight:300;font-size:1rem;line-height:1.8;color:var(--ink-400);">כל פריט נחתך, מכופף, מרותך ומלוטש ביד. הגימור המוברש מיושם ידנית. אין שני פריטים זהים.</p>
+        </div>
+        <div><div class="section-line"></div>
+          <p style="font-family:Montserrat,Heebo;font-size:0.75rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--ink);margin-bottom:0.75rem;">צורה</p>
+          <p style="font-family:Montserrat,Heebo;font-weight:300;font-size:1rem;line-height:1.8;color:var(--ink-400);">מעוצב קודם כפיסול, ורק אחר כך כרהיט. החלל הריק חשוב לא פחות מהנירוסטה עצמה.</p>
+        </div>
       </div>
     </section>
 
