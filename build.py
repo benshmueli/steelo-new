@@ -505,7 +505,7 @@ def product_page(p):
   <meta property="product:price:amount" content="{price}">
   <meta property="product:price:currency" content="ILS">
   {FONTS}
-  <link rel="stylesheet" href="/css/styles.css?v=22">
+  <link rel="stylesheet" href="/css/styles.css?v=23">
   <script type="application/ld+json">{json.dumps(ld_product, ensure_ascii=False)}</script>
   <script type="application/ld+json">{json.dumps(ld_crumbs, ensure_ascii=False)}</script>
 </head>
@@ -633,7 +633,7 @@ def content_page(slug, title, mdesc, h1, body_html, crumb, ld_extra=None):
   <meta property="og:url" content="{url}">
   <meta property="og:image" content="{SITE}/images/logo.png">
   {FONTS}
-  <link rel="stylesheet" href="/css/styles.css?v=22">
+  <link rel="stylesheet" href="/css/styles.css?v=23">
   <style>
 {CONTENT_CSS}
   </style>
