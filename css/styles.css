@@ -168,7 +168,11 @@ h1, h2, h3, h4, h5, h6, .hero-display {
 
    Measured source bands (first/last row containing furniture pixels):
      Hero_mobile.JPG      941x1672   wall 0-38%   furniture 38-75%   floor 75-100%
-     hero_desktop_wide    2400x1350  wall 0-26%   furniture 26-78%   floor 78-100%
+     hero_desktop_wide    2400x1350  wall 0-28%   furniture 28-86%   floor 86-100%
+
+   hero_desktop_wide is built from the landscape photograph (1536x1024) by
+   extending its flat wall and floor out to 16:9 — see scratchpad/make_hero4.py.
+   Reshoot or recrop it and these three percentages must be re-measured.
    ============================================================ */
 #hero {
   --band-wall: 38%;    /* row 1 — title + paragraph      */
@@ -276,8 +280,8 @@ h1, h2, h3, h4, h5, h6, .hero-display {
    same place on every landscape screen — that is the point of the wide crop. */
 @media (min-aspect-ratio: 1/1) {
   #hero {
-    --band-wall: 34%;
-    --band-floor: 20%;
+    --band-wall: 28%;
+    --band-floor: 14%;
     --nav-clear: 5.5rem;
   }
   /* One line reads better across a wide frame, and the two-line stack does not
