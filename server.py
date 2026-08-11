@@ -308,9 +308,7 @@ def send_receipt_email(order):
 TRANZILA_TERMINAL    = os.environ.get('TRANZILA_TERMINAL', 'fxpsteelo')
 TRANZILA_PASSWORD    = os.environ.get('TRANZILA_PASSWORD', '')
 TRANZILA_HANDSHAKE_URL = 'https://api.tranzila.com/v1/handshake/create'
-# DirectNG iframe (directng.*, not direct.*): required for itemized invoices —
-# json_purchase_data / u71 are only processed on this newer endpoint.
-TRANZILA_IFRAME_BASE   = f'https://directng.tranzila.com/{TRANZILA_TERMINAL}/iframenew.php'
+TRANZILA_IFRAME_BASE   = f'https://direct.tranzila.com/{TRANZILA_TERMINAL}/iframenew.php'
 
 # In-memory pending orders (order_id → order dict).
 # Tranzila redirects back to us after payment; we look up the order then save it.
