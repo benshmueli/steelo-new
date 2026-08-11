@@ -82,6 +82,44 @@ body {
 }
 .nav-link:hover::after { width: 100%; }
 
+/* ---- mobile menu (hidden on desktop; shown in the ≤768px block) ---- */
+.nav-burger {
+  display: none;
+  background: none; border: none; padding: 0.25rem;
+  cursor: pointer; color: var(--ink);
+  margin-inline-start: auto; margin-inline-end: 1.25rem;
+}
+.nav-burger span {
+  display: block; width: 22px; height: 1px;
+  background: currentColor;
+  transition: transform 0.3s, opacity 0.2s;
+}
+.nav-burger span + span { margin-top: 6px; }
+.nav-burger.open span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+.nav-burger.open span:nth-child(2) { opacity: 0; }
+.nav-burger.open span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+
+.nav-mobile {
+  display: none;
+  position: absolute;
+  top: 100%; left: 0; right: 0;
+  flex-direction: column;
+  background: rgba(240, 234, 225, 0.97);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--sand-300);
+  padding: 0.5rem 1.5rem 1.25rem;
+}
+.nav-mobile.open { display: flex; }
+.nav-mobile a {
+  font-family: Montserrat, Heebo, sans-serif;
+  font-size: 1.05rem; letter-spacing: 0.12em;
+  color: var(--ink); text-decoration: none;
+  padding: 0.9rem 0;
+  border-bottom: 1px solid var(--sand-300);
+}
+.nav-mobile a:last-child { border-bottom: none; }
+
 /* ============================================================
    HERO
    ============================================================ */
@@ -462,6 +500,9 @@ body {
    ============================================================ */
 @media (max-width: 1024px) {
   #products-grid { grid-template-columns: repeat(2, 1fr) !important; }
+  /* Four nav items get tight on small laptops (link sizes are set inline). */
+  .nav-desktop { gap: 1.5rem; }
+  .nav-desktop .nav-link { font-size: 1.05rem !important; }
 }
 @media (max-width: 768px) {
   /* Product modal — stack vertically */
@@ -474,6 +515,7 @@ body {
 
   #navbar { padding: 1.25rem 1.5rem; }
   .nav-desktop { display: none; }
+  .nav-burger  { display: block; }
   #hero { flex-direction: column !important; min-height: unset !important; }
   #hero > .hero-left  { width: 100% !important; padding: 6rem 1.5rem 2rem !important; }
   #hero > .hero-right { display: none !important; }
