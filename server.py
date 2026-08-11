@@ -419,33 +419,49 @@ def compute_delivery_fee(order):
         fee += DELIVERY_FEE.get(cat, 0) * qty
     return fee
 
-def _price_map():
-    """Parse id → price from data.js (server-authoritative)."""
+def _product_map():
+    """Parse id → {name, price, dimensions} from data.js (server-authoritative,
+    so the invoice never depends on whatever the browser cart happened to store)."""
     try:
         with open(DATA_JS, 'r', encoding='utf-8') as f:
             src = f.read()
         m = {}
-        for match in _re.finditer(r"id:\s*'([^']+)'.*?price:\s*(\d+)", src, _re.DOTALL):
-            m[match.group(1)] = int(match.group(2))
+        pat = (r"id:\s*'([^']+)'\s*,\s*name:\s*'([^']*)'.*?price:\s*(\d+)"
+               r".*?dimensions:\s*'([^']*)'")
+        for match in _re.finditer(pat, src, _re.DOTALL):
+            m[match.group(1)] = {
+                'name':       match.group(2).strip(),
+                'price':      int(match.group(3)),
+                'dimensions': match.group(4).strip(),
+            }
         return m
     except Exception:
         return {}
 
 VAT_RATE = 1.18  # 18% Israeli VAT; listed prices are VAT-inclusive
 
+def _invoice_line_name(pid, item, pmap):
+    """A meaningful invoice description: product name (+ dimensions when known),
+    resolved server-side by id, falling back to the cart's own fields."""
+    info = pmap.get(pid, {})
+    name = (info.get('name') or item.get('name') or pid or 'מוצר').strip()
+    dims = (info.get('dimensions') or '').strip()
+    label = f"{name} · {dims}" if dims else name
+    return label[:118]
+
 def build_purchase_data(order):
     """Tranzila json_purchase_data (invoice line items) as a compact JSON string.
     product_price is sent PRE-VAT (price / 1.18) because the account applies VAT;
     a rounding delta is absorbed on the last line so the post-VAT total matches the
     charged sum exactly (else the invoice omits per-line amounts). '' if no items."""
-    price_map = _price_map()
+    pmap = _product_map()
     lines = []
     for item in order.get('items', []):
         pid   = item.get('id') or ''
         qty   = max(1, min(int(item.get('qty', 1)), 99))
-        gross = price_map.get(pid, item.get('price', 0))   # VAT-inclusive unit price
+        gross = pmap.get(pid, {}).get('price', item.get('price', 0))  # VAT-inclusive unit price
         lines.append({
-            'product_name':     (item.get('name', '') or '')[:118],
+            'product_name':     _invoice_line_name(pid, item, pmap),
             'product_quantity': qty,
             'product_price':    round(gross / VAT_RATE, 2),
         })
