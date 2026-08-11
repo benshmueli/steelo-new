@@ -161,21 +161,26 @@ h1, h2, h3, h4, h5, h6, .hero-display {
   flex-direction: column;
   align-items: center;
   justify-content: flex-start !important;
-  padding: clamp(2.5rem, 12vh, 9rem) 1.5rem 0;
+  padding: var(--hero-padding-top, clamp(2.5rem, 12vh, 9rem)) 1.5rem 0;
   text-align: center;
   pointer-events: none;
 }
 
-#hero picture img { object-position: 75% 20% !important; }
+/* Make hero taller than viewport to reveal more wall above the table */
+#hero { position: relative; height: calc(100vh + 8vh); overflow: hidden; }
+
+/* Image focus: move focal Y up so the wall is visible behind the title */
+#hero picture img { object-position: 75% 14% !important; }
 
 @media (max-width: 768px) {
+  #hero { height: calc(100vh + 4vh); }
   #hero .hero-content { padding-top: clamp(2rem, 10vh, 6rem); }
-  #hero picture img { object-position: 50% 18% !important; }
+  #hero picture img { object-position: 50% 12% !important; }
 }
 
 @media (min-width: 1200px) {
   #hero .hero-content { padding-top: clamp(6rem, 15vh, 11rem); }
-  #hero picture img { object-position: 75% 16% !important; }
+  #hero picture img { object-position: 75% 10% !important; }
 }
 
 /* ============================================================
