@@ -147,6 +147,30 @@ body {
   font-size: clamp(3.5rem, 7vw, 7rem);
   color: var(--ink);
 }
+/* HERO TITLE POSITIONING — ensure title sits over wall area, not on table */
+#hero .hero-content {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start !important;
+  padding: clamp(2.5rem, 12vh, 9rem) 1.5rem 0;
+  text-align: center;
+  pointer-events: none;
+}
+
+#hero picture img { object-position: 75% 20% !important; }
+
+@media (max-width: 768px) {
+  #hero .hero-content { padding-top: clamp(2rem, 10vh, 6rem); }
+  #hero picture img { object-position: 50% 18% !important; }
+}
+
+@media (min-width: 1200px) {
+  #hero .hero-content { padding-top: clamp(6rem, 15vh, 11rem); }
+  #hero picture img { object-position: 75% 16% !important; }
+}
 
 /* ============================================================
    MARQUEE
