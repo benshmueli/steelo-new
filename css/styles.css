@@ -212,6 +212,10 @@ h1, h2, h3, h4, h5, h6, .hero-display {
   letter-spacing: 0.14em;
 }
 
+/* "Stainless Steel" stays on one line, so the only break in the title is the
+   explicit <br> before "Furniture". Without this it split three ways at 320px. */
+#hero .hero-copy h1 .nb { white-space: nowrap; }
+
 #hero .hero-copy p {
   font-size: clamp(1rem, 1.6vw, 1.15rem);
   line-height: 1.75;
@@ -221,6 +225,9 @@ h1, h2, h3, h4, h5, h6, .hero-display {
 #hero .hero-cta {
   grid-row: 3;
   align-self: center;
+  /* Nudge off the band's centre line. One number, tune it here. */
+  position: relative;
+  bottom: var(--cta-lift, 5px);
 }
 
 /* Kept in the stylesheet, not inline, so the phone rule below can hide it —
@@ -286,9 +293,15 @@ h1, h2, h3, h4, h5, h6, .hero-display {
    this rule to bring the cue back, but move the CTA first. */
 #hero .scroll-cue { display: none; }
 
-/* Phone typography and controls — width is the right question for these. */
+/* Phone typography and controls — width is the right question for these.
+   The title scales with vw down here so "Stainless Steel" keeps fitting on one
+   line once it is set to nowrap; at 390px this resolves to the same 29.6px it
+   was before. */
 @media (max-width: 768px) {
-  #hero .hero-copy h1 { letter-spacing: 0.08em; }
+  #hero .hero-copy h1 {
+    letter-spacing: 0.08em;
+    font-size: clamp(1.5rem, 7.6vw, 2.2rem);
+  }
   #hero .hero-cta { width: min(100%, 560px); }
 }
 
