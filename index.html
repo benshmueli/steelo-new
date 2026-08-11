@@ -392,6 +392,26 @@
     </footer>
 
   </div><!-- end #page-wrap -->
+    <!-- DEV: hero padding preview control (visible on localhost or ?hero-dev) -->
+    <script>
+    (function(){
+      try{
+        var enabled = location.search.indexOf('hero-dev') !== -1 || location.hostname === 'localhost';
+        if(!enabled) return;
+        var presets = { mobile: '6vh', tablet: '10vh', desktop: '15vh', default: getComputedStyle(document.documentElement).getPropertyValue('--hero-padding-top') || 'clamp(2.5rem,12vh,9rem)'};
+        var el = document.createElement('div');
+        el.id = 'hero-padding-control';
+        el.innerHTML = '<style>#hero-padding-control{position:fixed;right:12px;top:80px;z-index:9999;background:rgba(255,255,255,0.94);padding:10px;border-radius:8px;font-family:Heebo,Montserrat,sans-serif;font-size:13px;box-shadow:0 8px 24px rgba(0,0,0,0.12)}#hero-padding-control button{margin:4px 6px 0 0;padding:6px 8px;border:1px solid #ddd;background:#fff;cursor:pointer;border-radius:4px}#hero-padding-control .label{display:block;margin-bottom:6px;color:#333;font-weight:600}#hero-padding-control small{display:block;margin-top:6px;color:#666}</style>'+
+          '<span class="label">Hero padding</span>'+
+          '<div><button data-val="'+presets.mobile+'">Mobile</button><button data-val="'+presets.tablet+'">Tablet</button><button data-val="'+presets.desktop+'">Desktop</button><button data-val="'+presets.default+'">Default</button></div>'+
+          '<small>Current: <span id="hero-padding-current">'+presets.default+'</span></small>';
+        document.body.appendChild(el);
+        var current = document.getElementById('hero-padding-current');
+        function setVal(v){ document.documentElement.style.setProperty('--hero-padding-top', v); current.textContent = v; }
+        el.querySelectorAll('button').forEach(function(b){ b.addEventListener('click', function(){ setVal(b.getAttribute('data-val')); }); });
+      }catch(e){ console.error(e); }
+    })();
+    </script>
 
   <!-- LIGHTBOX -->
   <div id="lightbox" style="display:none;position:fixed;inset:0;z-index:100;background:rgba(0,0,0,0.92);align-items:center;justify-content:center;" onclick="closeLightbox()">
