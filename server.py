@@ -889,12 +889,22 @@ class Handler(SimpleHTTPRequestHandler):
             if not tranzila_pw:
                 raise Exception('TRANZILA_PASSWORD not configured in Railway')
 
+            # Itemized-invoice data must be part of the transaction definition
+            # (the handshake), not just the iframe display URL — otherwise the
+            # invoicing module ignores it and prints a default, unnamed line.
+            purchase_data = build_purchase_data(order)
+
             # Step 1: get handshake token from Tranzila
-            hw_qs = urllib.parse.urlencode({
+            hw_data = {
                 'supplier':   TRANZILA_TERMINAL,
                 'sum':        f"{order['total']:.2f}",
                 'TranzilaPW': tranzila_pw,
-            })
+            }
+            if purchase_data:
+                hw_data['u71'] = '1'                             # enable itemized invoice
+                hw_data['json_purchase_data'] = purchase_data
+            # quote_via=quote → spaces encode as %20 (not +), per Tranzila's spec
+            hw_qs = urllib.parse.urlencode(hw_data, quote_via=urllib.parse.quote)
             try:
                 hw_resp = _req.urlopen(
                     f'{TRANZILA_HANDSHAKE_URL}?{hw_qs}', timeout=10
@@ -931,7 +941,6 @@ class Handler(SimpleHTTPRequestHandler):
                 'success_url': f'{base_site}/payment-success?order_id={order_id}',
                 'fail_url':    f'{base_site}/payment-fail',
             }
-            purchase_data = build_purchase_data(order)
             if purchase_data:
                 iframe_fields['u71'] = '1'                       # enable itemized invoice
                 iframe_fields['json_purchase_data'] = purchase_data
@@ -939,6 +948,7 @@ class Handler(SimpleHTTPRequestHandler):
             iframe_params = urllib.parse.urlencode(iframe_fields, quote_via=urllib.parse.quote)
             iframe_url = f'{TRANZILA_IFRAME_BASE}?{iframe_params}'
             print(f'  [Payment] Init {order_id} — ₪{order["total"]} — handshake OK')
+            print(f'  [Payment] Invoice items (u71/json_purchase_data): {purchase_data or "(none)"}')
             self._json(200, {'ok': True, 'iframe_url': iframe_url, 'order_id': order_id})
         except Exception as e:
             print(f'  [Payment/init] Error: {e}')
