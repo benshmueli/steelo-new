@@ -23,13 +23,28 @@ OUT_ROOT = os.path.join(BASE_DIR, "products")
 
 # ── Load products from js/data.js via node (single source of truth) ──────────
 def load_products():
+    """Products in grid order. CATEGORY_ORDER comes from data.js too, so the
+    static grid here and renderGrid() in main.js sort by the same list."""
     src = open(os.path.join(BASE_DIR, "js", "data.js"), encoding="utf-8").read()
     src = src.replace("const PRODUCTS", "global.PRODUCTS", 1)
+    src = src.replace("const CATEGORY_ORDER", "global.CATEGORY_ORDER", 1)
     out = subprocess.check_output(
-        ["node", "-e", src + "\nprocess.stdout.write(JSON.stringify(global.PRODUCTS));"],
+        ["node", "-e", src + "\nprocess.stdout.write(JSON.stringify("
+                             "{p: global.PRODUCTS, o: global.CATEGORY_ORDER}));"],
         cwd=BASE_DIR,
     )
-    return json.loads(out)
+    data = json.loads(out)
+    return sort_by_category(data["p"], data["o"] or [])
+
+
+def sort_by_category(products, order):
+    """Group by category, in `order`. Case-insensitive, because the data holds
+    both 'Stool' and 'STOOL'. Unlisted categories sort last rather than first,
+    so a new one is visible at the end instead of silently leading the grid.
+    Stable, so order within a category stays as authored in data.js."""
+    rank = {c.lower(): i for i, c in enumerate(order)}
+    return sorted(products,
+                  key=lambda p: rank.get((p.get("category") or "").lower(), len(rank)))
 
 # ── Helpers mirroring js/modal.js ────────────────────────────────────────────
 CATEGORY_HE = {
@@ -331,7 +346,7 @@ MODALS = '''  <!-- CART -->
 
 SCRIPTS = '''  <script src="/js/nav.js?v=1"></script>
   <script src="/js/i18n.js?v=1"></script>
-  <script src="/js/data.js?v=8"></script>
+  <script src="/js/data.js?v=9"></script>
   <script src="/js/cart.js?v=8"></script>
   <!-- jQuery required by Tranzila's embedded payment iframe (Apple Pay / Google Pay) -->
   <script src="/js/jquery.min.js?v=1"></script>
