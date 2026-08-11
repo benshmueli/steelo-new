@@ -419,6 +419,57 @@ def compute_delivery_fee(order):
         fee += DELIVERY_FEE.get(cat, 0) * qty
     return fee
 
+def _price_map():
+    """Parse id → price from data.js (server-authoritative)."""
+    try:
+        with open(DATA_JS, 'r', encoding='utf-8') as f:
+            src = f.read()
+        m = {}
+        for match in _re.finditer(r"id:\s*'([^']+)'.*?price:\s*(\d+)", src, _re.DOTALL):
+            m[match.group(1)] = int(match.group(2))
+        return m
+    except Exception:
+        return {}
+
+VAT_RATE = 1.18  # 18% Israeli VAT; listed prices are VAT-inclusive
+
+def build_purchase_data(order):
+    """Tranzila json_purchase_data (invoice line items) as a compact JSON string.
+    product_price is sent PRE-VAT (price / 1.18) because the account applies VAT;
+    a rounding delta is absorbed on the last line so the post-VAT total matches the
+    charged sum exactly (else the invoice omits per-line amounts). '' if no items."""
+    price_map = _price_map()
+    lines = []
+    for item in order.get('items', []):
+        pid   = item.get('id') or ''
+        qty   = max(1, min(int(item.get('qty', 1)), 99))
+        gross = price_map.get(pid, item.get('price', 0))   # VAT-inclusive unit price
+        lines.append({
+            'product_name':     (item.get('name', '') or '')[:118],
+            'product_quantity': qty,
+            'product_price':    round(gross / VAT_RATE, 2),
+        })
+    fee = order.get('delivery_fee', 0) or 0
+    if fee > 0:
+        lines.append({
+            'product_name':     'משלוח',
+            'product_quantity': 1,
+            'product_price':    round(fee / VAT_RATE, 2),
+        })
+    if not lines:
+        return ''
+    # Reconcile on the displayed (post-VAT) total the way an Israeli invoice does:
+    # VAT is re-added per line and rounded per line, then summed. Adjust the last
+    # line's pre-VAT price so Σ(round(price×qty×VAT)) equals the charge exactly —
+    # otherwise Tranzila prints the products without per-line amounts.
+    charged = round(order.get('total', 0) or 0, 2)
+    line_post = lambda l: round(l['product_price'] * l['product_quantity'] * VAT_RATE, 2)
+    others = round(sum(line_post(l) for l in lines[:-1]), 2)
+    last = lines[-1]
+    last_post = round(charged - others, 2)
+    last['product_price'] = round(last_post / VAT_RATE / last['product_quantity'], 2)
+    return json.dumps(lines, separators=(',', ':'), ensure_ascii=False)
+
 # ── Products helpers ──────────────────────────────────────────────────────────
 def products_to_js(products):
     """Serialize the products list back to the data.js format."""
@@ -851,7 +902,7 @@ class Handler(SimpleHTTPRequestHandler):
 
             # Step 2: build iframe URL
             base_site = 'https://www.steelo-design.com'
-            iframe_params = urllib.parse.urlencode({
+            iframe_fields = {
                 'sum':         f"{order['total']:.2f}",
                 'thtk':        thtk,
                 'new_process': '1',
@@ -863,7 +914,13 @@ class Handler(SimpleHTTPRequestHandler):
                 'Order_ID':    order_id,
                 'success_url': f'{base_site}/payment-success?order_id={order_id}',
                 'fail_url':    f'{base_site}/payment-fail',
-            })
+            }
+            purchase_data = build_purchase_data(order)
+            if purchase_data:
+                iframe_fields['u71'] = '1'                       # enable itemized invoice
+                iframe_fields['json_purchase_data'] = purchase_data
+            # quote_via=quote → spaces encode as %20 (not +), per Tranzila's spec
+            iframe_params = urllib.parse.urlencode(iframe_fields, quote_via=urllib.parse.quote)
             iframe_url = f'{TRANZILA_IFRAME_BASE}?{iframe_params}'
             print(f'  [Payment] Init {order_id} — ₪{order["total"]} — handshake OK')
             self._json(200, {'ok': True, 'iframe_url': iframe_url, 'order_id': order_id})
