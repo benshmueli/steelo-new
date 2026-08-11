@@ -28,7 +28,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Frank+Ruhl+Libre:wght@300;400;500;700&family=Heebo:wght@300;400;500;600&family=Montserrat:wght@300;400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/styles.css?v=23">
+  <link rel="stylesheet" href="css/styles.css?v=24">
 
   <!-- Organization structured data -->
   <script type="application/ld+json">
@@ -116,41 +116,28 @@
 
       <!-- Scroll indicator -->
       <div class="scroll-cue" style="opacity:0.5;">
-        <span style="font-family:Montserrat,Heebo;font-size:0.6rem;letter-spacing:0.25em;text-transform:uppercase;color:#F5F0EB;">Scroll</span>
+        <span style="font-family:Montserrat,Heebo;font-size:0.7rem;letter-spacing:0.25em;text-transform:uppercase;color:#F5F0EB;">Scroll</span>
         <div style="width:1px;height:3.5rem;background:rgba(245,240,235,0.4);overflow:hidden;">
           <div class="scroll-line" style="width:1px;height:100%;background:#F5F0EB;"></div>
         </div>
       </div>
     </section>
 
-    <!-- MARQUEE -->
-    <div style="overflow:hidden;background:var(--ink);padding:1rem 0;" aria-hidden="true">
+    <!-- MARQUEE — styling lives in styles.css (.mq/.mq-sep) and the set is
+         repeated 5x; see the marquee block there for why. -->
+    <div class="marquee" aria-hidden="true">
       <div class="marquee-track">
-        <span style="font-family:Montserrat,Heebo;font-size:0.6rem;letter-spacing:0.4em;text-transform:uppercase;color:var(--sand-400);padding:0 2rem;">WELCOME TO STEELO</span>
-        <span style="color:#433F3C;padding:0 1rem;">—</span>
-        <span style="font-family:Montserrat,Heebo;font-size:0.6rem;letter-spacing:0.4em;text-transform:uppercase;color:var(--sand-400);padding:0 2rem;">POP UP 📍 KIXBOX SHEINKIN 57 13.8-14.9</span>
-        <span style="color:#433F3C;padding:0 1rem;">—</span>
-        <span style="font-family:Montserrat,Heebo;font-size:0.6rem;letter-spacing:0.4em;text-transform:uppercase;color:var(--sand-400);padding:0 2rem;">STAINLESS STEELL 304</span>
-        <span style="color:#433F3C;padding:0 1rem;">—</span>
-        <span style="font-family:Montserrat,Heebo;font-size:0.6rem;letter-spacing:0.4em;text-transform:uppercase;color:var(--sand-400);padding:0 2rem;">WELCOME TO STEELO</span>
-        <span style="color:#433F3C;padding:0 1rem;">—</span>
-        <span style="font-family:Montserrat,Heebo;font-size:0.6rem;letter-spacing:0.4em;text-transform:uppercase;color:var(--sand-400);padding:0 2rem;">POP UP 📍 KIXBOX SHEINKIN 57 13.8-14.9</span>
-        <span style="color:#433F3C;padding:0 1rem;">—</span>
-        <span style="font-family:Montserrat,Heebo;font-size:0.6rem;letter-spacing:0.4em;text-transform:uppercase;color:var(--sand-400);padding:0 2rem;">STAINLESS STEELL 304</span>
-        <span style="color:#433F3C;padding:0 1rem;">—</span>
-        <!-- duplicate for seamless loop -->
-        <span style="font-family:Montserrat,Heebo;font-size:0.6rem;letter-spacing:0.4em;text-transform:uppercase;color:var(--sand-400);padding:0 2rem;">WELCOME TO STEELO</span>
-        <span style="color:#433F3C;padding:0 1rem;">—</span>
-        <span style="font-family:Montserrat,Heebo;font-size:0.6rem;letter-spacing:0.4em;text-transform:uppercase;color:var(--sand-400);padding:0 2rem;">POP UP 📍 KIXBOX SHEINKIN 57 13.8-14.9</span>
-        <span style="color:#433F3C;padding:0 1rem;">—</span>
-        <span style="font-family:Montserrat,Heebo;font-size:0.6rem;letter-spacing:0.4em;text-transform:uppercase;color:var(--sand-400);padding:0 2rem;">STAINLESS STEELL 304</span>
-        <span style="color:#433F3C;padding:0 1rem;">—</span>
+        <span class="mq">WELCOME TO STEELO</span><span class="mq-sep">—</span><span class="mq">POP UP 📍 KIXBOX SHEINKIN 57 13.8-14.9</span><span class="mq-sep">—</span><span class="mq">STAINLESS STEELL 304</span><span class="mq-sep">—</span>
+        <span class="mq">WELCOME TO STEELO</span><span class="mq-sep">—</span><span class="mq">POP UP 📍 KIXBOX SHEINKIN 57 13.8-14.9</span><span class="mq-sep">—</span><span class="mq">STAINLESS STEELL 304</span><span class="mq-sep">—</span>
+        <span class="mq">WELCOME TO STEELO</span><span class="mq-sep">—</span><span class="mq">POP UP 📍 KIXBOX SHEINKIN 57 13.8-14.9</span><span class="mq-sep">—</span><span class="mq">STAINLESS STEELL 304</span><span class="mq-sep">—</span>
+        <span class="mq">WELCOME TO STEELO</span><span class="mq-sep">—</span><span class="mq">POP UP 📍 KIXBOX SHEINKIN 57 13.8-14.9</span><span class="mq-sep">—</span><span class="mq">STAINLESS STEELL 304</span><span class="mq-sep">—</span>
+        <span class="mq">WELCOME TO STEELO</span><span class="mq-sep">—</span><span class="mq">POP UP 📍 KIXBOX SHEINKIN 57 13.8-14.9</span><span class="mq-sep">—</span><span class="mq">STAINLESS STEELL 304</span><span class="mq-sep">—</span>
       </div>
     </div>
 
     <!-- PHILOSOPHY -->
     <section id="about" style="padding:7rem 6rem;">
-      <p dir="ltr" style="font-family:Montserrat,Heebo;font-size:0.65rem;letter-spacing:0.35em;text-transform:uppercase;color:var(--ink-400);margin-bottom:1.5rem;direction:ltr;text-align:left;unicode-bidi:plaintext;">OUR PHILOSOPHY</p>
+      <p dir="ltr" style="font-family:Montserrat,Heebo;font-size:0.75rem;letter-spacing:0.35em;text-transform:uppercase;color:var(--ink-400);margin-bottom:1.5rem;direction:ltr;text-align:left;unicode-bidi:plaintext;">OUR PHILOSOPHY</p>
       <h2 style="font-family:'Cormorant','Frank Ruhl Libre',Georgia,serif;font-weight:400;font-size:clamp(2rem,4.5vw,4rem);line-height:1.15;color:var(--ink);max-width:900px;margin:0;">
         אנחנו מאמינים שרהיט הוא פיס שנשאר איתך לאורך זמן.
         הוא צורה וחומר שמלווים אותך יום יום.
@@ -176,179 +163,154 @@
     <section id="collection" style="padding:2rem 0 6rem;">
       <div class="collection-header" style="display:flex;align-items:baseline;justify-content:space-between;padding:0 6rem 3rem;direction:ltr;">
         <div>
-          <p dir="ltr" style="font-family:Montserrat,Arial,sans-serif;font-weight:300;font-size:0.65rem;letter-spacing:0.35em;text-transform:uppercase;color:var(--ink-400);margin-bottom:0.5rem;direction:ltr;text-align:left;unicode-bidi:plaintext;">complete works</p>
+          <p dir="ltr" style="font-family:Montserrat,Arial,sans-serif;font-weight:300;font-size:0.75rem;letter-spacing:0.35em;text-transform:uppercase;color:var(--ink-400);margin-bottom:0.5rem;direction:ltr;text-align:left;unicode-bidi:plaintext;">complete works</p>
           <h2 style="font-family:Montserrat,Arial,sans-serif;font-weight:300;font-size:clamp(2.5rem,5vw,4.5rem);color:var(--ink);line-height:1;margin:0;">Our Collection</h2>
         </div>
-        <span id="collection-count" data-label=" פריטים" style="font-family:Montserrat,Heebo;font-size:0.65rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--ink-300);">12 פריטים</span>
       </div>
       <div class="grid-wrap" style="padding:0 3rem;">
         <div id="products-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:3px;background:var(--sand-300);"><!--grid:start-->
       <a href="/products/loop/" aria-label="Loop" style="background:var(--sand);display:flex;flex-direction:column;cursor:pointer;text-decoration:none;color:inherit;">
+        <div class="card-head">
+          <p class="card-cat">Side Table</p>
+          <h3 class="card-name">Loop</h3>
+        </div>
         <div class="product-card" style="position:relative;overflow:hidden;aspect-ratio:3/4;">
           <img class="img-primary" src="/images/products/LoopSideTable/2.webp" alt="Loop — שידת צד מנירוסטה" loading="lazy" style="width:100%;height:100%;object-fit:cover;object-position:center center;display:block;">
           <img class="img-secondary" src="/images/products/LoopSideTable/1.webp" alt="Loop — תמונה נוספת" loading="lazy">
+          <div class="card-price"><span style="font-family:Heebo,sans-serif;font-weight:300;font-size:0.62em;color:inherit;vertical-align:0.12em;">₪</span>1,200</div>
           <div class="card-overlay"><span style="display:block;width:100%;box-sizing:border-box;padding:0.75rem;border:1px solid rgba(245,240,235,0.7);background:transparent;color:#F5F0EB;font-family:Montserrat;font-size:0.65rem;letter-spacing:0.2em;text-transform:uppercase;text-align:center;">צפייה בפריט</span></div>
-        </div>
-        <div style="padding:1.25rem 1.5rem;background:var(--sand-100);border-top:1px solid var(--sand-300);display:flex;align-items:baseline;justify-content:space-between;">
-          <div>
-            <p style="font-family:Montserrat;font-size:0.6rem;letter-spacing:0.25em;text-transform:uppercase;color:var(--ink-400);margin:0 0 0.25rem;">Side Table</p>
-            <h3 style="font-family:Cormorant,Georgia,serif;font-weight:300;font-size:1.5rem;color:var(--ink);margin:0;">Loop</h3>
-          </div>
-          <span style="font-family:Cormorant,Georgia,serif;font-weight:300;font-size:1.35rem;color:var(--ink);white-space:nowrap;"><span style="font-family:Heebo,sans-serif;font-weight:300;font-size:0.62em;color:inherit;vertical-align:0.12em;">₪</span>1,200</span>
         </div>
       </a>
       <a href="/products/elephant-dining/" aria-label="Elephant Dining" style="background:var(--sand);display:flex;flex-direction:column;cursor:pointer;text-decoration:none;color:inherit;">
+        <div class="card-head">
+          <p class="card-cat">Dining Table</p>
+          <h3 class="card-name">Elephant Dining</h3>
+        </div>
         <div class="product-card" style="position:relative;overflow:hidden;aspect-ratio:3/4;">
           <img class="img-primary" src="/images/products/ElephantDining/2.webp" alt="Elephant Dining — שולחן אוכל מנירוסטה" loading="lazy" style="width:100%;height:100%;object-fit:cover;object-position:center center;display:block;">
           <img class="img-secondary" src="/images/products/ElephantDining/1.webp" alt="Elephant Dining — תמונה נוספת" loading="lazy">
+          <div class="card-price"><span style="font-family:Heebo,sans-serif;font-weight:300;font-size:0.62em;color:inherit;vertical-align:0.12em;">₪</span>5,000</div>
           <div class="card-overlay"><span style="display:block;width:100%;box-sizing:border-box;padding:0.75rem;border:1px solid rgba(245,240,235,0.7);background:transparent;color:#F5F0EB;font-family:Montserrat;font-size:0.65rem;letter-spacing:0.2em;text-transform:uppercase;text-align:center;">צפייה בפריט</span></div>
-        </div>
-        <div style="padding:1.25rem 1.5rem;background:var(--sand-100);border-top:1px solid var(--sand-300);display:flex;align-items:baseline;justify-content:space-between;">
-          <div>
-            <p style="font-family:Montserrat;font-size:0.6rem;letter-spacing:0.25em;text-transform:uppercase;color:var(--ink-400);margin:0 0 0.25rem;">Dining Table</p>
-            <h3 style="font-family:Cormorant,Georgia,serif;font-weight:300;font-size:1.5rem;color:var(--ink);margin:0;">Elephant Dining</h3>
-          </div>
-          <span style="font-family:Cormorant,Georgia,serif;font-weight:300;font-size:1.35rem;color:var(--ink);white-space:nowrap;"><span style="font-family:Heebo,sans-serif;font-weight:300;font-size:0.62em;color:inherit;vertical-align:0.12em;">₪</span>5,000</span>
         </div>
       </a>
       <a href="/products/c-table/" aria-label="C-Table" style="background:var(--sand);display:flex;flex-direction:column;cursor:pointer;text-decoration:none;color:inherit;">
+        <div class="card-head">
+          <p class="card-cat">Side Table</p>
+          <h3 class="card-name">C-Table</h3>
+        </div>
         <div class="product-card" style="position:relative;overflow:hidden;aspect-ratio:3/4;">
           <img class="img-primary" src="/images/products/C-Table/2.webp" alt="C-Table — שידת צד מנירוסטה" loading="lazy" style="width:100%;height:100%;object-fit:cover;object-position:center center;display:block;">
           <img class="img-secondary" src="/images/products/C-Table/1.webp" alt="C-Table — תמונה נוספת" loading="lazy">
+          <div class="card-price"><span style="font-family:Heebo,sans-serif;font-weight:300;font-size:0.62em;color:inherit;vertical-align:0.12em;">₪</span>990</div>
           <div class="card-overlay"><span style="display:block;width:100%;box-sizing:border-box;padding:0.75rem;border:1px solid rgba(245,240,235,0.7);background:transparent;color:#F5F0EB;font-family:Montserrat;font-size:0.65rem;letter-spacing:0.2em;text-transform:uppercase;text-align:center;">צפייה בפריט</span></div>
-        </div>
-        <div style="padding:1.25rem 1.5rem;background:var(--sand-100);border-top:1px solid var(--sand-300);display:flex;align-items:baseline;justify-content:space-between;">
-          <div>
-            <p style="font-family:Montserrat;font-size:0.6rem;letter-spacing:0.25em;text-transform:uppercase;color:var(--ink-400);margin:0 0 0.25rem;">Side Table</p>
-            <h3 style="font-family:Cormorant,Georgia,serif;font-weight:300;font-size:1.5rem;color:var(--ink);margin:0;">C-Table</h3>
-          </div>
-          <span style="font-family:Cormorant,Georgia,serif;font-weight:300;font-size:1.35rem;color:var(--ink);white-space:nowrap;"><span style="font-family:Heebo,sans-serif;font-weight:300;font-size:0.62em;color:inherit;vertical-align:0.12em;">₪</span>990</span>
         </div>
       </a>
       <a href="/products/ripple/" aria-label="Ripple Stool" style="background:var(--sand);display:flex;flex-direction:column;cursor:pointer;text-decoration:none;color:inherit;">
+        <div class="card-head">
+          <p class="card-cat">Stool</p>
+          <h3 class="card-name">Ripple Stool</h3>
+        </div>
         <div class="product-card" style="position:relative;overflow:hidden;aspect-ratio:3/4;">
           <img class="img-primary" src="/images/products/RippleStool/2.webp" alt="Ripple Stool — מגזינים מנירוסטה" loading="lazy" style="width:100%;height:100%;object-fit:cover;object-position:center center;display:block;">
           <img class="img-secondary" src="/images/products/RippleStool/1.webp" alt="Ripple Stool — תמונה נוספת" loading="lazy">
+          <div class="card-price"><span style="font-family:Heebo,sans-serif;font-weight:300;font-size:0.62em;color:inherit;vertical-align:0.12em;">₪</span>450</div>
           <div class="card-overlay"><span style="display:block;width:100%;box-sizing:border-box;padding:0.75rem;border:1px solid rgba(245,240,235,0.7);background:transparent;color:#F5F0EB;font-family:Montserrat;font-size:0.65rem;letter-spacing:0.2em;text-transform:uppercase;text-align:center;">צפייה בפריט</span></div>
-        </div>
-        <div style="padding:1.25rem 1.5rem;background:var(--sand-100);border-top:1px solid var(--sand-300);display:flex;align-items:baseline;justify-content:space-between;">
-          <div>
-            <p style="font-family:Montserrat;font-size:0.6rem;letter-spacing:0.25em;text-transform:uppercase;color:var(--ink-400);margin:0 0 0.25rem;">Stool</p>
-            <h3 style="font-family:Cormorant,Georgia,serif;font-weight:300;font-size:1.5rem;color:var(--ink);margin:0;">Ripple Stool</h3>
-          </div>
-          <span style="font-family:Cormorant,Georgia,serif;font-weight:300;font-size:1.35rem;color:var(--ink);white-space:nowrap;"><span style="font-family:Heebo,sans-serif;font-weight:300;font-size:0.62em;color:inherit;vertical-align:0.12em;">₪</span>450</span>
         </div>
       </a>
       <a href="/products/nordic/" aria-label="Nordic" style="background:var(--sand);display:flex;flex-direction:column;cursor:pointer;text-decoration:none;color:inherit;">
+        <div class="card-head">
+          <p class="card-cat">Nesting Tables</p>
+          <h3 class="card-name">Nordic</h3>
+        </div>
         <div class="product-card" style="position:relative;overflow:hidden;aspect-ratio:3/4;">
           <img class="img-primary" src="/images/products/Nordic/2.webp" alt="Nordic — שידת צד מנירוסטה" loading="lazy" style="width:100%;height:100%;object-fit:cover;object-position:center center;display:block;">
           <img class="img-secondary" src="/images/products/Nordic/1.webp" alt="Nordic — תמונה נוספת" loading="lazy">
+          <div class="card-price"><span style="font-family:Heebo,sans-serif;font-weight:300;font-size:0.62em;color:inherit;vertical-align:0.12em;">₪</span>1,100</div>
           <div class="card-overlay"><span style="display:block;width:100%;box-sizing:border-box;padding:0.75rem;border:1px solid rgba(245,240,235,0.7);background:transparent;color:#F5F0EB;font-family:Montserrat;font-size:0.65rem;letter-spacing:0.2em;text-transform:uppercase;text-align:center;">צפייה בפריט</span></div>
-        </div>
-        <div style="padding:1.25rem 1.5rem;background:var(--sand-100);border-top:1px solid var(--sand-300);display:flex;align-items:baseline;justify-content:space-between;">
-          <div>
-            <p style="font-family:Montserrat;font-size:0.6rem;letter-spacing:0.25em;text-transform:uppercase;color:var(--ink-400);margin:0 0 0.25rem;">Nesting Tables</p>
-            <h3 style="font-family:Cormorant,Georgia,serif;font-weight:300;font-size:1.5rem;color:var(--ink);margin:0;">Nordic</h3>
-          </div>
-          <span style="font-family:Cormorant,Georgia,serif;font-weight:300;font-size:1.35rem;color:var(--ink);white-space:nowrap;"><span style="font-family:Heebo,sans-serif;font-weight:300;font-size:0.62em;color:inherit;vertical-align:0.12em;">₪</span>1,100</span>
         </div>
       </a>
       <a href="/products/three-level/" aria-label="Three Level" style="background:var(--sand);display:flex;flex-direction:column;cursor:pointer;text-decoration:none;color:inherit;">
+        <div class="card-head">
+          <p class="card-cat">Living Room Table</p>
+          <h3 class="card-name">Three Level</h3>
+        </div>
         <div class="product-card" style="position:relative;overflow:hidden;aspect-ratio:3/4;">
           <img class="img-primary" src="/images/products/ThreeLevel/2.webp" alt="Three Level — שולחן סלון מנירוסטה" loading="lazy" style="width:100%;height:100%;object-fit:cover;object-position:center center;display:block;">
           <img class="img-secondary" src="/images/products/ThreeLevel/1.webp" alt="Three Level — תמונה נוספת" loading="lazy">
+          <div class="card-price"><span style="font-family:Heebo,sans-serif;font-weight:300;font-size:0.62em;color:inherit;vertical-align:0.12em;">₪</span>1,900</div>
           <div class="card-overlay"><span style="display:block;width:100%;box-sizing:border-box;padding:0.75rem;border:1px solid rgba(245,240,235,0.7);background:transparent;color:#F5F0EB;font-family:Montserrat;font-size:0.65rem;letter-spacing:0.2em;text-transform:uppercase;text-align:center;">צפייה בפריט</span></div>
-        </div>
-        <div style="padding:1.25rem 1.5rem;background:var(--sand-100);border-top:1px solid var(--sand-300);display:flex;align-items:baseline;justify-content:space-between;">
-          <div>
-            <p style="font-family:Montserrat;font-size:0.6rem;letter-spacing:0.25em;text-transform:uppercase;color:var(--ink-400);margin:0 0 0.25rem;">Living Room Table</p>
-            <h3 style="font-family:Cormorant,Georgia,serif;font-weight:300;font-size:1.5rem;color:var(--ink);margin:0;">Three Level</h3>
-          </div>
-          <span style="font-family:Cormorant,Georgia,serif;font-weight:300;font-size:1.35rem;color:var(--ink);white-space:nowrap;"><span style="font-family:Heebo,sans-serif;font-weight:300;font-size:0.62em;color:inherit;vertical-align:0.12em;">₪</span>1,900</span>
         </div>
       </a>
       <a href="/products/plie/" aria-label="Plié" style="background:var(--sand);display:flex;flex-direction:column;cursor:pointer;text-decoration:none;color:inherit;">
+        <div class="card-head">
+          <p class="card-cat">Living Room Table</p>
+          <h3 class="card-name">Plié</h3>
+        </div>
         <div class="product-card" style="position:relative;overflow:hidden;aspect-ratio:3/4;">
           <img class="img-primary" src="/images/products/PLIE/2.webp" alt="Plié — שולחן סלון מנירוסטה" loading="lazy" style="width:100%;height:100%;object-fit:cover;object-position:center center;display:block;">
           <img class="img-secondary" src="/images/products/PLIE/1.webp" alt="Plié — תמונה נוספת" loading="lazy">
+          <div class="card-price"><span style="font-family:Heebo,sans-serif;font-weight:300;font-size:0.62em;color:inherit;vertical-align:0.12em;">₪</span>2,700</div>
           <div class="card-overlay"><span style="display:block;width:100%;box-sizing:border-box;padding:0.75rem;border:1px solid rgba(245,240,235,0.7);background:transparent;color:#F5F0EB;font-family:Montserrat;font-size:0.65rem;letter-spacing:0.2em;text-transform:uppercase;text-align:center;">צפייה בפריט</span></div>
-        </div>
-        <div style="padding:1.25rem 1.5rem;background:var(--sand-100);border-top:1px solid var(--sand-300);display:flex;align-items:baseline;justify-content:space-between;">
-          <div>
-            <p style="font-family:Montserrat;font-size:0.6rem;letter-spacing:0.25em;text-transform:uppercase;color:var(--ink-400);margin:0 0 0.25rem;">Living Room Table</p>
-            <h3 style="font-family:Cormorant,Georgia,serif;font-weight:300;font-size:1.5rem;color:var(--ink);margin:0;">Plié</h3>
-          </div>
-          <span style="font-family:Cormorant,Georgia,serif;font-weight:300;font-size:1.35rem;color:var(--ink);white-space:nowrap;"><span style="font-family:Heebo,sans-serif;font-weight:300;font-size:0.62em;color:inherit;vertical-align:0.12em;">₪</span>2,700</span>
         </div>
       </a>
       <a href="/products/elephant-low/" aria-label="Elephant Low" style="background:var(--sand);display:flex;flex-direction:column;cursor:pointer;text-decoration:none;color:inherit;">
+        <div class="card-head">
+          <p class="card-cat">Living Room Table</p>
+          <h3 class="card-name">Elephant Low</h3>
+        </div>
         <div class="product-card" style="position:relative;overflow:hidden;aspect-ratio:3/4;">
           <img class="img-primary" src="/images/products/ElephantLowTable/2.webp" alt="Elephant Low — שולחן סלון מנירוסטה" loading="lazy" style="width:100%;height:100%;object-fit:cover;object-position:center center;display:block;">
           <img class="img-secondary" src="/images/products/ElephantLowTable/1.webp" alt="Elephant Low — תמונה נוספת" loading="lazy">
+          <div class="card-price"><span style="font-family:Heebo,sans-serif;font-weight:300;font-size:0.62em;color:inherit;vertical-align:0.12em;">₪</span>2,500</div>
           <div class="card-overlay"><span style="display:block;width:100%;box-sizing:border-box;padding:0.75rem;border:1px solid rgba(245,240,235,0.7);background:transparent;color:#F5F0EB;font-family:Montserrat;font-size:0.65rem;letter-spacing:0.2em;text-transform:uppercase;text-align:center;">צפייה בפריט</span></div>
-        </div>
-        <div style="padding:1.25rem 1.5rem;background:var(--sand-100);border-top:1px solid var(--sand-300);display:flex;align-items:baseline;justify-content:space-between;">
-          <div>
-            <p style="font-family:Montserrat;font-size:0.6rem;letter-spacing:0.25em;text-transform:uppercase;color:var(--ink-400);margin:0 0 0.25rem;">Living Room Table</p>
-            <h3 style="font-family:Cormorant,Georgia,serif;font-weight:300;font-size:1.5rem;color:var(--ink);margin:0;">Elephant Low</h3>
-          </div>
-          <span style="font-family:Cormorant,Georgia,serif;font-weight:300;font-size:1.35rem;color:var(--ink);white-space:nowrap;"><span style="font-family:Heebo,sans-serif;font-weight:300;font-size:0.62em;color:inherit;vertical-align:0.12em;">₪</span>2,500</span>
         </div>
       </a>
       <a href="/products/rectangular-s/" aria-label="Rectangular S" style="background:var(--sand);display:flex;flex-direction:column;cursor:pointer;text-decoration:none;color:inherit;">
+        <div class="card-head">
+          <p class="card-cat">Living Room Table</p>
+          <h3 class="card-name">Rectangular S</h3>
+        </div>
         <div class="product-card" style="position:relative;overflow:hidden;aspect-ratio:3/4;">
           <img class="img-primary" src="/images/products/RectangularLivingRoom/2.webp" alt="Rectangular S — שולחן סלון מנירוסטה" loading="lazy" style="width:100%;height:100%;object-fit:cover;object-position:center center;display:block;">
           <img class="img-secondary" src="/images/products/RectangularLivingRoom/1.webp" alt="Rectangular S — תמונה נוספת" loading="lazy">
+          <div class="card-price"><span style="font-family:Heebo,sans-serif;font-weight:300;font-size:0.62em;color:inherit;vertical-align:0.12em;">₪</span>2,300</div>
           <div class="card-overlay"><span style="display:block;width:100%;box-sizing:border-box;padding:0.75rem;border:1px solid rgba(245,240,235,0.7);background:transparent;color:#F5F0EB;font-family:Montserrat;font-size:0.65rem;letter-spacing:0.2em;text-transform:uppercase;text-align:center;">צפייה בפריט</span></div>
-        </div>
-        <div style="padding:1.25rem 1.5rem;background:var(--sand-100);border-top:1px solid var(--sand-300);display:flex;align-items:baseline;justify-content:space-between;">
-          <div>
-            <p style="font-family:Montserrat;font-size:0.6rem;letter-spacing:0.25em;text-transform:uppercase;color:var(--ink-400);margin:0 0 0.25rem;">Living Room Table</p>
-            <h3 style="font-family:Cormorant,Georgia,serif;font-weight:300;font-size:1.5rem;color:var(--ink);margin:0;">Rectangular S</h3>
-          </div>
-          <span style="font-family:Cormorant,Georgia,serif;font-weight:300;font-size:1.35rem;color:var(--ink);white-space:nowrap;"><span style="font-family:Heebo,sans-serif;font-weight:300;font-size:0.62em;color:inherit;vertical-align:0.12em;">₪</span>2,300</span>
         </div>
       </a>
       <a href="/products/magazine-rack-curves/" aria-label="Magazine Rack Curves" style="background:var(--sand);display:flex;flex-direction:column;cursor:pointer;text-decoration:none;color:inherit;">
+        <div class="card-head">
+          <p class="card-cat">STOOL</p>
+          <h3 class="card-name">Magazine Rack Curves</h3>
+        </div>
         <div class="product-card" style="position:relative;overflow:hidden;aspect-ratio:3/4;">
           <img class="img-primary" src="/images/products/MagazineRackCurves/2.webp" alt="Magazine Rack Curves — מגזינים מנירוסטה" loading="lazy" style="width:100%;height:100%;object-fit:cover;object-position:center center;display:block;">
           <img class="img-secondary" src="/images/products/MagazineRackCurves/1.webp" alt="Magazine Rack Curves — תמונה נוספת" loading="lazy">
+          <div class="card-price"><span style="font-family:Heebo,sans-serif;font-weight:300;font-size:0.62em;color:inherit;vertical-align:0.12em;">₪</span>450</div>
           <div class="card-overlay"><span style="display:block;width:100%;box-sizing:border-box;padding:0.75rem;border:1px solid rgba(245,240,235,0.7);background:transparent;color:#F5F0EB;font-family:Montserrat;font-size:0.65rem;letter-spacing:0.2em;text-transform:uppercase;text-align:center;">צפייה בפריט</span></div>
-        </div>
-        <div style="padding:1.25rem 1.5rem;background:var(--sand-100);border-top:1px solid var(--sand-300);display:flex;align-items:baseline;justify-content:space-between;">
-          <div>
-            <p style="font-family:Montserrat;font-size:0.6rem;letter-spacing:0.25em;text-transform:uppercase;color:var(--ink-400);margin:0 0 0.25rem;">STOOL</p>
-            <h3 style="font-family:Cormorant,Georgia,serif;font-weight:300;font-size:1.5rem;color:var(--ink);margin:0;">Magazine Rack Curves</h3>
-          </div>
-          <span style="font-family:Cormorant,Georgia,serif;font-weight:300;font-size:1.35rem;color:var(--ink);white-space:nowrap;"><span style="font-family:Heebo,sans-serif;font-weight:300;font-size:0.62em;color:inherit;vertical-align:0.12em;">₪</span>450</span>
         </div>
       </a>
       <a href="/products/river-box-table/" aria-label="Rivet Box Table" style="background:var(--sand);display:flex;flex-direction:column;cursor:pointer;text-decoration:none;color:inherit;">
+        <div class="card-head">
+          <p class="card-cat">Side Table</p>
+          <h3 class="card-name">Rivet Box Table</h3>
+        </div>
         <div class="product-card" style="position:relative;overflow:hidden;aspect-ratio:3/4;">
           <img class="img-primary" src="/images/products/RiverBoxTable/2.webp" alt="Rivet Box Table — שידת צד מנירוסטה" loading="lazy" style="width:100%;height:100%;object-fit:cover;object-position:center center;display:block;">
           <img class="img-secondary" src="/images/products/RiverBoxTable/1.webp" alt="Rivet Box Table — תמונה נוספת" loading="lazy">
+          <div class="card-price"><span style="font-family:Heebo,sans-serif;font-weight:300;font-size:0.62em;color:inherit;vertical-align:0.12em;">₪</span>1,200</div>
           <div class="card-overlay"><span style="display:block;width:100%;box-sizing:border-box;padding:0.75rem;border:1px solid rgba(245,240,235,0.7);background:transparent;color:#F5F0EB;font-family:Montserrat;font-size:0.65rem;letter-spacing:0.2em;text-transform:uppercase;text-align:center;">צפייה בפריט</span></div>
-        </div>
-        <div style="padding:1.25rem 1.5rem;background:var(--sand-100);border-top:1px solid var(--sand-300);display:flex;align-items:baseline;justify-content:space-between;">
-          <div>
-            <p style="font-family:Montserrat;font-size:0.6rem;letter-spacing:0.25em;text-transform:uppercase;color:var(--ink-400);margin:0 0 0.25rem;">Side Table</p>
-            <h3 style="font-family:Cormorant,Georgia,serif;font-weight:300;font-size:1.5rem;color:var(--ink);margin:0;">Rivet Box Table</h3>
-          </div>
-          <span style="font-family:Cormorant,Georgia,serif;font-weight:300;font-size:1.35rem;color:var(--ink);white-space:nowrap;"><span style="font-family:Heebo,sans-serif;font-weight:300;font-size:0.62em;color:inherit;vertical-align:0.12em;">₪</span>1,200</span>
         </div>
       </a>
       <a href="/products/rectangular-l/" aria-label="Rectangular L" style="background:var(--sand);display:flex;flex-direction:column;cursor:pointer;text-decoration:none;color:inherit;">
+        <div class="card-head">
+          <p class="card-cat">Living Room Table</p>
+          <h3 class="card-name">Rectangular L</h3>
+        </div>
         <div class="product-card" style="position:relative;overflow:hidden;aspect-ratio:3/4;">
           <img class="img-primary" src="/images/products/RectangularLivingRoom/2.webp" alt="Rectangular L — שולחן סלון מנירוסטה" loading="lazy" style="width:100%;height:100%;object-fit:cover;object-position:center center;display:block;">
           <img class="img-secondary" src="/images/products/RectangularLivingRoom/1.webp" alt="Rectangular L — תמונה נוספת" loading="lazy">
+          <div class="card-price"><span style="font-family:Heebo,sans-serif;font-weight:300;font-size:0.62em;color:inherit;vertical-align:0.12em;">₪</span>2,500</div>
           <div class="card-overlay"><span style="display:block;width:100%;box-sizing:border-box;padding:0.75rem;border:1px solid rgba(245,240,235,0.7);background:transparent;color:#F5F0EB;font-family:Montserrat;font-size:0.65rem;letter-spacing:0.2em;text-transform:uppercase;text-align:center;">צפייה בפריט</span></div>
-        </div>
-        <div style="padding:1.25rem 1.5rem;background:var(--sand-100);border-top:1px solid var(--sand-300);display:flex;align-items:baseline;justify-content:space-between;">
-          <div>
-            <p style="font-family:Montserrat;font-size:0.6rem;letter-spacing:0.25em;text-transform:uppercase;color:var(--ink-400);margin:0 0 0.25rem;">Living Room Table</p>
-            <h3 style="font-family:Cormorant,Georgia,serif;font-weight:300;font-size:1.5rem;color:var(--ink);margin:0;">Rectangular L</h3>
-          </div>
-          <span style="font-family:Cormorant,Georgia,serif;font-weight:300;font-size:1.35rem;color:var(--ink);white-space:nowrap;"><span style="font-family:Heebo,sans-serif;font-weight:300;font-size:0.62em;color:inherit;vertical-align:0.12em;">₪</span>2,500</span>
         </div>
       </a>
       <!--grid:end--></div>
@@ -357,7 +319,7 @@
 
     <!-- CONTACT CTA -->
     <section id="contact" style="padding:4rem 2rem 4rem;text-align:center;background:var(--sand);">
-      <p style="font-family:Montserrat,Heebo;font-size:0.9rem;letter-spacing:0.35em;text-transform:uppercase;color:var(--ink-400);margin-bottom:1.5rem;">בואו<br>נדבר</p>
+      <p style="font-family:Montserrat,Heebo;font-size:0.9rem;letter-spacing:0.35em;text-transform:uppercase;color:var(--ink-400);margin-bottom:1.5rem;">בואו נדבר</p>
       <h2 style="font-family:'Cormorant','Frank Ruhl Libre',Georgia,serif;font-weight:300;font-size:clamp(2rem,4.5vw,4rem);line-height:1.15;color:var(--ink);max-width:700px;margin:0 auto 2rem;">התאהבתם בפיס מנירוסטה?<br>דברו איתנו ונעזור לכם!</h2>
       <p style="font-family:Montserrat,Heebo;font-weight:300;font-size:1rem;line-height:1.8;color:var(--ink-400);max-width:440px;margin:0 auto 3rem;">כל פריט נבחר ונבדק בקפידה. נשמח לענות על שאלות, גימורים מיוחדים והזמנות בהתאמה אישית.</p>
       <div style="display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:1rem;">
@@ -394,7 +356,7 @@
         </div>
       </div>
       <div style="margin-top:3rem;padding-top:1.5rem;border-top:1px solid var(--sand-200);display:flex;justify-content:space-between;flex-wrap:wrap;gap:0.5rem;">
-        <p style="font-family:Montserrat,Heebo;font-size:0.7rem;color:var(--ink-200);margin:0;">© <span class="footer-year">2026</span> Steelo. כל הזכויות שמורות.</p>
+        <p style="font-family:Montserrat,Heebo;font-size:0.7rem;color:var(--ink-400);margin:0;">© <span class="footer-year">2026</span> Steelo. כל הזכויות שמורות.</p>
       </div>
     </footer>
 
@@ -477,7 +439,7 @@
           <span style="font-family:Montserrat,Heebo;font-size:0.65rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--ink-400);">סכום ביניים</span>
           <span id="cart-total" style="font-family:'Cormorant','Frank Ruhl Libre',Georgia,serif;font-weight:300;font-size:1.75rem;color:var(--ink);">₪0</span>
         </div>
-        <p style="font-family:Montserrat,Heebo;font-weight:300;font-size:0.75rem;line-height:1.7;color:var(--ink-300);margin-bottom:1rem;">כל הפריטים מיוצרים בהזמנה.</p>
+        <p style="font-family:Montserrat,Heebo;font-weight:300;font-size:0.75rem;line-height:1.7;color: var(--ink-400);margin-bottom:1rem;">כל הפריטים מיוצרים בהזמנה.</p>
         <button id="checkout-btn" class="btn-primary">לביצוע ההזמנה</button>
       </div>
     </aside>
@@ -674,17 +636,17 @@
   <script src="js/nav.js?v=1"></script>
   <script src="js/i18n.js?v=1"></script>
   <script src="js/data.js?v=8"></script>
-  <script src="js/cart.js?v=7"></script>
+  <script src="js/cart.js?v=8"></script>
   <script src="js/modal.js?v=7"></script>
   <!-- jQuery required by Tranzila's embedded payment iframe (Apple Pay / Google Pay) -->
   <script src="js/jquery.min.js?v=1"></script>
-  <script src="js/checkout.js?v=8"></script>
+  <script src="js/checkout.js?v=9"></script>
   <!-- Tranzila Apple Pay bridge (must load on the page that hosts the payment iframe) -->
   <script type="text/javascript" src="https://direct.tranzila.com/Tranzila_files/jquery.js"></script>
   <script>document.write('<script src="https://direct.tranzila.com/js/tranzilanapple_v3.js?v=' + Date.now() + '"><\/script>');</script>
   <script>var $n = jQuery.noConflict(true);</script>
-  <script src="js/main.js?v=8"></script>
-  <script src="js/event-popup.js?v=3"></script>
+  <script src="js/main.js?v=9"></script>
+  <script src="js/event-popup.js?v=4"></script>
   <script>
     // Keep the footer copyright year current.
     document.querySelectorAll('.footer-year').forEach(function (el) {

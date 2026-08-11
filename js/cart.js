@@ -65,12 +65,12 @@ function renderCartItems() {
   if (cart.length === 0) {
     el.innerHTML = `
       <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;padding:4rem 0;text-align:center;gap:1rem;">
-        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" style="color:var(--ink-200);" aria-hidden="true">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" style="color:var(--ink-400);" aria-hidden="true">
           <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/>
           <line x1="3" y1="6" x2="21" y2="6"/>
           <path d="M16 10a4 4 0 01-8 0"/>
         </svg>
-        <p style="font-family:Montserrat,Heebo;font-size:0.65rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--ink-300);">${t('cart_empty')}</p>
+        <p style="font-family:Montserrat,Heebo;font-size:0.65rem;letter-spacing:0.2em;text-transform:uppercase;color: var(--ink-400);">${t('cart_empty')}</p>
       </div>`;
     return;
   }
@@ -83,7 +83,7 @@ function renderCartItems() {
       <img src="${item.images[0]}" alt="${item.name}" loading="lazy"
            style="width:72px;height:88px;object-fit:cover;object-position:center;flex-shrink:0;">
       <div style="flex:1;">
-        <p style="font-family:Montserrat;font-size:0.6rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--ink-400);margin:0 0 0.2rem;">${item.category}</p>
+        <p style="font-family:Montserrat;font-size:0.7rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--ink-400);margin:0 0 0.2rem;">${item.category}</p>
         <h4 style="font-family:Cormorant,Georgia,serif;font-weight:300;font-size:1.4rem;color:var(--ink);margin:0 0 0.4rem;line-height:1.1;">${item.name}</h4>
         <p style="font-family:Cormorant,Georgia,serif;font-weight:300;font-size:1.15rem;color:var(--ink);margin:0 0 0.75rem;">${item.originalPrice && item.originalPrice !== item.price ? `<span style="text-decoration:line-through;opacity:0.4;font-size:0.85em;margin-right:0.35rem;">${fmt(item.originalPrice)}</span><span style="color:#B85C38;">${fmt(item.price)}</span>` : fmt(item.price)}</p>
         <div style="display:flex;align-items:center;gap:0.75rem;">
@@ -95,8 +95,8 @@ function renderCartItems() {
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           </button>
           <button onclick="removeItem('${item.id}')"
-            style="margin-inline-start:auto;background:none;border:none;cursor:pointer;font-family:Montserrat,Heebo;font-size:0.65rem;color:var(--ink-300);transition:color 0.2s;"
-            onmouseover="this.style.color='var(--ink)'" onmouseout="this.style.color='var(--ink-300)'">${t('remove')}</button>
+            style="margin-inline-start:auto;background:none;border:none;cursor:pointer;font-family:Montserrat,Heebo;font-size:0.65rem;color: var(--ink-400);transition:color 0.2s;"
+            onmouseover="this.style.color='var(--ink)'" onmouseout="this.style.color='var(--ink-400)'">${t('remove')}</button>
         </div>
       </div>`;
     el.appendChild(row);

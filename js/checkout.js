@@ -81,7 +81,7 @@ function buildOrderSummary() {
     row.innerHTML = `
       <div>
         <span style="font-family:Cormorant,Georgia,serif;font-weight:300;font-size:1.15rem;color:var(--ink);">${item.name}</span>
-        <span style="font-family:Montserrat;font-size:0.6rem;letter-spacing:0.15em;text-transform:uppercase;color:var(--ink-400);margin-left:0.5rem;">×${item.quantity}</span>
+        <span style="font-family:Montserrat;font-size:0.7rem;letter-spacing:0.15em;text-transform:uppercase;color:var(--ink-400);margin-left:0.5rem;">×${item.quantity}</span>
       </div>
       <span style="font-family:Cormorant,Georgia,serif;font-weight:300;font-size:1.1rem;color:var(--ink);white-space:nowrap;">${fmt(item.price * item.quantity)}</span>`;
     el.appendChild(row);

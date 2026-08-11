@@ -180,7 +180,7 @@ FOOTER = '''    <!-- FOOTER -->
         </div>
       </div>
       <div style="margin-top:3rem;padding-top:1.5rem;border-top:1px solid var(--sand-200);display:flex;justify-content:space-between;flex-wrap:wrap;gap:0.5rem;">
-        <p style="font-family:Montserrat,Heebo;font-size:0.7rem;color:var(--ink-200);margin:0;">© <span class="footer-year">2026</span> Steelo. כל הזכויות שמורות.</p>
+        <p style="font-family:Montserrat,Heebo;font-size:0.7rem;color:var(--ink-400);margin:0;">© <span class="footer-year">2026</span> Steelo. כל הזכויות שמורות.</p>
       </div>
     </footer>
 '''
@@ -203,7 +203,7 @@ MODALS = '''  <!-- CART -->
           <span style="font-family:Montserrat,Heebo;font-size:0.65rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--ink-400);">סכום ביניים</span>
           <span id="cart-total" style="font-family:'Cormorant','Frank Ruhl Libre',Georgia,serif;font-weight:300;font-size:1.75rem;color:var(--ink);">₪0</span>
         </div>
-        <p style="font-family:Montserrat,Heebo;font-weight:300;font-size:0.75rem;line-height:1.7;color:var(--ink-300);margin-bottom:1rem;">כל הפריטים מיוצרים בהזמנה.</p>
+        <p style="font-family:Montserrat,Heebo;font-weight:300;font-size:0.75rem;line-height:1.7;color: var(--ink-400);margin-bottom:1rem;">כל הפריטים מיוצרים בהזמנה.</p>
         <button id="checkout-btn" class="btn-primary">לביצוע ההזמנה</button>
       </div>
     </aside>
@@ -332,10 +332,10 @@ MODALS = '''  <!-- CART -->
 SCRIPTS = '''  <script src="/js/nav.js?v=1"></script>
   <script src="/js/i18n.js?v=1"></script>
   <script src="/js/data.js?v=8"></script>
-  <script src="/js/cart.js?v=7"></script>
+  <script src="/js/cart.js?v=8"></script>
   <!-- jQuery required by Tranzila's embedded payment iframe (Apple Pay / Google Pay) -->
   <script src="/js/jquery.min.js?v=1"></script>
-  <script src="/js/checkout.js?v=8"></script>
+  <script src="/js/checkout.js?v=9"></script>
   <!-- Tranzila Apple Pay bridge (must load on the page that hosts the payment iframe) -->
   <script type="text/javascript" src="https://direct.tranzila.com/Tranzila_files/jquery.js"></script>
   <script>document.write('<script src="https://direct.tranzila.com/js/tranzilanapple_v3.js?v=' + Date.now() + '"><\\/script>');</script>
@@ -505,7 +505,7 @@ def product_page(p):
   <meta property="product:price:amount" content="{price}">
   <meta property="product:price:currency" content="ILS">
   {FONTS}
-  <link rel="stylesheet" href="/css/styles.css?v=23">
+  <link rel="stylesheet" href="/css/styles.css?v=24">
   <script type="application/ld+json">{json.dumps(ld_product, ensure_ascii=False)}</script>
   <script type="application/ld+json">{json.dumps(ld_crumbs, ensure_ascii=False)}</script>
 </head>
@@ -549,7 +549,7 @@ def product_page(p):
             <button id="pdp-add-cart" data-id="{esc(pid)}" class="btn-primary" style="background:#F5F0EB;color:var(--ink);border:1px solid var(--ink);">הוספה לסל</button>
             <button id="pdp-buy-now" data-id="{esc(pid)}" class="btn-outline" style="background:var(--ink);color:var(--sand-100);border:none;">קניה מהירה</button>
           </div>
-          <p style="font-family:Montserrat,Heebo;font-weight:300;font-size:0.75rem;line-height:1.7;color:var(--ink-300);margin-top:1.5rem;">מיוצר בהזמנה — זמן אספקה 5-10 ימי עסקים.</p>
+          <p style="font-family:Montserrat,Heebo;font-weight:300;font-size:0.75rem;line-height:1.7;color: var(--ink-400);margin-top:1.5rem;">מיוצר בהזמנה — זמן אספקה 5-10 ימי עסקים.</p>
           <a href="/#collection" style="display:inline-block;margin-top:2rem;font-family:Montserrat,Heebo;font-size:0.7rem;letter-spacing:0.15em;color:var(--ink-400);text-decoration:none;">→ חזרה לקולקציה</a>
         </div>
       </div>
@@ -633,7 +633,7 @@ def content_page(slug, title, mdesc, h1, body_html, crumb, ld_extra=None):
   <meta property="og:url" content="{url}">
   <meta property="og:image" content="{SITE}/images/logo.png">
   {FONTS}
-  <link rel="stylesheet" href="/css/styles.css?v=23">
+  <link rel="stylesheet" href="/css/styles.css?v=24">
   <style>
 {CONTENT_CSS}
   </style>
@@ -723,41 +723,23 @@ def grid_cards(products):
         alt = f"{name} — {cat} מנירוסטה" if cat else name
         discount = p.get("discount") or 0
         badge = (f'\n          <div style="position:absolute;top:1rem;left:1rem;background:#B85C38;color:#fff;'
-                 f'font-family:Montserrat,sans-serif;font-size:0.55rem;font-weight:600;letter-spacing:0.18em;'
+                 f'font-family:Montserrat,sans-serif;font-size:0.7rem;font-weight:600;letter-spacing:0.18em;'
                  f'padding:0.3rem 0.65rem;z-index:3;">{discount}% OFF</div>') if discount > 0 else ""
         out.append(
 f'''<a href="/products/{esc(pid)}/" aria-label="{esc(name)}" style="background:var(--sand);display:flex;flex-direction:column;cursor:pointer;text-decoration:none;color:inherit;">
+        <div class="card-head">
+          <p class="card-cat">{esc(raw)}</p>
+          <h3 class="card-name">{esc(name)}</h3>
+        </div>
         <div class="product-card" style="position:relative;overflow:hidden;aspect-ratio:3/4;">
           <img class="img-primary" src="{esc(primary)}" alt="{esc(alt)}" loading="lazy" style="width:100%;height:100%;object-fit:cover;object-position:center center;display:block;">
           <img class="img-secondary" src="{esc(secondary)}" alt="{esc(name)} — תמונה נוספת" loading="lazy">
+          <div class="card-price">{price_cell_html(p)}</div>
           <div class="card-overlay"><span style="display:block;width:100%;box-sizing:border-box;padding:0.75rem;border:1px solid rgba(245,240,235,0.7);background:transparent;color:#F5F0EB;font-family:Montserrat;font-size:0.65rem;letter-spacing:0.2em;text-transform:uppercase;text-align:center;">צפייה בפריט</span></div>{badge}
-        </div>
-        <div style="padding:1.25rem 1.5rem;background:var(--sand-100);border-top:1px solid var(--sand-300);display:flex;align-items:baseline;justify-content:space-between;">
-          <div>
-            <p style="font-family:Montserrat;font-size:0.6rem;letter-spacing:0.25em;text-transform:uppercase;color:var(--ink-400);margin:0 0 0.25rem;">{esc(raw)}</p>
-            <h3 style="font-family:Cormorant,Georgia,serif;font-weight:300;font-size:1.5rem;color:var(--ink);margin:0;">{esc(name)}</h3>
-          </div>
-          <span style="font-family:Cormorant,Georgia,serif;font-weight:300;font-size:1.35rem;color:var(--ink);white-space:nowrap;">{price_cell_html(p)}</span>
         </div>
       </a>''')
     return "\n      ".join(out)
 
-
-def inject_collection_count(txt, products):
-    """Write the public product count into #collection-count so the served HTML
-    already carries the real number — same list that produced the cards, so the
-    two can't disagree. js/main.js recomputes the identical value at runtime."""
-    pattern = re.compile(
-        r'(<span id="collection-count" data-label="(?P<label>[^"]*)"[^>]*>)(?P<body>.*?)(</span>)',
-        re.S)
-    m = pattern.search(txt)
-    if not m:
-        print("  ! #collection-count not found — skipped")
-        return txt
-    n = len([p for p in products if is_public(p)])
-    count = f"{n}{html.unescape(m.group('label'))}"
-    print(f"  ✓ index.html collection count → {count.strip()}")
-    return pattern.sub(lambda mm: mm.group(1) + esc(count) + mm.group(4), txt, count=1)
 
 
 def inject_home_grid(products):
@@ -773,7 +755,6 @@ def inject_home_grid(products):
         print("  ✓ index.html collection grid injected (static, crawlable)")
     else:
         print("  ! index.html grid markers not found — skipped")
-    txt = inject_collection_count(txt, products)
     open(path, "w", encoding="utf-8").write(txt)
 
 
