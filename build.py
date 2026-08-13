@@ -346,7 +346,7 @@ MODALS = '''  <!-- CART -->
 
 SCRIPTS = '''  <script src="/js/nav.js?v=1"></script>
   <script src="/js/i18n.js?v=1"></script>
-  <script src="/js/data.js?v=11"></script>
+  <script src="/js/data.js?v=12"></script>
   <script src="/js/cart.js?v=8"></script>
   <!-- jQuery required by Tranzila's embedded payment iframe (Apple Pay / Google Pay) -->
   <script src="/js/jquery.min.js?v=1"></script>
@@ -733,8 +733,11 @@ def grid_cards(products):
         cat  = category_label(p["category"])
         raw  = p.get("category", "")
         imgs = p.get("images", [])
-        primary   = imgs[1] if len(imgs) > 1 else (imgs[0] if imgs else "/images/logo.png")
-        secondary = imgs[0] if imgs else primary
+        # Image 1 is the card, image 2 the hover swap — the order the photos are
+        # numbered in. These used to be the other way round, so the card showed
+        # image 2. Keep this in step with renderGrid() in main.js.
+        primary   = imgs[0] if imgs else "/images/logo.png"
+        secondary = imgs[1] if len(imgs) > 1 else primary
         alt = f"{name} — {cat} מנירוסטה" if cat else name
         discount = p.get("discount") or 0
         badge = (f'\n          <div style="position:absolute;top:1rem;left:1rem;background:#B85C38;color:#fff;'

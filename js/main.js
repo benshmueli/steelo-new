@@ -1,5 +1,5 @@
 /* ============================================================
-   Main — grid render, hero cycle, navbar scroll
+   Main — grid render, navbar scroll
    ============================================================ */
 
 /* Internal test items keep a working URL (for ₪1 payment checks) but stay out
@@ -36,15 +36,18 @@ function renderGrid() {
     imgBox.className = 'product-card';
     imgBox.style.cssText = 'position:relative;overflow:hidden;aspect-ratio:3/4;';
 
+    // Image 1 is the card, image 2 the hover swap — the order the photos are
+    // numbered in. These used to be the other way round. Keep in step with
+    // grid_cards() in build.py, which renders the static grid.
     const img1 = document.createElement('img');
-    img1.src = p.images.length > 1 ? p.images[1] : p.images[0];
+    img1.src = p.images[0];
     img1.alt = p.name + ' close view';
     img1.className = 'img-primary';
     img1.loading = 'lazy';
     img1.style.cssText = 'width:100%;height:100%;object-fit:cover;object-position:center center;display:block;';
 
     const img2 = document.createElement('img');
-    img2.src = p.images[0];
+    img2.src = p.images.length > 1 ? p.images[1] : p.images[0];
     img2.alt = p.name + ' alternate view';
     img2.className = 'img-secondary';
     img2.loading = 'lazy';
@@ -89,26 +92,6 @@ function renderGrid() {
   });
 }
 
-/* ---- Hero cycling ---- */
-const HERO_IMAGES = [
-  { src: 'images/products/LoopSideTable/1.png',  alt: 'Loop Side Table' },
-  { src: 'images/products/ElephantDining/1.png', alt: 'Elephant Dining Table' },
-  { src: 'images/products/ThreeLevel/1.png',     alt: 'Three Level Coffee Table' },
-  { src: 'images/products/RippleStool/1.png',    alt: 'Ripple Stool' },
-  { src: 'images/products/PLIE/1.png',           alt: 'Plié Coffee Table' },
-];
-let heroIdx = 0;
-
-setInterval(() => {
-  heroIdx = (heroIdx + 1) % HERO_IMAGES.length;
-  const img = document.getElementById('hero-img');
-  img.style.opacity = '0';
-  setTimeout(() => {
-    img.src = HERO_IMAGES[heroIdx].src;
-    img.alt = HERO_IMAGES[heroIdx].alt;
-    img.style.opacity = '1';
-  }, 900);
-}, 5000);
 
 /* ---- Navbar scroll ---- */
 window.addEventListener('scroll', () => {

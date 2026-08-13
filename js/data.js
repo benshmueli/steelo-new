@@ -26,7 +26,11 @@ const PRODUCTS = [
     dimensions: '30 x 40 x 50 cm',
     material: 'נירוסטה 304',
     description: 'שולחן Loop בעיצוב מינימליסטי וייחודי שמתאים לכל מקום בבית. בזכות המראה הנקי והמבריק שלו, הוא משדרג בקלות כל חלל ומשלב בין סטייל לפרקטיקה. רב-שימושי: מתאים כשולחן צד לסלון, שולחן קפה קטן או כשידת לילה מעוצבת ליד המיטה. עשוי נירוסטה איכותית עם ליטוש ידני למראה יוקרתי ועמידות לאורך זמן.',
-    images: ['/images/products/LoopSideTable/1.webp', '/images/products/LoopSideTable/2.webp', '/images/products/LoopSideTable/3.webp'],
+    images: [
+      '/images/products/LoopSideTable/1.webp',
+      '/images/products/LoopSideTable/2.webp',
+      '/images/products/LoopSideTable/3.webp',
+    ],
   },
   {
     id: 'elephant-dining',
@@ -37,7 +41,11 @@ const PRODUCTS = [
     dimensions: '120 x 120 x 75 cm',
     material: 'נירוסטה 304',
     description: 'שולחן אוכל Elephant Leg הוא הצהרה עיצובית יוצאת דופן. השולחן מציג נוכחות מרשימה, המשלבת בין חומריות תעשייתית לבין קווים גיאומטריים מתוחכמים. השולחן מתאים לאירוח של 5-7 סועדים, עשוי נירוסטה איכותית בגימור מלוטש ויוקרתי. המבנה שלו מדגיש את היופי הגולמי של המתכת תוך שמירה על מראה נקי, מודרני וקליל באופן מפתיע.',
-    images: ['/images/products/ElephantDining/1.webp', '/images/products/ElephantDining/2.webp'],
+    images: [
+      '/images/products/ElephantDining/1.webp',
+      '/images/products/ElephantDining/2.webp',
+      '/images/products/ElephantDining/3.webp',
+    ],
   },
   {
     id: 'c-table',
@@ -48,7 +56,11 @@ const PRODUCTS = [
     dimensions: '35 x 45 x 50 cm',
     material: 'נירוסטה 304',
     description: 'נשכן עשוי 100% נירוסטה מרשים, מלא בסטייל, נקי, קלאסי ויוקרתי, ניתן לשימוש גם בתור שולחן צד וגם כשולחן קפה קומפקטי לצד הספה',
-    images: ['/images/products/C-Table/1.webp', '/images/products/C-Table/2.webp', '/images/products/C-Table/3.webp', '/images/products/C-Table/4.webp'],
+    images: [
+      '/images/products/C-Table/1.webp',
+      '/images/products/C-Table/2.webp',
+      '/images/products/C-Table/3.webp',
+    ],
   },
   {
     id: 'ripple',
@@ -59,7 +71,12 @@ const PRODUCTS = [
     dimensions: '37 x 32 x 48 cm',
     material: 'ברזל צבוע',
     description: 'סטול ורסטילי בעיצוב גלי, שמשלב אסתטיקה מודרנית עם עוצמה תעשייתית. ה‑RIPPLE הוא שידת צד מנירוסטה-stool בעיצוב מינימליסטי השואב השראה מתנועת האדווה, עשוי מתכת בגימור כסוף מטאלי שמעניק לו מראה נקי, יוקרתי ומתוחכם. בזכות המבנה החכם והאוורירי שלו, הוא יכול לשמש כשרפרף ישיבה מסוגנן, שולחן צד אלגנטי לצד הספה, שידת לילה ייחודית או מעמד למגזינים וספרים.',
-    images: ['/images/products/RippleStool/1.webp', '/images/products/RippleStool/2.webp'],
+    images: [
+      '/images/products/RippleStool/1.webp',
+      '/images/products/RippleStool/2.webp',
+      '/images/products/RippleStool/3.webp',
+      '/images/products/RippleStool/4.webp',
+    ],
   },
   {
     id: 'nordic',
@@ -70,7 +87,12 @@ const PRODUCTS = [
     dimensions: '35 x 45 x 45 cm',
     material: 'נירוסטה 304',
     description: 'שידת צד מנירוסטה בעיצוב נורדי מינימליסטי, שמשלבת אסתטיקה מודרנית עם איכות ועמידות. עשויה 100% נירוסטה איכותית ומתאימה לכל פינה בבית. אפשר להציב אותה כשולחן צד ליד הספה או כשולחן קפה נמוך במרכז הסלון.',
-    images: ['/images/products/Nordic/1.webp', '/images/products/Nordic/2.webp', '/images/products/Nordic/3.webp'],
+    images: [
+      '/images/products/Nordic/1.webp',
+      '/images/products/Nordic/2.webp',
+      '/images/products/Nordic/3.webp',
+      '/images/products/Nordic/4.webp',
+    ],
   },
   {
     id: 'three-level',
@@ -81,7 +103,11 @@ const PRODUCTS = [
     dimensions: '70 x 70 x 47 cm',
     material: 'נירוסטה 304',
     description: 'שולחן סלון נירוסטה בעיצוב אינדסטריאל שיק עם שלושה מפלסים, נוכחות פיסולית ומראה גולמי מינימליסטי. מתאים כשולחן סלון, שולחן צד, שולחן קפה או כפיס עם אופי לחלל המגורים.',
-    images: ['/images/products/ThreeLevel/1.webp', '/images/products/ThreeLevel/2.webp'],
+    images: [
+      '/images/products/ThreeLevel/1.webp',
+      '/images/products/ThreeLevel/2.webp',
+      '/images/products/ThreeLevel/3.webp',
+    ],
   },
   {
     id: 'plie',
@@ -92,7 +118,11 @@ const PRODUCTS = [
     dimensions: '50 x 90 x 44 cm',
     material: 'נירוסטה 304',
     description: 'Plié הוא שולחן סלון מנירוסטה מוברשת בעיצוב מינימליסטי ונקי, בהשראת עבודותיה של המעצבת הצרפתייה Maria Pergay. הוא מיוצר מכיפוף מתכת רציף שיוצר צורה אלגנטית וייחודית, עם מקום אחסון למגזינים, ספרים ועיתונים בתוך רגלי השולחן. השולחן מתאים לסלון מודרני, חלל אירוח או משרד.',
-    images: ['/images/products/PLIE/1.webp', '/images/products/PLIE/2.webp', '/images/products/PLIE/3.webp', '/images/products/PLIE/4.webp'],
+    images: [
+      '/images/products/PLIE/1.webp',
+      '/images/products/PLIE/2.webp',
+      '/images/products/PLIE/3.webp',
+    ],
   },
   {
     id: 'elephant-low',
@@ -103,7 +133,9 @@ const PRODUCTS = [
     dimensions: '85 x 85 x 42 cm',
     material: 'נירוסטה 304',
     description: 'שולחן סלון מנירוסטה בעיצוב מודרני ומשחקי שמביא פרשנות חדשה לחלל המגורים. עם צללית עגולה, בסיס רחב ויציב ומראה ארכיטקטוני ייחודי, הוא מדגיש נוכחות דומיננטית ופשטות אלגנטית.',
-    images: ['/images/products/ElephantLowTable/1.webp', '/images/products/ElephantLowTable/2.webp'],
+    images: [
+      '/images/products/ElephantLowTable/1.webp',
+    ],
   },
   {
     id: 'rectangular-s',
@@ -114,7 +146,11 @@ const PRODUCTS = [
     dimensions: '60 x 100 x 42 cm ',
     material: 'נירוסטה 304',
     description: 'שולחן סלון נירוסטה בעיצוב נקי ועוצמתי. מציג סילואט מודרני ונקי, עשוי נירוסטה 304 מוברשת בעובי 3.5 מ"מ. פריט בעל נוכחות דומיננטית המעניק לחלל המגורים מראה תעשייתי יוקרתי, על-זמני ומתוחכם.',
-    images: ['/images/products/RectangularLivingRoom/1.webp', '/images/products/RectangularLivingRoom/2.webp'],
+    images: [
+      '/images/products/RectangularLivingRoomS/1.webp',
+      '/images/products/RectangularLivingRoomS/2.webp',
+      '/images/products/RectangularLivingRoomS/3.webp',
+    ],
   },
   {
     id: 'magazine-rack-curves',
@@ -125,7 +161,10 @@ const PRODUCTS = [
     dimensions: '30 x 46 x 37 cm',
     material: 'ברזל צבוע',
     description: 'שדרגו את חלל העבודה או המגורים עם מעמד מגזינים בעיצוב תעשייתי גיאומטרי. המתקן, בצבע נירוסטה, מציע מבנה מתכת פתוח עם קימורים עדינים שיוצרים מראה קליל ואוורירי. עם תאים מרווחים המאפשרים שליפה נוחה, הוא הופך את ערימת הניירת לפריט דקורטיבי שפשוט אי אפשר להתעלם ממנו.',
-    images: ['/images/products/MagazineRackCurves/1.webp', '/images/products/MagazineRackCurves/2.webp'],
+    images: [
+      '/images/products/MagazineRackCurves/1.webp',
+      '/images/products/MagazineRackCurves/2.webp',
+    ],
   },
   {
     id: 'river-box-table',
@@ -136,7 +175,12 @@ const PRODUCTS = [
     dimensions: '40 x 30 x 49 cm',
     material: 'נירוסטה 304',
     description: 'מפרט טכני: • חומר: 100% נירוסטה (Stainless Steel) • מידות: 40×30×49 ס״מ (אורך × רוחב × גובה) • גימור: מתכת מלוטשת וקלה לתחזוקה. שידת צד מינימליסטית שמשלבת אסתטיקה תעשייתית עם פונקציונליות יומיומית. המבנה הגיאומטרי הנקי ושורת הניטים החשופים מעניקים לה נוכחות על-זמנית שמתאימה לכל חלל. • מתאים כשולחן צד, כשולחן קפה, שידת לילה או יחידת אחסון קומפקטית. • כולל שני מדפים לאחסון ספרים וחפצים יומיומיים.',
-    images: ['/images/products/RiverBoxTable/1.webp', '/images/products/RiverBoxTable/2.webp'],
+    images: [
+      '/images/products/RiverBoxTable/1.webp',
+      '/images/products/RiverBoxTable/2.webp',
+      '/images/products/RiverBoxTable/3.webp',
+      '/images/products/RiverBoxTable/4.webp',
+    ],
   },
   {
     id: 'rectangular-l',
@@ -147,7 +191,11 @@ const PRODUCTS = [
     dimensions: '60 x 120 x 42 cm',
     material: 'נירוסטה 304',
     description: 'שולחן סלון נירוסטה בעיצוב נקי ועוצמתי. מציג סילואט מודרני ונקי, עשוי נירוסטה 304 מוברשת בעובי 3.5 מ"מ. פריט בעל נוכחות דומיננטית המעניק לחלל המגורים מראה תעשייתי יוקרתי, על-זמני ומתוחכם.',
-    images: ['/images/products/RectangularLivingRoom/1.webp', '/images/products/RectangularLivingRoom/2.webp'],
+    images: [
+      '/images/products/RectangularLivingRoomL/1.webp',
+      '/images/products/RectangularLivingRoomL/2.webp',
+      '/images/products/RectangularLivingRoomL/3.webp',
+    ],
   },
   {
     id: 'test',
