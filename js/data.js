@@ -96,7 +96,7 @@ const PRODUCTS = [
   },
   {
     id: 'three-level',
-    name: 'Three Level',
+    name: 'Three Level L',
     category: 'Living Room Table',
     price: 1900,
     discount: 0,
