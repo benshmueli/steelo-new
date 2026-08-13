@@ -29,7 +29,6 @@ const PRODUCTS = [
     images: [
       '/images/products/LoopSideTable/1.webp',
       '/images/products/LoopSideTable/2.webp',
-      '/images/products/LoopSideTable/3.webp',
     ],
   },
   {
