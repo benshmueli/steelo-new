@@ -110,6 +110,20 @@ const PRODUCTS = [
     ],
   },
   {
+    id: 'three-level-s',
+    name: 'Three Level S',
+    category: 'Living Room Table',
+    price: 1200,
+    discount: 0,
+    dimensions: '52 x 52 x 47 cm',
+    material: 'נירוסטה 304',
+    description: 'שולחן סלון נירוסטה בעיצוב אינדסטריאל שיק עם שלושה מפלסים, נוכחות פיסולית ומראה גולמי מינימליסטי. מתאים כשולחן סלון, שולחן צד, שולחן קפה או כפיס עם אופי לחלל המגורים.',
+    images: [
+      '/images/products/ThreeLevelS/1.webp',
+      '/images/products/ThreeLevelS/2.webp',
+    ],
+  },
+  {
     id: 'plie',
     name: 'Plié',
     category: 'Living Room Table',
