@@ -346,7 +346,7 @@ MODALS = '''  <!-- CART -->
 
 SCRIPTS = '''  <script src="/js/nav.js?v=1"></script>
   <script src="/js/i18n.js?v=1"></script>
-  <script src="/js/data.js?v=13"></script>
+  <script src="/js/data.js?v=14"></script>
   <script src="/js/cart.js?v=8"></script>
   <!-- jQuery required by Tranzila's embedded payment iframe (Apple Pay / Google Pay) -->
   <script src="/js/jquery.min.js?v=1"></script>
