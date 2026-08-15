@@ -38,6 +38,110 @@ function selectDelivery(method) {
   });
 }
 
+/* ── Coupon ───────────────────────────────────────────────────
+   One coupon per order: `appliedCoupon` is a single object, so a second code
+   replaces the first rather than adding to it. Everything here is display only
+   — /payment/init re-validates the code and recomputes the total from scratch,
+   and its answer is the one that gets charged. */
+let appliedCoupon = null;   // { code, discount, free_shipping }
+
+const COUPON_PENDING_KEY = 'steelo_coupon';
+
+/* A code can arrive as ?coupon=CODE — how a personal coupon gets handed out:
+   send someone a link and they never have to type anything. Stashed rather than
+   applied on the spot, because there is nothing to discount until checkout. */
+(function captureCouponFromUrl() {
+  try {
+    const code = new URLSearchParams(location.search).get('coupon');
+    if (code) sessionStorage.setItem(COUPON_PENDING_KEY, code.trim().toUpperCase());
+  } catch (e) {}
+})();
+
+function couponPayload(code) {
+  return {
+    coupon_code:     code,
+    delivery_method: getDeliveryMethod(),
+    email:           (document.getElementById('co-email') || {}).value || '',
+    phone:           (document.getElementById('co-phone') || {}).value || '',
+    items:           cart.map(i => ({ id: i.id, qty: i.quantity })),
+  };
+}
+
+function showCouponError(msg) {
+  const el = document.getElementById('coupon-error');
+  if (!el) return;
+  el.textContent = msg || '';
+  el.style.display = msg ? 'block' : 'none';
+}
+
+function renderCoupon() {
+  const form = document.getElementById('coupon-form');
+  const chip = document.getElementById('coupon-chip');
+  const toggle = document.getElementById('coupon-toggle');
+  if (!form || !chip || !toggle) return;
+  if (appliedCoupon) {
+    form.style.display   = 'none';
+    toggle.style.display = 'none';
+    chip.style.display   = 'flex';
+    document.getElementById('coupon-chip-code').textContent = '✓ ' + appliedCoupon.code;
+    document.getElementById('coupon-chip-amount').innerHTML =
+      appliedCoupon.free_shipping ? 'משלוח חינם' : '−' + fmt(appliedCoupon.discount);
+  } else {
+    chip.style.display   = 'none';
+    toggle.style.display = '';
+  }
+}
+
+async function applyCoupon(code, opts) {
+  code = (code || '').trim().toUpperCase();
+  if (!code) return false;
+  const btn = document.getElementById('coupon-apply');
+  if (btn) { btn.disabled = true; btn.textContent = '…'; }
+  showCouponError('');
+  try {
+    const res  = await fetch('/coupon/validate', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify(couponPayload(code)),
+    });
+    const data = await res.json();
+    if (!data.ok) {
+      // If the code that just failed is the one already on the order, it has to
+      // come off — a coupon that stopped being valid must not keep discounting
+      // the summary.
+      if (appliedCoupon && appliedCoupon.code === code) {
+        appliedCoupon = null;
+        renderCoupon();
+        buildOrderSummary();
+      }
+      // A code that arrived in a URL and turned out to be dead should not greet
+      // the customer with an error they can do nothing about.
+      if (!(opts && opts.silent)) showCouponError(data.error || 'קוד קופון לא קיים');
+      return false;
+    }
+    appliedCoupon = { code: data.code, discount: data.discount,
+                      free_shipping: data.free_shipping };
+    renderCoupon();
+    buildOrderSummary();
+    return true;
+  } catch (e) {
+    if (!(opts && opts.silent)) showCouponError('לא הצלחנו לבדוק את הקוד. נסו שוב.');
+    return false;
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'החל'; }
+  }
+}
+
+function removeCoupon() {
+  appliedCoupon = null;
+  try { sessionStorage.removeItem(COUPON_PENDING_KEY); } catch (e) {}
+  const input = document.getElementById('coupon-input');
+  if (input) input.value = '';
+  showCouponError('');
+  renderCoupon();
+  buildOrderSummary();
+}
+
 /* ── Open / Close ─────────────────────────────────────────── */
 /* Event ID for the InitiateCheckout pair. Minted in the browser when checkout
    opens, then sent to /payment/init so the server-side copy of the same event
@@ -46,6 +150,8 @@ let metaCheckoutEventId = '';
 
 function openCheckout() {
   if (!cart || cart.length === 0) return;
+  showCouponError('');
+  renderCoupon();
   showCheckoutStep(1);
   document.getElementById('checkout-modal').style.display = 'flex';
   document.body.style.overflow = 'hidden';
@@ -97,14 +203,29 @@ function buildOrderSummary() {
   });
   const itemsTotal = cart.reduce((s, i) => s + i.price * i.quantity, 0);
   const isPickup = getDeliveryMethod() === 'pickup';
-  const fee = deliveryFee();
-  const drow = document.createElement('div');
-  drow.style.cssText = 'display:flex;justify-content:space-between;align-items:baseline;padding:0.6rem 0;gap:1rem;';
-  drow.innerHTML =
-    `<span style="font-family:Montserrat,Heebo;font-size:0.75rem;letter-spacing:0.05em;color:var(--ink-500);">${isPickup ? 'איסוף עצמי' : 'משלוח'}</span>` +
-    `<span style="font-family:Cormorant,Georgia,serif;font-weight:300;font-size:1.1rem;color:var(--ink);white-space:nowrap;">${isPickup ? 'חינם' : fmt(fee)}</span>`;
-  el.appendChild(drow);
-  document.getElementById('checkout-order-total').innerHTML = fmt(itemsTotal + fee);
+  const freeShip = !!(appliedCoupon && appliedCoupon.free_shipping);
+  const fee      = freeShip ? 0 : deliveryFee();
+  const discount = appliedCoupon && !freeShip ? appliedCoupon.discount : 0;
+
+  const sumRow = (label, value, cls) => {
+    const row = document.createElement('div');
+    row.className = 'checkout-sum-row' + (cls ? ' ' + cls : '');
+    row.innerHTML = `<span>${label}</span><span>${value}</span>`;
+    el.appendChild(row);
+  };
+
+  // A subtotal line only earns its place once there is something between it and
+  // the total; without a coupon the item rows already add up to the total.
+  if (discount) {
+    sumRow('ביניים', fmt(itemsTotal));
+    sumRow(`הנחה (${appliedCoupon.code})`, '−' + fmt(discount), 'is-discount');
+  }
+  if (isPickup)      sumRow('איסוף עצמי', 'חינם');
+  else if (freeShip) sumRow('משלוח', 'חינם', 'is-discount');
+  else               sumRow('משלוח', fmt(fee));
+
+  document.getElementById('checkout-order-total').innerHTML =
+    fmt(Math.max(itemsTotal - discount, 0) + fee);
 }
 
 /* ── Step 1 → Step 2 (details → summary) ─────────────────── */
@@ -118,7 +239,34 @@ document.getElementById('checkout-next-btn').addEventListener('click', () => {
   if (!valid) return;
   buildOrderSummary();
   showCheckoutStep(2);
+
+  // A coupon's discount is an absolute figure computed for one particular cart,
+  // so it has to be re-checked every time this summary is built — the customer
+  // may have changed the cart or the delivery method since applying it. This is
+  // also where a code from ?coupon=… first applies itself, now that there is a
+  // cart and a customer for the server to validate against.
+  let pending = appliedCoupon ? appliedCoupon.code : '';
+  if (!pending) {
+    try { pending = sessionStorage.getItem(COUPON_PENDING_KEY) || ''; } catch (e) {}
+  }
+  if (pending) applyCoupon(pending, { silent: true });
 });
+
+/* ── Coupon controls ──────────────────────────────────────── */
+document.getElementById('coupon-toggle').addEventListener('click', () => {
+  const form  = document.getElementById('coupon-form');
+  const open  = form.style.display !== 'none';
+  form.style.display = open ? 'none' : 'flex';
+  if (!open) document.getElementById('coupon-input').focus();
+});
+document.getElementById('coupon-apply').addEventListener('click', () => {
+  applyCoupon(document.getElementById('coupon-input').value);
+});
+document.getElementById('coupon-input').addEventListener('keydown', e => {
+  // Enter inside a form would submit it; this field is a lookup, not a submit.
+  if (e.key === 'Enter') { e.preventDefault(); applyCoupon(e.target.value); }
+});
+document.getElementById('coupon-remove').addEventListener('click', removeCoupon);
 
 /* ── Step 2 back → Step 1 ─────────────────────────────────── */
 document.getElementById('checkout-back-btn').addEventListener('click', () => {
@@ -139,9 +287,11 @@ document.getElementById('checkout-to-payment-btn').addEventListener('click', asy
   const now     = new Date();
   const dateStr = now.toLocaleString('he-IL', { timeZone: 'Asia/Jerusalem', hour12: false });
   const method    = getDeliveryMethod();
-  const fee       = deliveryFee();
+  const freeShip  = !!(appliedCoupon && appliedCoupon.free_shipping);
+  const fee       = freeShip ? 0 : deliveryFee();
+  const discount  = appliedCoupon && !freeShip ? appliedCoupon.discount : 0;
   const itemsTotal = cart.reduce((s, i) => s + i.price * i.quantity, 0);
-  const total     = itemsTotal + fee;
+  const total     = Math.max(itemsTotal - discount, 0) + fee;
   const val = id => (f[id] ? f[id].value.trim() : '');
   const checked = id => { const el = document.getElementById(id); return !!(el && el.checked); };
 
@@ -164,6 +314,7 @@ document.getElementById('checkout-to-payment-btn').addEventListener('click', asy
     optin_wa:    checked('co-optin-wa'),
     website:     f['co-website'].value.trim(),
     items:       cart.map(i => ({ id: i.id, name: i.name, category: i.category, qty: i.quantity, price: i.price })),
+    coupon_code: appliedCoupon ? appliedCoupon.code : '',
     total,
   };
 
@@ -184,6 +335,20 @@ document.getElementById('checkout-to-payment-btn').addEventListener('click', asy
       body:    JSON.stringify(payload),
     });
     const data = await res.json();
+
+    // The coupon passed in the summary but not on the server — paused since, or
+    // someone else just took the last use of a limited run. Drop it and send the
+    // customer back to a summary showing the real total, rather than charging a
+    // number they never agreed to.
+    if (data.coupon_removed) {
+      appliedCoupon = null;
+      try { sessionStorage.removeItem(COUPON_PENDING_KEY); } catch (e) {}
+      renderCoupon();
+      buildOrderSummary();
+      showCheckoutStep(2);
+      showCouponError(data.error || 'הקופון אינו תקף עוד');
+      return;
+    }
     if (!data.ok) throw new Error(data.error || t('pay_init_fail'));
 
     // Stash what the Purchase event will need, using the server's total rather

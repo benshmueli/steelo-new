@@ -21,7 +21,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Frank+Ruhl+Libre:wght@300;400;500;700&family=Heebo:wght@300;400;500;600&family=Montserrat:wght@300;400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/css/styles.css?v=25">
+  <link rel="stylesheet" href="/css/styles.css?v=26">
   <script type="application/ld+json">{"@context": "https://schema.org", "@type": "Product", "name": "Nordic", "image": ["https://www.steelo-design.com/images/products/Nordic/1.webp", "https://www.steelo-design.com/images/products/Nordic/2.webp", "https://www.steelo-design.com/images/products/Nordic/3.webp", "https://www.steelo-design.com/images/products/Nordic/4.webp"], "sku": "nordic", "brand": {"@type": "Brand", "name": "Steelo"}, "category": "שידת צד", "material": "נירוסטה 304", "offers": {"@type": "Offer", "url": "https://www.steelo-design.com/products/nordic/", "priceCurrency": "ILS", "price": 1200, "availability": "https://schema.org/InStock", "itemCondition": "https://schema.org/NewCondition"}, "description": "שידת צד מנירוסטה בעיצוב נורדי מינימליסטי, שמשלבת אסתטיקה מודרנית עם איכות ועמידות. עשויה 100% נירוסטה איכותית ומתאימה לכל פינה בבית. אפשר להציב אותה כשולחן צד ליד הספה או כשולחן קפה נמוך במרכז הסלון."}</script>
   <script type="application/ld+json">{"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "בית", "item": "https://www.steelo-design.com/"}, {"@type": "ListItem", "position": 2, "name": "הקולקציה", "item": "https://www.steelo-design.com/#collection"}, {"@type": "ListItem", "position": 3, "name": "Nordic", "item": "https://www.steelo-design.com/products/nordic/"}]}</script>
   <script src="/meta/pixel.js"></script>
@@ -80,7 +80,10 @@
         <div>
           <p style="font-family:Montserrat,Heebo;font-size:0.65rem;letter-spacing:0.3em;text-transform:uppercase;color:var(--ink-400);margin:0 0 1rem;">שידת צד</p>
           <h1 style="font-family:'Cormorant','Frank Ruhl Libre',Georgia,serif;font-weight:300;font-size:clamp(2.5rem,4.5vw,3.75rem);line-height:1.05;color:var(--ink);margin:0 0 1.5rem;">Nordic</h1>
-          <div style="font-family:'Cormorant','Frank Ruhl Libre',Georgia,serif;font-weight:300;font-size:2.5rem;color:var(--ink);line-height:1;margin-bottom:2rem;"><span style="font-family:Heebo,sans-serif;font-weight:300;font-size:0.62em;color:inherit;vertical-align:0.12em;">₪</span>1,200</div>
+          <!-- Rendered here for crawlers and no-JS, then re-rendered from
+               PRODUCTS on load so an admin discount set after this page was
+               built still shows. See the pdp-price script at the bottom. -->
+          <div id="pdp-price" data-product="nordic" style="font-family:'Cormorant','Frank Ruhl Libre',Georgia,serif;font-weight:300;font-size:2.5rem;color:var(--ink);line-height:1;margin-bottom:2rem;"><span style="font-family:Heebo,sans-serif;font-weight:300;font-size:0.62em;color:inherit;vertical-align:0.12em;">₪</span>1,200</div>
           <p style="font-family:Montserrat,Heebo;font-weight:300;font-size:1rem;line-height:1.9;color:var(--ink-400);margin:0 0 2rem;white-space:pre-line;">שידת צד מנירוסטה בעיצוב נורדי מינימליסטי, שמשלבת אסתטיקה מודרנית עם איכות ועמידות. עשויה 100% נירוסטה איכותית ומתאימה לכל פינה בבית. אפשר להציב אותה כשולחן צד ליד הספה או כשולחן קפה נמוך במרכז הסלון.</p>
           <div style="border-top:1px solid var(--sand-300);margin-bottom:2rem;">
             <div style="display:flex;justify-content:space-between;padding:0.75rem 0;border-bottom:1px solid var(--sand-200);"><span style="font-family:Montserrat,Heebo;font-size:0.65rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--ink-400);">מידות</span><span dir="ltr" style="font-family:Montserrat,Heebo;font-size:0.8rem;color:var(--ink-600);text-align:left;"><div>אורך : 45 ס״מ</div><div>רוחב : 35 ס״מ</div><div>גובה : 45 ס״מ</div></span></div>
@@ -243,6 +246,19 @@
           <div id="checkout-step2" style="display:none;">
             <h2 class="checkout-title">סיכום הזמנה</h2>
             <div id="checkout-order-items"></div>
+            <div class="coupon">
+              <button type="button" id="coupon-toggle" class="coupon-toggle">יש לך קוד קופון?</button>
+              <div id="coupon-form" class="coupon-form" style="display:none;">
+                <input id="coupon-input" type="text" dir="ltr" autocomplete="off" spellcheck="false" maxlength="32" placeholder="CODE" class="coupon-input">
+                <button type="button" id="coupon-apply" class="coupon-apply">החל</button>
+              </div>
+              <div id="coupon-chip" class="coupon-chip" style="display:none;">
+                <span id="coupon-chip-code" class="coupon-chip-code"></span>
+                <span id="coupon-chip-amount" class="coupon-chip-amount"></span>
+                <button type="button" id="coupon-remove" class="coupon-remove" aria-label="הסרת הקופון">✕</button>
+              </div>
+              <p id="coupon-error" class="coupon-error" style="display:none;"></p>
+            </div>
             <div class="checkout-total-row"><span>סה״כ</span><span id="checkout-order-total"></span></div>
             <p class="checkout-note">כל הפריטים מיוצרים בהזמנה — זמן אספקה 5-10 ימי עסקים. נאשר את ההזמנה במייל ובוואטסאפ.</p>
             <p id="checkout-pay-error" style="display:none;font-family:Montserrat,Heebo;font-size:0.75rem;color:#c0392b;margin:1rem 0 0;"></p>
@@ -281,13 +297,13 @@
 
   <script src="/js/nav.js?v=1"></script>
   <script src="/js/i18n.js?v=1"></script>
-  <script src="/js/data.js?v=16"></script>
+  <script src="/js/data.js?v=17"></script>
   <!-- tracking before cart/checkout: they call into it on user actions -->
   <script src="/js/tracking.js?v=1"></script>
   <script src="/js/cart.js?v=9"></script>
   <!-- jQuery required by Tranzila's embedded payment iframe (Apple Pay / Google Pay) -->
   <script src="/js/jquery.min.js?v=1"></script>
-  <script src="/js/checkout.js?v=10"></script>
+  <script src="/js/checkout.js?v=11"></script>
   <!-- Tranzila Apple Pay bridge (must load on the page that hosts the payment iframe) -->
   <script type="text/javascript" src="https://direct.tranzila.com/Tranzila_files/jquery.js"></script>
   <script>document.write('<script src="https://direct.tranzila.com/js/tranzilanapple_v3.js?v=' + Date.now() + '"><\/script>');</script>
@@ -374,6 +390,18 @@
   <script>
     window.STEELO_PRODUCT = {"id": "nordic", "name": "Nordic", "category": "שידת צד", "price": 1200, "currency": "ILS"};
     if (typeof stlTrackViewContent === 'function') stlTrackViewContent();
+
+    /* Re-render the price from PRODUCTS, which the server serves with the
+       admin's current discounts applied. Without this the page would keep
+       showing whatever price it was built with, while the cart charged the
+       discounted one. fmtPrice() is cart.js's, so all three price displays —
+       grid, quick-view and here — round the same way. */
+    (function () {
+      var el = document.getElementById('pdp-price');
+      if (!el || typeof PRODUCTS === 'undefined' || typeof fmtPrice !== 'function') return;
+      var p = PRODUCTS.find(function (x) { return x.id === el.dataset.product; });
+      if (p) el.innerHTML = fmtPrice(p.price, p.discount);
+    })();
   </script>
 </body>
 </html>
