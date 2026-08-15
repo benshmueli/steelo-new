@@ -4,9 +4,11 @@ Steelo dev server — serves static files + handles admin save + order endpoints
 Run: python3 server.py
 """
 from http.server import HTTPServer, SimpleHTTPRequestHandler
-import json, os, re, hashlib, time, smtplib
+import json, os, re, hashlib, time, smtplib, threading
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+
+import meta_capi
 
 # Railway injects PORT; fall back to 8891 for local dev
 PORT     = int(os.environ.get('PORT', 8891))
@@ -315,6 +317,36 @@ TRANZILA_IFRAME_BASE   = f'https://direct.tranzila.com/{TRANZILA_TERMINAL}/ifram
 _pending_orders: dict = {}
 
 
+# ── Meta Purchase de-duplication ─────────────────────────────────────────────
+# A single payment can reach us down several different paths: Tranzila's GET
+# redirect to /payment-success, the Apple Pay bridge POSTing to the same URL,
+# /?payment=success, the browser's own /payment/confirm call, and the legacy
+# /payment-result. Each of them legitimately confirms the order — but Meta must
+# see exactly one Purchase, so the first one through claims the order_id here
+# and the rest are no-ops.
+#
+# Bounded because this process is long-lived: order IDs are only needed for the
+# few seconds in which the duplicate paths fire.
+_purchase_sent: dict = {}          # order_id → timestamp
+_purchase_lock = threading.Lock()
+PURCHASE_TTL = 3600
+
+
+def claim_purchase(order_id):
+    """Reserve this order for reporting. True for the first caller only."""
+    if not order_id:
+        return False
+    now = time.time()
+    with _purchase_lock:
+        for oid, ts in list(_purchase_sent.items()):
+            if now - ts > PURCHASE_TTL:
+                del _purchase_sent[oid]
+        if order_id in _purchase_sent:
+            return False
+        _purchase_sent[order_id] = now
+        return True
+
+
 # ── Auth helpers ─────────────────────────────────────────────────────────────
 def check_admin_token(handler):
     """Return True if the request carries the correct admin token."""
@@ -526,6 +558,11 @@ class Handler(SimpleHTTPRequestHandler):
         route, _, query = path.partition('?')
         route = route.partition('#')[0]
         last = route.rsplit('/', 1)[-1]
+        # Generated from an env var, not a file on disk: short TTL so the pixel
+        # ID can be changed in Railway and take effect without a deploy, and
+        # without ever becoming immutable the way a ?v= asset would.
+        if route == '/meta/pixel.js':
+            return 'public, max-age=300'
         if route.endswith('/') or last.endswith('.html') or '.' not in last:
             return 'no-cache, must-revalidate'
         if re.search(r'(^|&)v=', query):
@@ -554,8 +591,53 @@ class Handler(SimpleHTTPRequestHandler):
             return base + '; charset=utf-8'
         return ctype
 
+    def _client_ip(self):
+        """The visitor's IP, not Railway's edge proxy.
+
+        address_string() returns whatever opened the socket, which in
+        production is always the proxy — sending that to Meta as
+        client_ip_address would give every customer the same address and
+        quietly wreck match quality.
+        """
+        fwd = self.headers.get('X-Forwarded-For', '')
+        if fwd:
+            return fwd.split(',')[0].strip()
+        return self.address_string()
+
+    def _serve_meta_pixel(self):
+        """The Meta Pixel base snippet, with the ID injected from the env.
+
+        Served rather than committed so META_PIXEL_ID lives in Railway instead
+        of in the HTML — build.py runs on a laptop, so a build-time env var
+        could never reach production. With the var unset this is an empty file
+        and the site simply has no pixel.
+        """
+        if meta_capi.PIXEL_ID:
+            body = (
+                "!function(f,b,e,v,n,t,s)\n"
+                "{if(f.fbq)return;n=f.fbq=function(){n.callMethod?\n"
+                "n.callMethod.apply(n,arguments):n.queue.push(arguments)};\n"
+                "if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';\n"
+                "n.queue=[];t=b.createElement(e);t.async=!0;\n"
+                "t.src=v;s=b.getElementsByTagName(e)[0];\n"
+                "s.parentNode.insertBefore(t,s)}(window,document,'script',\n"
+                "'https://connect.facebook.net/en_US/fbevents.js');\n"
+                f"fbq('init', {json.dumps(meta_capi.PIXEL_ID)});\n"
+                "if (window.STEELO_CONSENT !== false) fbq('track', 'PageView');\n"
+            )
+        else:
+            body = '/* Meta Pixel disabled — META_PIXEL_ID not set */\n'
+        raw = body.encode('utf-8')
+        self.send_response(200)
+        self.send_header('Content-Type', 'application/javascript; charset=utf-8')
+        self.send_header('Content-Length', str(len(raw)))
+        self.end_headers()
+        self.wfile.write(raw)
+
     def do_GET(self):
-        if self.path.startswith('/payment/confirm'):
+        if self.path.partition('?')[0] == '/meta/pixel.js':
+            self._serve_meta_pixel()
+        elif self.path.startswith('/payment/confirm'):
             self._handle_payment_confirm()
         elif self.path.startswith('/payment-result'):
             self._handle_payment_result()
@@ -626,6 +708,7 @@ class Handler(SimpleHTTPRequestHandler):
                 print(f'  [Sheets] Not configured — order {order_id} logged to console only.')
                 print(f'  [Order] {json.dumps(order, ensure_ascii=False, indent=2)}')
             print(f'  [Payment] Confirmed {order_id} — conf {conf_code}')
+            self._fire_purchase(order_id, order)
             self._json(200, {'ok': True, 'order_id': order_id, 'conf': conf_code})
         else:
             print(f'  [Payment] Failed confirm for {order_id} — Response={response}')
@@ -671,8 +754,56 @@ class Handler(SimpleHTTPRequestHandler):
             marked = mark_order_paid(service, order_id)
             if not marked:
                 print(f'  [Sheets] Could not find row to mark Paid — row was already saved at init')
+        self._fire_purchase(order_id, order)
         if order:
             send_receipt_email(order)
+
+    def _fire_purchase(self, order_id, order):
+        """Report a completed purchase to Meta — at most once per order.
+
+        Only ever called from a path where the payment actually succeeded;
+        /payment-fail deliberately has no route here.
+
+        `order` can be None when the in-memory entry has already been popped by
+        an earlier path, or when a Railway restart (or a second instance — see
+        the note in _handle_payment_init) lost it. There is then no value or
+        item list to report, so the server stays quiet and the browser's own
+        Purchase event carries the order on its own. That redundancy is the
+        reason both sides send this event.
+        """
+        if not claim_purchase(order_id):
+            return
+        if not order:
+            print(f'  [Meta] Purchase {order_id} — no order in memory, '
+                  f'leaving it to the browser pixel')
+            return
+
+        contents, ids = meta_capi.contents_from_items(order.get('items'))
+        user_data = meta_capi.build_user_data(
+            order,
+            fbp=order.get('meta_fbp'),
+            fbc=order.get('meta_fbc'),
+            ip=order.get('meta_ip'),
+            ua=order.get('meta_ua'),
+        )
+        meta_capi.send_event(
+            'Purchase',
+            # The order ID is the event ID on both sides. Both arrive at it
+            # independently — the browser reads it out of the redirect URL —
+            # so nothing has to be handed between them for Meta to dedupe.
+            event_id=order_id,
+            user_data=user_data,
+            custom_data={
+                'currency':     meta_capi.CURRENCY,
+                'value':        float(order.get('total') or 0),
+                'content_type': 'product',
+                'content_ids':  ids,
+                'contents':     contents,
+                'num_items':    sum(c['quantity'] for c in contents),
+                'order_id':     order_id,
+            },
+            event_source_url=f'{meta_capi.SITE}/?payment=success&order_id={order_id}',
+        )
 
     def _redirect(self, location):
         self.send_response(302)
@@ -858,7 +989,48 @@ class Handler(SimpleHTTPRequestHandler):
                 self._json(400, {'ok': False, 'error': 'Missing order_id'})
                 return
 
+            # Meta match signals, captured here because this is the last
+            # request we know comes from the customer's own browser. The
+            # post-payment callbacks can arrive from Tranzila's servers (the
+            # Apple Pay bridge POSTs to us), where the IP and user agent would
+            # be Tranzila's, not the buyer's.
+            order['meta_fbp'] = str(order.get('meta_fbp') or '')[:200]
+            order['meta_fbc'] = str(order.get('meta_fbc') or '')[:400]
+            order['meta_ip']  = self._client_ip()
+            order['meta_ua']  = self.headers.get('User-Agent', '')[:500]
+            # Not kept on the order — it belongs to the InitiateCheckout event
+            # the browser already fired, not to the purchase.
+            meta_event_id     = str(order.pop('meta_event_id', '') or '')[:100]
+
             _pending_orders[order_id] = order
+
+            # Server-side twin of the InitiateCheckout the browser fired when
+            # the checkout modal opened. Same event ID, so Meta counts one —
+            # but this copy carries the customer's hashed details, which the
+            # browser event cannot.
+            #
+            # Sent here, before the Tranzila handshake, because the customer has
+            # already started checkout by this point. Reporting it after the
+            # handshake would silently lose the signal whenever Tranzila is
+            # down — exactly when the funnel data matters most.
+            if meta_event_id:
+                _contents, _ids = meta_capi.contents_from_items(order.get('items'))
+                meta_capi.send_event(
+                    'InitiateCheckout',
+                    event_id=meta_event_id,
+                    user_data=meta_capi.build_user_data(
+                        order, fbp=order['meta_fbp'], fbc=order['meta_fbc'],
+                        ip=order['meta_ip'], ua=order['meta_ua'],
+                    ),
+                    custom_data={
+                        'currency':     meta_capi.CURRENCY,
+                        'value':        float(order['total']),
+                        'content_type': 'product',
+                        'content_ids':  _ids,
+                        'contents':     _contents,
+                        'num_items':    sum(c['quantity'] for c in _contents),
+                    },
+                )
 
             # Internal test orders (the hidden 'test' product) go to separate
             # tabs so the real orders/marketing data stays clean.
@@ -949,7 +1121,12 @@ class Handler(SimpleHTTPRequestHandler):
             iframe_url = f'{TRANZILA_IFRAME_BASE}?{iframe_params}'
             print(f'  [Payment] Init {order_id} — ₪{order["total"]} — handshake OK')
             print(f'  [Payment] Invoice items (u71/json_purchase_data): {purchase_data or "(none)"}')
-            self._json(200, {'ok': True, 'iframe_url': iframe_url, 'order_id': order_id})
+
+            # `total` is server-authoritative (items + delivery fee, recomputed
+            # above). The browser needs it back so its Purchase event reports
+            # the amount actually charged — the cart alone has no delivery fee.
+            self._json(200, {'ok': True, 'iframe_url': iframe_url,
+                             'order_id': order_id, 'total': order['total']})
         except Exception as e:
             print(f'  [Payment/init] Error: {e}')
             self._json(500, {'ok': False, 'error': str(e)})

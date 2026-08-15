@@ -32,6 +32,9 @@ function addToCart(product) {
     cart.push({ ...product, originalPrice: product.price, price: effectivePrice, quantity: 1 });
   }
   syncCart();
+  // Every add path funnels through here — the quick-view modal, the product
+  // page button and buy-now — so this is the only place AddToCart is reported.
+  if (typeof stlTrackAddToCart === 'function') stlTrackAddToCart(product);
 }
 
 function changeQty(id, delta) {

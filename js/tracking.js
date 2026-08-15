@@ -1,0 +1,144 @@
+/* ============================================================
+   Meta Pixel — browser events
+   ============================================================
+
+   The only file in the site that calls fbq(). The base snippet itself is
+   served by server.py at /meta/pixel.js, built from the META_PIXEL_ID env
+   var, so the ID is never hardcoded here or in any committed HTML.
+
+   Server-side counterparts (Conversions API) exist for InitiateCheckout and
+   Purchase only. Those two share an event ID with their browser twin so Meta
+   counts each once — see meta_capi.py.
+*/
+
+/* Single consent gate. There is no cookie banner on the site today, so this
+   returns true; wiring a banner later means setting window.STEELO_CONSENT =
+   false before this script runs and flipping it on accept — no event code
+   needs to change. */
+function stlConsentGranted() {
+  return window.STEELO_CONSENT !== false;
+}
+
+function stlReady() {
+  return stlConsentGranted() && typeof fbq === 'function';
+}
+
+/* Meta's browser cookies. Passing these to the server is what lets a CAPI
+   event be attributed to the same person and browser session as the Pixel
+   event — without them the server event matches on hashed PII alone. */
+function stlFbCookies() {
+  const out = { fbp: '', fbc: '' };
+  document.cookie.split(';').forEach(part => {
+    const [k, ...rest] = part.trim().split('=');
+    if (k === '_fbp') out.fbp = rest.join('=');
+    if (k === '_fbc') out.fbc = rest.join('=');
+  });
+  return out;
+}
+
+function stlEventId(prefix) {
+  return prefix + '-' + Date.now().toString(36) + '-' +
+         Math.random().toString(36).slice(2, 10);
+}
+
+const STL_CURRENCY = 'ILS';
+
+/* ---- ViewContent — product pages ---- */
+/* Reads window.STEELO_PRODUCT, emitted by product_page() in build.py. */
+function stlTrackViewContent() {
+  if (!stlReady()) return;
+  const p = window.STEELO_PRODUCT;
+  if (!p) return;
+  fbq('track', 'ViewContent', {
+    content_ids:  [p.id],
+    content_name: p.name,
+    content_type: 'product',
+    content_category: p.category || '',
+    value:    p.price,
+    currency: STL_CURRENCY,
+  }, { eventID: stlEventId('vc') });
+}
+
+/* ---- AddToCart ---- */
+/* Called from addToCart() in cart.js — the one function every add path goes
+   through (quick-view modal, product page, buy-now). Fires only on a real
+   add; bumping quantity with the +/- controls in the cart drawer does not
+   count as a new add. */
+function stlTrackAddToCart(product) {
+  if (!stlReady() || !product) return;
+  const price = (typeof salePrice === 'function')
+    ? salePrice(product.price, product.discount)
+    : product.price;
+  fbq('track', 'AddToCart', {
+    content_ids:  [product.id],
+    content_name: product.name,
+    content_type: 'product',
+    content_category: product.category || '',
+    contents: [{ id: product.id, quantity: 1, item_price: price }],
+    value:    price,
+    currency: STL_CURRENCY,
+  }, { eventID: stlEventId('atc') });
+}
+
+/* ---- InitiateCheckout ---- */
+/* Called from openCheckout() in checkout.js. The caller mints the event ID and
+   keeps it, so the same ID can ride along to /payment/init and be reused for
+   the server-side copy of this event. */
+function stlTrackInitiateCheckout(items, fee, eventId) {
+  if (!stlReady() || !items || !items.length) return;
+  const contents = items.map(i => ({
+    id: i.id, quantity: i.quantity, item_price: i.price,
+  }));
+  const value = items.reduce((s, i) => s + i.price * i.quantity, 0) + (fee || 0);
+  fbq('track', 'InitiateCheckout', {
+    content_ids:  items.map(i => i.id),
+    content_type: 'product',
+    contents:     contents,
+    num_items:    items.reduce((s, i) => s + i.quantity, 0),
+    value:        value,
+    currency:     STL_CURRENCY,
+  }, { eventID: eventId });
+}
+
+/* ---- Purchase ----
+   Written by checkout.js at /payment/init time, from the server's
+   authoritative total (the cart alone cannot know the delivery fee), and read
+   back here after Tranzila redirects to /?payment=success.
+
+   The record is REMOVED BEFORE the event fires. That ordering is the whole
+   guard: refreshing the success URL, or opening it in a second tab, finds
+   nothing left to report. The server sends its own Purchase independently with
+   event_id = order_id, and Meta collapses the pair.
+*/
+const STL_PENDING_PURCHASE = 'steelo_pending_purchase';
+
+function stlSavePendingPurchase(record) {
+  try { localStorage.setItem(STL_PENDING_PURCHASE, JSON.stringify(record)); } catch (e) {}
+}
+
+function stlClearPendingPurchase() {
+  try { localStorage.removeItem(STL_PENDING_PURCHASE); } catch (e) {}
+}
+
+function stlTrackPurchaseFromRedirect(orderId) {
+  let rec = null;
+  try { rec = JSON.parse(localStorage.getItem(STL_PENDING_PURCHASE)); } catch (e) {}
+  if (!rec || !rec.order_id) return;
+  // A record left over from some other order must never be reported against
+  // this one; drop it and report nothing.
+  if (orderId && rec.order_id !== orderId) { stlClearPendingPurchase(); return; }
+
+  stlClearPendingPurchase();          // consume first, then fire
+  if (!stlReady()) return;
+
+  fbq('track', 'Purchase', {
+    content_ids:  (rec.contents || []).map(c => c.id),
+    content_type: 'product',
+    contents:     rec.contents || [],
+    num_items:    (rec.contents || []).reduce((s, c) => s + c.quantity, 0),
+    value:        rec.value,
+    currency:     rec.currency || STL_CURRENCY,
+    order_id:     rec.order_id,
+    // event_id = order_id, matching the server event for this same order.
+  }, { eventID: rec.order_id });
+}

@@ -39,11 +39,20 @@ function selectDelivery(method) {
 }
 
 /* ── Open / Close ─────────────────────────────────────────── */
+/* Event ID for the InitiateCheckout pair. Minted in the browser when checkout
+   opens, then sent to /payment/init so the server-side copy of the same event
+   carries the same ID and Meta counts one, not two. */
+let metaCheckoutEventId = '';
+
 function openCheckout() {
   if (!cart || cart.length === 0) return;
   showCheckoutStep(1);
   document.getElementById('checkout-modal').style.display = 'flex';
   document.body.style.overflow = 'hidden';
+  if (typeof stlTrackInitiateCheckout === 'function') {
+    metaCheckoutEventId = stlEventId('ic');
+    stlTrackInitiateCheckout(cart, deliveryFee(), metaCheckoutEventId);
+  }
 }
 
 function closeCheckout() {
@@ -158,6 +167,16 @@ document.getElementById('checkout-to-payment-btn').addEventListener('click', asy
     total,
   };
 
+  // Meta match signals. The server cannot read these cookies itself — they are
+  // first-party to this page — and without them its Purchase event has only
+  // hashed PII to match on.
+  if (typeof stlFbCookies === 'function') {
+    const fb = stlFbCookies();
+    payload.meta_fbp = fb.fbp;
+    payload.meta_fbc = fb.fbc;
+    payload.meta_event_id = metaCheckoutEventId;
+  }
+
   try {
     const res  = await fetch('/payment/init', {
       method:  'POST',
@@ -166,6 +185,19 @@ document.getElementById('checkout-to-payment-btn').addEventListener('click', asy
     });
     const data = await res.json();
     if (!data.ok) throw new Error(data.error || t('pay_init_fail'));
+
+    // Stash what the Purchase event will need, using the server's total rather
+    // than the cart's — only the server knows the delivery fee. Read back and
+    // deleted after Tranzila redirects to /?payment=success, which is what
+    // stops a refresh of that page counting a second purchase.
+    if (typeof stlSavePendingPurchase === 'function') {
+      stlSavePendingPurchase({
+        order_id: orderId,
+        value:    data.total,
+        currency: 'ILS',
+        contents: cart.map(i => ({ id: i.id, quantity: i.quantity, item_price: i.price })),
+      });
+    }
 
     // Embed Tranzila's payment form in-page (enables Apple Pay / Google Pay).
     // The cart is in-memory only, so it clears naturally when Tranzila redirects
