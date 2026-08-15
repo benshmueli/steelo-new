@@ -25,6 +25,8 @@ ADMIN_TOKEN = hashlib.sha256(ADMIN_PASSWORD.encode()).hexdigest()
 _rate: dict = {}          # ip → [timestamp, ...]
 RATE_WINDOW  = 60         # seconds
 RATE_LIMIT   = 5          # max attempts per window
+COUPON_LIMIT = 15         # coupon tries per window — enough for honest typos,
+                          # not enough to enumerate codes
 
 # ── Google Sheets config ──────────────────────────────────────────────────────
 # 1. Create a Google Sheet, share it with the service account email (Editor).
@@ -38,6 +40,7 @@ SHEET_COLUMNS = [
     'Address', 'Apartment', 'City', 'Postal Code', 'Country',
     'Notes', 'Items', 'Total (₪)', 'Status',
     'Floor', 'Delivery', 'Delivery Fee (₪)',
+    'Coupon', 'Coupon Discount (₪)',
 ]
 
 # Marketing-list tab header (one row per customer who reaches payment).
@@ -195,6 +198,8 @@ def append_order_to_sheet(service, order, tab='orders'):
         order.get('floor', ''),
         'איסוף עצמי' if order.get('delivery_method') == 'pickup' else 'משלוח',
         order.get('delivery_fee', 0),
+        order.get('coupon_code', ''),
+        order.get('coupon_discount', 0),
     ]
     try:
         ensure_sheet_tab(service, tab)
@@ -353,14 +358,19 @@ def check_admin_token(handler):
     auth = handler.headers.get('Authorization', '')
     return auth == f'Bearer {ADMIN_TOKEN}'
 
-def rate_check(ip):
-    """Return True if the IP is within the allowed rate. Prunes old entries."""
+def rate_check(ip, bucket='payment', limit=RATE_LIMIT):
+    """Return True if the IP is within the allowed rate. Prunes old entries.
+
+    Bucketed so that trying a few coupon codes cannot use up the payment
+    allowance — a shopper who mistypes a code twice must still be able to pay.
+    """
     now = time.time()
-    timestamps = [t for t in _rate.get(ip, []) if now - t < RATE_WINDOW]
-    _rate[ip] = timestamps
-    if len(timestamps) >= RATE_LIMIT:
+    key = (bucket, ip)
+    timestamps = [t for t in _rate.get(key, []) if now - t < RATE_WINDOW]
+    _rate[key] = timestamps
+    if len(timestamps) >= limit:
         return False
-    _rate[ip].append(now)
+    _rate[key].append(now)
     return True
 
 # ── Validation helpers ────────────────────────────────────────────────────────
@@ -396,108 +406,401 @@ def validate_order(order):
 
     return True, ''
 
-def recalculate_total(order):
+# ── Persistent store ──────────────────────────────────────────────────────────
+# Railway's container filesystem is ephemeral: anything written next to
+# server.py is gone on the next restart or deploy. That is why admin discounts
+# kept vanishing from the live site — /admin/save rewrote js/data.js inside the
+# container and the next restart restored the git copy. Everything the admin can
+# change, plus the coupon redemption counters, lives in one JSON file on a
+# mounted volume instead. STEELO_DATA_DIR points at that volume in production;
+# locally it falls back to the repo directory.
+#
+# The store holds *overrides*, not a copy of the catalogue: js/data.js in git
+# stays the source of truth for products, and the store records only the fields
+# the admin actually edited. So a product added or re-photographed through a PR
+# still appears, and a save cannot silently drop fields the admin panel doesn't
+# model — it has no idea `material` or CATEGORY_ORDER exist.
+#
+# RAILWAY_VOLUME_MOUNT_PATH is set by Railway itself the moment a volume is
+# attached, so attaching one is the only step needed — there is no second
+# setting to forget. STEELO_DATA_DIR stays as an override for anything else.
+STORE_DIR  = (os.environ.get('STEELO_DATA_DIR')
+              or os.environ.get('RAILWAY_VOLUME_MOUNT_PATH')
+              or BASE_DIR)
+STORE_PATH = os.path.join(STORE_DIR, 'store.json')
+
+_store_lock = threading.RLock()
+_store: dict = {}
+_store_rev  = 0        # bumped on every write; keys the rendered-page caches
+
+
+def _empty_store():
+    return {'version': 1, 'overrides': {}, 'extra_products': [],
+            'coupons': [], 'redemptions': []}
+
+
+def load_store():
+    """The store, read from disk once and then kept in memory."""
+    global _store
+    with _store_lock:
+        if _store:
+            return _store
+        data = _empty_store()
+        try:
+            with open(STORE_PATH, encoding='utf-8') as f:
+                loaded = json.load(f)
+            if isinstance(loaded, dict):
+                for key in data:
+                    if key in loaded and isinstance(loaded[key], type(data[key])):
+                        data[key] = loaded[key]
+            print(f'  [Store] Loaded {STORE_PATH} '
+                  f'({len(data["overrides"])} overrides, {len(data["coupons"])} coupons)')
+        except FileNotFoundError:
+            print(f'  [Store] No store at {STORE_PATH} yet — starting empty')
+        except Exception as e:
+            print(f'  [Store] Could not read {STORE_PATH}: {e} — starting empty')
+        _store = data
+        return _store
+
+
+def save_store():
+    """Write the store out atomically — a crash mid-write must not truncate it."""
+    global _store_rev
+    with _store_lock:
+        os.makedirs(STORE_DIR, exist_ok=True)
+        tmp = STORE_PATH + '.tmp'
+        with open(tmp, 'w', encoding='utf-8') as f:
+            json.dump(_store, f, ensure_ascii=False, indent=2)
+        os.replace(tmp, STORE_PATH)
+        _store_rev += 1
+        return _store
+
+
+def store_rev():
+    with _store_lock:
+        return _store_rev
+
+
+# ── Catalogue ─────────────────────────────────────────────────────────────────
+# Fields the admin may override. `material`, and anything else added to data.js
+# later, is deliberately not here: it stays whatever git says.
+OVERRIDABLE = ('name', 'category', 'price', 'discount', 'dimensions',
+               'description', 'images')
+
+
+def _js_str(block, field):
+    """Read a single-quoted JS string field out of one product block."""
+    m = _re.search(field + r":\s*'((?:[^'\\]|\\.)*)'", block)
+    if not m:
+        return ''
+    return m.group(1).replace("\\'", "'").replace('\\\\', '\\')
+
+
+def _js_int(block, field, default=0):
+    m = _re.search(field + r':\s*(\d+)', block)
+    return int(m.group(1)) if m else default
+
+
+def _parse_products_js(src):
+    """Products from a data.js source as {id: {...}}.
+
+    Regex rather than a real JS parse: the file is machine-regular, and the
+    server must not depend on node the way build.py can — build.py runs on a
+    laptop, this runs in the container.
     """
-    Recalculate the order total server-side from product IDs & quantities.
-    Falls back to client total if product lookup fails (stub — replace with DB lookup).
-    Returns the verified total.
-    """
-    # Load current product prices from data.js
+    out = {}
+    starts = [m.start() for m in _re.finditer(r"\bid:\s*'", src)]
+    for i, start in enumerate(starts):
+        end   = starts[i + 1] if i + 1 < len(starts) else len(src)
+        block = src[start:end]
+        pid   = _js_str(block, 'id')
+        if not pid:
+            continue
+        images = _re.search(r'images:\s*\[(.*?)\]', block, _re.DOTALL)
+        out[pid] = {
+            'id':          pid,
+            'name':        _js_str(block, 'name'),
+            'category':    _js_str(block, 'category'),
+            'dimensions':  _js_str(block, 'dimensions'),
+            'description': _js_str(block, 'description'),
+            'price':       _js_int(block, 'price'),
+            'discount':    _js_int(block, 'discount'),
+            'images':      _re.findall(r"'([^']*)'", images.group(1)) if images else [],
+        }
+    return out
+
+
+_repo_src_cache = (None, '')     # (mtime, source)
+
+
+def _repo_data_js():
+    """The git copy of data.js, cached on its mtime so a deploy that changes the
+    catalogue is picked up without a restart."""
+    global _repo_src_cache
     try:
-        with open(DATA_JS, 'r', encoding='utf-8') as f:
-            src = f.read()
-        # Extract price values: price: NNNN
-        price_map = {}
-        for match in _re.finditer(r"id:\s*'([^']+)'.*?price:\s*(\d+)", src, _re.DOTALL):
-            price_map[match.group(1)] = int(match.group(2))
+        stamp = os.path.getmtime(DATA_JS)
+    except OSError:
+        return ''
+    if _repo_src_cache[0] == stamp:
+        return _repo_src_cache[1]
+    with open(DATA_JS, encoding='utf-8') as f:
+        src = f.read()
+    _repo_src_cache = (stamp, src)
+    return src
 
-        if not price_map:
-            return order.get('total', 0)  # fallback if parse fails
 
-        total = 0
-        for item in order.get('items', []):
-            pid   = item.get('id') or item.get('name', '')
-            qty   = max(1, min(int(item.get('qty', 1)), 99))
-            price = price_map.get(pid, item.get('price', 0))
-            total += price * qty
-        return total
-    except Exception as e:
-        print(f'  [Validate] Total recalc failed: {e} — using client total')
-        return order.get('total', 0)
+def products_by_id():
+    """The catalogue as the storefront sees it: git's data.js with the admin's
+    overrides applied. The single place the server reads product data, so
+    delivery fees, order totals and invoice lines can never drift apart."""
+    store    = load_store()
+    override = store.get('overrides', {})
+    catalog  = _parse_products_js(_repo_data_js())
+    for extra in store.get('extra_products', []):
+        pid = str(extra.get('id', '')).strip()
+        if pid:
+            catalog[pid] = {
+                'id': pid, 'name': extra.get('name', ''),
+                'category': extra.get('category', ''),
+                'dimensions': extra.get('dimensions', ''),
+                'price': int(extra.get('price', 0) or 0),
+                'discount': int(extra.get('discount', 0) or 0),
+            }
+    for pid, fields in override.items():
+        if pid not in catalog:
+            continue
+        if fields.get('_deleted'):
+            del catalog[pid]
+            continue
+        for key, value in fields.items():
+            if key not in OVERRIDABLE:
+                continue
+            catalog[pid][key] = int(value or 0) if key in ('price', 'discount') else value
+    return catalog
 
-def _category_map():
-    """Parse id → category from data.js (server-authoritative)."""
-    try:
-        with open(DATA_JS, 'r', encoding='utf-8') as f:
-            src = f.read()
-        m = {}
-        for match in _re.finditer(r"id:\s*'([^']+)'.*?category:\s*'([^']+)'", src, _re.DOTALL):
-            m[match.group(1)] = match.group(2)
-        return m
-    except Exception:
-        return {}
 
-def compute_delivery_fee(order):
+def save_product_overrides(products):
+    """Diff what the admin panel posted against git's data.js and keep only the
+    fields that actually differ.
+
+    Storing a diff rather than a snapshot is the whole point: a later PR can
+    change a photo, a price or a description and the change shows up, instead of
+    being shadowed forever by whatever the admin last had on screen. It also
+    makes it impossible to lose a field the panel doesn't model — the old
+    full-file save silently stripped `material` from every product."""
+    repo = _parse_products_js(_repo_data_js())
+    with _store_lock:
+        store, overrides, extra, posted = load_store(), {}, [], set()
+        for p in products:
+            pid = str(p.get('id', '')).strip()
+            if not pid:
+                continue
+            posted.add(pid)
+            base = repo.get(pid)
+            if base is None:      # added in the panel, not in git
+                extra.append({k: p[k] for k in ('id',) + OVERRIDABLE if k in p})
+                continue
+            diff = {}
+            for key in OVERRIDABLE:
+                if key not in p:
+                    continue
+                value = int(p[key] or 0) if key in ('price', 'discount') else p[key]
+                if value != base.get(key):
+                    diff[key] = value
+            if diff:
+                overrides[pid] = diff
+        for pid in repo:
+            if pid not in posted:
+                overrides[pid] = {'_deleted': True}
+        store['overrides']      = overrides
+        store['extra_products'] = extra
+        save_store()
+    _page_cache.clear()
+    return len(overrides) + len(extra)
+
+
+def sale_price(price, discount):
+    """Mirror of salePrice() in js/cart.js — the two must round identically or
+    the storefront and the charge disagree by a shekel."""
+    price = int(price or 0)
+    discount = int(discount or 0)
+    if discount <= 0:
+        return price
+    return round(price * (1 - discount / 100))
+
+
+def render_data_js():
+    """js/data.js as served: the repo file verbatim, plus a patch block applying
+    the admin's overrides.
+
+    Appending rather than regenerating is deliberate. The admin panel models six
+    fields; data.js also carries CATEGORY_ORDER, per-product `material` and the
+    comments explaining both. Rewriting the file from the panel's model silently
+    destroyed all of it."""
+    src   = _repo_data_js()
+    store = load_store()
+    over  = {pid: {k: v for k, v in f.items() if k in OVERRIDABLE or k == '_deleted'}
+             for pid, f in store.get('overrides', {}).items()}
+    over  = {pid: f for pid, f in over.items() if f}
+    extra = store.get('extra_products', [])
+    if not over and not extra:
+        return src
+    patch = json.dumps(over, ensure_ascii=False)
+    added = json.dumps(extra, ensure_ascii=False)
+    return src + f'''
+/* ── Admin overrides ──────────────────────────────────────────────────────────
+   Applied by server.py from the persistent store (see STORE_PATH). Edited in
+   /admin.html, never by hand — anything written here is regenerated on save. */
+(function () {{
+  var O = {patch};
+  var EXTRA = {added};
+  for (var i = PRODUCTS.length - 1; i >= 0; i--) {{
+    var o = O[PRODUCTS[i].id];
+    if (!o) continue;
+    if (o._deleted) {{ PRODUCTS.splice(i, 1); continue; }}
+    for (var k in o) if (k.charAt(0) !== '_') PRODUCTS[i][k] = o[k];
+  }}
+  for (var j = 0; j < EXTRA.length; j++) PRODUCTS.push(EXTRA[j]);
+}})();
+'''
+
+
+# ── Generated product pages ───────────────────────────────────────────────────
+_PRODUCT_ROUTE = _re.compile(r'^/products/([A-Za-z0-9_-]+)/$')
+_page_cache: dict = {}     # pid → ((pid, store_rev, mtime), html)
+
+
+def rewrite_product_prices(html, product):
+    """Refresh the three machine-readable prices build.py baked into a product
+    page: the OG price meta, the Product JSON-LD offer, and STEELO_PRODUCT (which
+    is what the Meta ViewContent event reports). All three must be the price
+    actually being asked, not the pre-discount list price."""
+    price = sale_price(product['price'], product['discount'])
+    subs = (
+        (r'(<meta property="product:price:amount" content=")\d+(")', rf'\g<1>{price}\g<2>'),
+        (r'("priceCurrency":\s*"ILS",\s*"price":\s*)\d+',            rf'\g<1>{price}'),
+        (r'(window\.STEELO_PRODUCT\s*=\s*\{[^\n]*?"price":\s*)\d+',   rf'\g<1>{price}'),
+    )
+    for pattern, repl in subs:
+        html = _re.sub(pattern, repl, html)
+    return html
+
+
+# ── Order pricing ─────────────────────────────────────────────────────────────
+def compute_delivery_fee(order, lines=None):
     """Server-authoritative delivery fee. Pickup is free; shipping sums each
     item's category fee × quantity. Never trusts the client's number."""
     if order.get('delivery_method') == 'pickup':
         return 0
-    cat_map = _category_map()
+    if lines is None:
+        lines = order_lines(order)
     fee = 0
-    for item in order.get('items', []):
-        pid = item.get('id') or ''
-        qty = max(1, min(int(item.get('qty', 1)), 99))
-        cat = (cat_map.get(pid) or item.get('category', '') or '').lower()
-        fee += DELIVERY_FEE.get(cat, 0) * qty
+    for line in lines:
+        fee += DELIVERY_FEE.get((line['category'] or '').lower(), 0) * line['qty']
     return fee
 
-def _product_map():
-    """Parse id → {name, price, dimensions} from data.js (server-authoritative,
-    so the invoice never depends on whatever the browser cart happened to store)."""
-    try:
-        with open(DATA_JS, 'r', encoding='utf-8') as f:
-            src = f.read()
-        m = {}
-        pat = (r"id:\s*'([^']+)'\s*,\s*name:\s*'([^']*)'.*?price:\s*(\d+)"
-               r".*?dimensions:\s*'([^']*)'")
-        for match in _re.finditer(pat, src, _re.DOTALL):
-            m[match.group(1)] = {
-                'name':       match.group(2).strip(),
-                'price':      int(match.group(3)),
-                'dimensions': match.group(4).strip(),
-            }
-        return m
-    except Exception:
-        return {}
 
+def order_lines(order):
+    """The cart resolved against the catalogue: unit prices are the current sale
+    prices from the store, not whatever the browser put in localStorage."""
+    catalog = products_by_id()
+    lines   = []
+    for item in order.get('items', []):
+        pid = str(item.get('id') or '')
+        qty = max(1, min(int(item.get('qty', 1) or 1), 99))
+        p   = catalog.get(pid)
+        if p:
+            unit = sale_price(p['price'], p['discount'])
+            name, cat, dims = p['name'], p['category'], p['dimensions']
+        else:
+            # Unknown id (a product deleted mid-checkout): fall back to what the
+            # browser sent rather than dropping a paid-for line from the order.
+            unit = int(item.get('price', 0) or 0)
+            name, cat, dims = item.get('name', ''), item.get('category', ''), ''
+        lines.append({'id': pid, 'qty': qty, 'unit': unit,
+                      'name': name, 'category': cat, 'dimensions': dims})
+    return lines
+
+
+def price_order(order, coupon_code=None):
+    """The one authority on what an order costs.
+
+    Returns subtotal / coupon discount / delivery / total, all computed here from
+    the catalogue and the coupon store. /payment/init and /coupon/validate both
+    go through it, so the number shown in the summary is the number charged.
+    """
+    lines    = order_lines(order)
+    subtotal = sum(l['unit'] * l['qty'] for l in lines)
+    delivery = compute_delivery_fee(order, lines)
+
+    code = (coupon_code or '').strip().upper()
+    result = {
+        'lines': lines, 'subtotal': subtotal, 'delivery_fee': delivery,
+        'coupon': '', 'coupon_discount': 0, 'coupon_label': '',
+        'free_shipping': False, 'coupon_error': '',
+        'total': subtotal + delivery,
+    }
+    if not code:
+        return result
+
+    ok, discount, free_shipping, message = evaluate_coupon(
+        code, lines, subtotal, delivery, order,
+    )
+    if not ok:
+        result['coupon_error'] = message
+        return result
+
+    result['coupon']          = code
+    result['coupon_discount'] = discount
+    result['coupon_label']    = message
+    result['free_shipping']   = free_shipping
+    result['delivery_fee']    = 0 if free_shipping else delivery
+    result['total']           = max(subtotal - discount, 0) + result['delivery_fee']
+    return result
+
+
+def recalculate_total(order):
+    """Kept for callers that only need the number. Prefer price_order()."""
+    return price_order(order, order.get('coupon_code')).get('total', 0)
+
+
+# ── Tranzila invoice lines ────────────────────────────────────────────────────
 VAT_RATE = 1.18  # 18% Israeli VAT; listed prices are VAT-inclusive
 
-def _invoice_line_name(pid, item, pmap):
+
+def _invoice_line_name(line):
     """A meaningful invoice description: product name (+ dimensions when known),
-    resolved server-side by id, falling back to the cart's own fields."""
-    info = pmap.get(pid, {})
-    name = (info.get('name') or item.get('name') or pid or 'מוצר').strip()
-    dims = (info.get('dimensions') or '').strip()
-    label = f"{name} · {dims}" if dims else name
+    resolved server-side so it never depends on what the browser cart stored."""
+    name  = (line.get('name') or line.get('id') or 'מוצר').strip()
+    dims  = (line.get('dimensions') or '').strip()
+    label = f'{name} · {dims}' if dims else name
     return label[:118]
 
-def build_purchase_data(order):
+
+def build_purchase_data(order, pricing=None):
     """Tranzila json_purchase_data (invoice line items) as a compact JSON string.
+
     product_price is sent PRE-VAT (price / 1.18) because the account applies VAT;
-    a rounding delta is absorbed on the last line so the post-VAT total matches the
-    charged sum exactly (else the invoice omits per-line amounts). '' if no items."""
-    pmap = _product_map()
+    a rounding delta is absorbed on the last line so the post-VAT total matches
+    the charged sum exactly (otherwise the invoice omits per-line amounts).
+
+    A coupon is spread proportionally across the product lines rather than added
+    as a negative line — Tranzila's invoicing rejects those, and the lines still
+    have to reconcile to the charge. '' if there is nothing to invoice."""
+    if pricing is None:
+        pricing = price_order(order, order.get('coupon_code'))
+    subtotal = pricing['subtotal']
+    discount = pricing['coupon_discount']
+    ratio    = (subtotal - discount) / subtotal if subtotal > 0 else 1
+
     lines = []
-    for item in order.get('items', []):
-        pid   = item.get('id') or ''
-        qty   = max(1, min(int(item.get('qty', 1)), 99))
-        gross = pmap.get(pid, {}).get('price', item.get('price', 0))  # VAT-inclusive unit price
+    for line in pricing['lines']:
         lines.append({
-            'product_name':     _invoice_line_name(pid, item, pmap),
-            'product_quantity': qty,
-            'product_price':    round(gross / VAT_RATE, 2),
+            'product_name':     _invoice_line_name(line),
+            'product_quantity': line['qty'],
+            'product_price':    round(line['unit'] * ratio / VAT_RATE, 2),
         })
-    fee = order.get('delivery_fee', 0) or 0
+    fee = pricing['delivery_fee']
     if fee > 0:
         lines.append({
             'product_name':     'משלוח',
@@ -506,41 +809,301 @@ def build_purchase_data(order):
         })
     if not lines:
         return ''
-    # Reconcile on the displayed (post-VAT) total the way an Israeli invoice does:
-    # VAT is re-added per line and rounded per line, then summed. Adjust the last
-    # line's pre-VAT price so Σ(round(price×qty×VAT)) equals the charge exactly —
-    # otherwise Tranzila prints the products without per-line amounts.
-    charged = round(order.get('total', 0) or 0, 2)
+    # Reconcile on the displayed (post-VAT) total the way an Israeli invoice
+    # does: VAT is re-added per line and rounded per line, then summed. Adjust
+    # the last line's pre-VAT price so Σ(round(price×qty×VAT)) equals the charge
+    # exactly — otherwise Tranzila prints the products without per-line amounts.
+    charged   = round(pricing.get('total', 0) or 0, 2)
     line_post = lambda l: round(l['product_price'] * l['product_quantity'] * VAT_RATE, 2)
-    others = round(sum(line_post(l) for l in lines[:-1]), 2)
-    last = lines[-1]
+    others    = round(sum(line_post(l) for l in lines[:-1]), 2)
+    last      = lines[-1]
     last_post = round(charged - others, 2)
     last['product_price'] = round(last_post / VAT_RATE / last['product_quantity'], 2)
     return json.dumps(lines, separators=(',', ':'), ensure_ascii=False)
 
-# ── Products helpers ──────────────────────────────────────────────────────────
-def products_to_js(products):
-    """Serialize the products list back to the data.js format."""
-    lines = ['const PRODUCTS = [']
-    for p in products:
-        imgs = ', '.join(f"'{img}'" for img in p.get('images', []))
-        desc = p.get('description', '').replace('\\', '\\\\').replace("'", "\\'")
-        name = p.get('name', '').replace("'", "\\'")
-        cat  = p.get('category', '').replace("'", "\\'")
-        dims = p.get('dimensions', '').replace("'", "\\'")
-        disc = max(0, min(99, int(p.get('discount', 0))))
-        lines.append(f"""  {{
-    id: '{p['id']}',
-    name: '{name}',
-    category: '{cat}',
-    price: {int(p['price'])},
-    discount: {disc},
-    dimensions: '{dims}',
-    description: '{desc}',
-    images: [{imgs}],
-  }},""")
-    lines.append('];\n')
-    return '\n'.join(lines)
+
+# ── Coupons ───────────────────────────────────────────────────────────────────
+# One coupon per order, always. `order['coupon_code']` is a single string rather
+# than a list, so a second code can only ever replace the first — stacking is
+# impossible by construction, not by a rule somebody has to remember.
+#
+# Every message here is customer-facing Hebrew and deliberately specific: a
+# shopper who is told "code expired" stops retyping, a shopper told "invalid"
+# tries four more times and then leaves.
+COUPON_TYPES = ('percent', 'fixed', 'free_shipping')
+
+_MSG = {
+    'unknown':   'קוד קופון לא קיים',
+    'inactive':  'הקופון אינו פעיל',
+    'expired':   'פג תוקף הקופון',
+    'early':     'הקופון עדיין לא פעיל',
+    'exhausted': 'הקופון מוצה',
+    'per_cust':  'כבר מימשת את הקופון הזה',
+    'min':       'הקופון תקף מהזמנה של ₪{}',
+    'items':     'הקופון לא תקף למוצרים שבעגלה',
+    'zero':      'לא ניתן להשלים הזמנה בסכום 0 — צרו קשר',
+}
+
+
+def _il_today():
+    """Today's date in Israel. The container runs on UTC, and an expiry of
+    "30/09" has to mean end of the 30th in Tel Aviv, not in Greenwich."""
+    from datetime import datetime, timezone, timedelta
+    try:
+        from zoneinfo import ZoneInfo
+        return datetime.now(ZoneInfo('Asia/Jerusalem')).date()
+    except Exception:
+        return datetime.now(timezone(timedelta(hours=3))).date()
+
+
+def _as_date(value):
+    """'2026-09-30' → date, or None. Anything unparseable is treated as unset,
+    so a typo in the admin form can't silently disable a coupon."""
+    if not value:
+        return None
+    try:
+        from datetime import datetime
+        return datetime.strptime(str(value)[:10], '%Y-%m-%d').date()
+    except Exception:
+        return None
+
+
+def norm_code(code):
+    return _re.sub(r'\s+', '', str(code or '')).upper()
+
+
+def norm_phone(phone):
+    """Last 9 digits — matches 054-442-4206, +972554424206 and 0554424206."""
+    digits = _re.sub(r'\D', '', str(phone or ''))
+    return digits[-9:] if len(digits) >= 9 else digits
+
+
+def norm_email(email):
+    return str(email or '').strip().lower()
+
+
+def find_coupon(code):
+    code = norm_code(code)
+    if not code:
+        return None
+    for c in load_store().get('coupons', []):
+        if norm_code(c.get('code')) == code:
+            return c
+    return None
+
+
+def coupon_used_count(code):
+    """Counted from the redemption log rather than a stored counter, so the two
+    can never disagree after a partial write."""
+    code = norm_code(code)
+    return sum(1 for r in load_store().get('redemptions', [])
+               if norm_code(r.get('code')) == code)
+
+
+def coupon_customer_uses(code, email, phone):
+    code, email, phone = norm_code(code), norm_email(email), norm_phone(phone)
+    uses = 0
+    for r in load_store().get('redemptions', []):
+        if norm_code(r.get('code')) != code:
+            continue
+        if (email and norm_email(r.get('email')) == email) or \
+           (phone and norm_phone(r.get('phone')) == phone):
+            uses += 1
+    return uses
+
+
+def coupon_status(coupon):
+    """The label the admin table shows. Order matters: an exhausted coupon that
+    is also expired reads as expired, which is the more useful thing to know."""
+    if not coupon.get('active', True):
+        return 'paused'
+    expires = _as_date(coupon.get('expires_at'))
+    if expires and _il_today() > expires:
+        return 'expired'
+    starts = _as_date(coupon.get('starts_at'))
+    if starts and _il_today() < starts:
+        return 'scheduled'
+    max_uses = coupon.get('max_uses')
+    if max_uses and coupon_used_count(coupon.get('code')) >= int(max_uses):
+        return 'exhausted'
+    return 'active'
+
+
+def evaluate_coupon(code, lines, subtotal, delivery, order):
+    """Validate a coupon against this cart and customer.
+
+    Returns (ok, discount_amount, free_shipping, message). On failure the
+    message is the reason to show the shopper; on success it is the label for
+    the summary row.
+    """
+    coupon = find_coupon(code)
+    if not coupon:
+        return False, 0, False, _MSG['unknown']
+    if not coupon.get('active', True):
+        return False, 0, False, _MSG['inactive']
+
+    today = _il_today()
+    starts, expires = _as_date(coupon.get('starts_at')), _as_date(coupon.get('expires_at'))
+    if starts and today < starts:
+        return False, 0, False, _MSG['early']
+    if expires and today > expires:
+        return False, 0, False, _MSG['expired']
+
+    max_uses = coupon.get('max_uses')
+    if max_uses and coupon_used_count(coupon['code']) >= int(max_uses):
+        return False, 0, False, _MSG['exhausted']
+
+    per_customer = coupon.get('per_customer')
+    if per_customer:
+        used = coupon_customer_uses(coupon['code'], order.get('email'), order.get('phone'))
+        if used >= int(per_customer):
+            return False, 0, False, _MSG['per_cust']
+
+    min_subtotal = int(coupon.get('min_subtotal') or 0)
+    if min_subtotal and subtotal < min_subtotal:
+        return False, 0, False, _MSG['min'].format(f'{min_subtotal:,}')
+
+    applies_to = coupon.get('applies_to') or None
+    if applies_to:
+        eligible = sum(l['unit'] * l['qty'] for l in lines if l['id'] in applies_to)
+        if eligible <= 0:
+            return False, 0, False, _MSG['items']
+    else:
+        eligible = subtotal
+
+    ctype = coupon.get('type', 'percent')
+    value = float(coupon.get('value') or 0)
+    if ctype == 'free_shipping':
+        return True, 0, True, norm_code(coupon['code'])
+    if ctype == 'fixed':
+        discount = min(int(round(value)), eligible)
+    else:  # percent — applies to the already-discounted subtotal, by design
+        discount = int(round(eligible * value / 100))
+
+    # Never eats into shipping, and never leaves a total Tranzila cannot charge.
+    discount = max(0, min(discount, subtotal))
+    if subtotal - discount + delivery < 1:
+        return False, 0, False, _MSG['zero']
+    return True, discount, False, norm_code(coupon['code'])
+
+
+def redeem_coupon(order):
+    """Record a redemption once the payment is confirmed.
+
+    Deliberately not called at /payment/init: an abandoned checkout must not burn
+    one of the "first 10 orders". Idempotent on order_id, because a single
+    payment reaches us down several callback paths (see claim_purchase)."""
+    code     = norm_code(order.get('coupon_code'))
+    order_id = str(order.get('order_id') or '')
+    if not code or not order_id:
+        return False
+    with _store_lock:
+        store = load_store()
+        for r in store['redemptions']:
+            if str(r.get('order_id')) == order_id:
+                return False
+        store['redemptions'].append({
+            'code':     code,
+            'order_id': order_id,
+            'email':    norm_email(order.get('email')),
+            'phone':    norm_phone(order.get('phone')),
+            'name':     order.get('name', ''),
+            'amount':   order.get('coupon_discount', 0),
+            'date':     order.get('date', ''),
+        })
+        save_store()
+    print(f'  [Coupon] {code} redeemed on {order_id} '
+          f'({coupon_used_count(code)} total)')
+    return True
+
+
+def coupons_for_admin():
+    """Coupons plus the derived numbers the admin table needs. used_count is
+    computed here rather than stored, so it is always the truth."""
+    store = load_store()
+    out   = []
+    for c in store.get('coupons', []):
+        code = norm_code(c.get('code'))
+        out.append({
+            **c,
+            'code':        code,
+            'used_count':  coupon_used_count(code),
+            'status':      coupon_status(c),
+            'redemptions': [r for r in store.get('redemptions', [])
+                            if norm_code(r.get('code')) == code],
+        })
+    return out
+
+
+def upsert_coupon(payload):
+    """Create or update one coupon. Returns (ok, error)."""
+    code = norm_code(payload.get('code'))
+    if not code:
+        return False, 'Coupon code is required'
+    if not _re.match(r'^[A-Z0-9_-]{2,32}$', code):
+        return False, 'Code must be 2-32 characters: A-Z, 0-9, - or _'
+
+    ctype = payload.get('type', 'percent')
+    if ctype not in COUPON_TYPES:
+        return False, f'Unknown coupon type: {ctype}'
+
+    value = float(payload.get('value') or 0)
+    if ctype == 'percent' and not (0 < value <= 100):
+        return False, 'Percentage must be between 1 and 100'
+    if ctype == 'fixed' and value <= 0:
+        return False, 'Fixed amount must be above 0'
+
+    n_or_none = lambda v: int(v) if str(v or '').strip() not in ('', '0', 'None') else None
+
+    with _store_lock:
+        store    = load_store()
+        existing = next((c for c in store['coupons'] if norm_code(c.get('code')) == code), None)
+        record   = existing or {'created_at': _il_today().isoformat()}
+        record.update({
+            'code':         code,
+            'type':         ctype,
+            'value':        value,
+            'active':       bool(payload.get('active', True)),
+            'max_uses':     n_or_none(payload.get('max_uses')),
+            'per_customer': n_or_none(payload.get('per_customer')),
+            'min_subtotal': int(payload.get('min_subtotal') or 0),
+            'starts_at':    (payload.get('starts_at') or '')[:10] or None,
+            'expires_at':   (payload.get('expires_at') or '')[:10] or None,
+            'applies_to':   payload.get('applies_to') or None,
+            'note':         str(payload.get('note') or '')[:200],
+        })
+        if not existing:
+            store['coupons'].append(record)
+        save_store()
+    return True, ''
+
+
+def set_coupon_active(code, active):
+    """Pause or resume a coupon. Saves immediately — "cancel at any time" has to
+    mean the next checkout, not the next time somebody presses Save."""
+    with _store_lock:
+        coupon = find_coupon(code)
+        if not coupon:
+            return False, 'Coupon not found'
+        coupon['active'] = bool(active)
+        save_store()
+    return True, ''
+
+
+def delete_coupon(code):
+    """Remove a coupon. Its redemptions stay in the log — they are the record of
+    real orders, and deleting them would rewrite history."""
+    code = norm_code(code)
+    with _store_lock:
+        store  = load_store()
+        before = len(store['coupons'])
+        store['coupons'] = [c for c in store['coupons']
+                            if norm_code(c.get('code')) != code]
+        if len(store['coupons']) == before:
+            return False, 'Coupon not found'
+        save_store()
+    return True, ''
+
 
 
 # ── HTTP handler ──────────────────────────────────────────────────────────────
@@ -563,6 +1126,11 @@ class Handler(SimpleHTTPRequestHandler):
         # without ever becoming immutable the way a ?v= asset would.
         if route == '/meta/pixel.js':
             return 'public, max-age=300'
+        # Rendered from the store, so its contents change whenever the admin
+        # sets a discount — it must never be treated as an immutable ?v= asset.
+        # 11 KB, so revalidating on every page load costs a 304 and nothing else.
+        if route == '/js/data.js':
+            return 'no-cache, must-revalidate'
         if route.endswith('/') or last.endswith('.html') or '.' not in last:
             return 'no-cache, must-revalidate'
         if re.search(r'(^|&)v=', query):
@@ -628,15 +1196,114 @@ class Handler(SimpleHTTPRequestHandler):
         else:
             body = '/* Meta Pixel disabled — META_PIXEL_ID not set */\n'
         raw = body.encode('utf-8')
-        self.send_response(200)
-        self.send_header('Content-Type', 'application/javascript; charset=utf-8')
+        self._send_body(raw, 'application/javascript; charset=utf-8')
+
+    def _send_body(self, raw, ctype, status=200):
+        self.send_response(status)
+        self.send_header('Content-Type', ctype)
         self.send_header('Content-Length', str(len(raw)))
         self.end_headers()
         self.wfile.write(raw)
 
+    def _serve_data_js(self):
+        """js/data.js, rendered from the store rather than read off disk — the
+        disk copy is whatever git last deployed and knows nothing about the
+        discounts the owner set in the admin."""
+        raw = render_data_js().encode('utf-8')
+        self._send_body(raw, 'application/javascript; charset=utf-8')
+
+    def _serve_product_page(self, route):
+        """A generated product page with its machine-readable prices refreshed.
+
+        build.py bakes the price into <meta product:price:amount>, the Product
+        JSON-LD and window.STEELO_PRODUCT at build time, on a laptop. Left alone,
+        a sale would leave the pages Google actually indexes advertising a price
+        the cart contradicts. The visible price needs no help here — it is
+        rendered from PRODUCTS by fmtPrice(), same as the grid."""
+        pid  = _PRODUCT_ROUTE.match(route).group(1)
+        prod = products_by_id().get(pid)
+        path = os.path.join(BASE_DIR, 'products', pid, 'index.html')
+        if not prod or not os.path.exists(path):
+            return super().do_GET()
+
+        key    = (pid, store_rev(), os.path.getmtime(path))
+        cached = _page_cache.get(pid)
+        if cached and cached[0] == key:
+            html = cached[1]
+        else:
+            with open(path, encoding='utf-8') as f:
+                html = rewrite_product_prices(f.read(), prod)
+            _page_cache[pid] = (key, html)
+        self._send_body(html.encode('utf-8'), 'text/html; charset=utf-8')
+
+    # ── Coupons ──────────────────────────────────────────────────────────────
+    def _handle_admin_coupons_get(self):
+        if not check_admin_token(self):
+            self._json(401, {'ok': False, 'error': 'Unauthorised'})
+            return
+        self._json(200, {
+            'ok': True,
+            'coupons':  coupons_for_admin(),
+            'products': [{'id': p['id'], 'name': p['name']}
+                         for p in products_by_id().values()],
+        })
+
+    def _handle_admin_coupons_post(self, raw):
+        """Coupons save on their own, not behind the products "Save Changes"
+        button: pausing a code has to take effect at the next checkout, not the
+        next time somebody remembers to press Save."""
+        try:
+            data   = json.loads(raw or b'{}')
+            action = data.get('action', 'save')
+            if action == 'save':
+                ok, err = upsert_coupon(data.get('coupon') or {})
+            elif action == 'toggle':
+                ok, err = set_coupon_active(data.get('code'), data.get('active'))
+            elif action == 'delete':
+                ok, err = delete_coupon(data.get('code'))
+            else:
+                ok, err = False, f'Unknown action: {action}'
+            self._json(200 if ok else 400,
+                       {'ok': ok, 'error': err, 'coupons': coupons_for_admin()})
+        except Exception as e:
+            self._json(500, {'ok': False, 'error': str(e)})
+
+    def _handle_coupon_validate(self, raw, ip):
+        """Live feedback for the checkout field. Advisory only — /payment/init
+        re-validates from scratch, so a forged reply here changes nothing about
+        what gets charged."""
+        if not rate_check(ip, 'coupon', COUPON_LIMIT):
+            self._json(429, {'ok': False, 'error': 'יותר מדי ניסיונות. נסו שוב בעוד דקה'})
+            return
+        try:
+            data    = json.loads(raw or b'{}')
+            pricing = price_order(data, data.get('coupon_code'))
+            if pricing['coupon_error']:
+                self._json(200, {'ok': False, 'error': pricing['coupon_error']})
+                return
+            self._json(200, {
+                'ok':            True,
+                'code':          pricing['coupon'],
+                'discount':      pricing['coupon_discount'],
+                'free_shipping': pricing['free_shipping'],
+                'subtotal':      pricing['subtotal'],
+                'delivery_fee':  pricing['delivery_fee'],
+                'total':         pricing['total'],
+            })
+        except Exception as e:
+            print(f'  [Coupon] validate failed: {e}')
+            self._json(400, {'ok': False, 'error': 'קוד קופון לא קיים'})
+
     def do_GET(self):
-        if self.path.partition('?')[0] == '/meta/pixel.js':
+        route = self.path.partition('?')[0]
+        if route == '/meta/pixel.js':
             self._serve_meta_pixel()
+        elif route == '/js/data.js':
+            self._serve_data_js()
+        elif route == '/admin/coupons':
+            self._handle_admin_coupons_get()
+        elif _PRODUCT_ROUTE.match(route):
+            self._serve_product_page(route)
         elif self.path.startswith('/payment/confirm'):
             self._handle_payment_confirm()
         elif self.path.startswith('/payment-result'):
@@ -708,6 +1375,7 @@ class Handler(SimpleHTTPRequestHandler):
                 print(f'  [Sheets] Not configured — order {order_id} logged to console only.')
                 print(f'  [Order] {json.dumps(order, ensure_ascii=False, indent=2)}')
             print(f'  [Payment] Confirmed {order_id} — conf {conf_code}')
+            redeem_coupon(order)
             self._fire_purchase(order_id, order)
             self._json(200, {'ok': True, 'order_id': order_id, 'conf': conf_code})
         else:
@@ -754,6 +1422,10 @@ class Handler(SimpleHTTPRequestHandler):
             marked = mark_order_paid(service, order_id)
             if not marked:
                 print(f'  [Sheets] Could not find row to mark Paid — row was already saved at init')
+        # Counted here, not at /payment/init: an abandoned checkout must not burn
+        # one of a "first 10 orders" coupon. Idempotent on order_id, because a
+        # single payment reaches us down several of these callback paths.
+        redeem_coupon(order or {})
         self._fire_purchase(order_id, order)
         if order:
             send_receipt_email(order)
@@ -861,6 +1533,14 @@ class Handler(SimpleHTTPRequestHandler):
             except Exception as e:
                 self._json(400, {'ok': False, 'error': str(e)})
 
+        # ── Admin token check ────────────────────────────────────────────────
+        # The admin page used to test its token by POSTing an empty array to
+        # /admin/save, which happily serialised an empty catalogue over data.js.
+        # Verifying deserves its own endpoint that cannot write anything.
+        elif self.path == '/admin/verify':
+            self._json(200 if check_admin_token(self) else 401,
+                       {'ok': check_admin_token(self)})
+
         # ── Admin save (requires token) ───────────────────────────────────
         elif self.path == '/admin/save':
             if not check_admin_token(self):
@@ -869,12 +1549,25 @@ class Handler(SimpleHTTPRequestHandler):
             try:
                 payload  = json.loads(raw)
                 products = payload if isinstance(payload, list) else payload.get('products', [])
-                js = products_to_js(products)
-                with open(DATA_JS, 'w', encoding='utf-8') as f:
-                    f.write(js)
-                self._json(200, {'ok': True, 'count': len(products)})
+                if not products:
+                    self._json(400, {'ok': False,
+                                     'error': 'Refusing to save an empty catalogue'})
+                    return
+                count = save_product_overrides(products)
+                self._json(200, {'ok': True, 'count': len(products), 'changed': count})
             except Exception as e:
                 self._json(500, {'ok': False, 'error': str(e)})
+
+        # ── Coupons (requires token) ─────────────────────────────────────────
+        elif self.path == '/admin/coupons':
+            if not check_admin_token(self):
+                self._json(401, {'ok': False, 'error': 'Unauthorised'})
+                return
+            self._handle_admin_coupons_post(raw)
+
+        # ── Coupon validation (public, for the checkout UI) ──────────────────
+        elif self.path == '/coupon/validate':
+            self._handle_coupon_validate(raw, ip)
 
         elif self.path == '/payment/init':
             self._handle_payment_init(raw, ip)
@@ -977,9 +1670,25 @@ class Handler(SimpleHTTPRequestHandler):
                 self._json(400, {'ok': False, 'error': err})
                 return
 
-            # Server-authoritative amount: items total + delivery fee (pickup = 0).
-            order['delivery_fee'] = compute_delivery_fee(order)
-            order['total'] = recalculate_total(order) + order['delivery_fee']
+            # Server-authoritative amount: sale prices from the store, delivery
+            # fee by category, coupon re-validated from scratch. Whatever the
+            # browser claimed the total was is discarded.
+            claimed = order.get('coupon_code')
+            pricing = price_order(order, claimed)
+            order['delivery_fee']    = pricing['delivery_fee']
+            order['coupon_code']     = pricing['coupon']
+            order['coupon_discount'] = pricing['coupon_discount']
+            order['total']           = pricing['total']
+
+            # The coupon passed in the summary but not here — it was paused, or
+            # someone else just took the last of a limited run. Send the customer
+            # back rather than quietly charging a total they never agreed to.
+            if claimed and pricing['coupon_error']:
+                print(f'  [Coupon] {norm_code(claimed)} rejected at init: '
+                      f'{pricing["coupon_error"]}')
+                self._json(400, {'ok': False, 'coupon_removed': True,
+                                 'error': pricing['coupon_error']})
+                return
 
             now = __import__('datetime').datetime.now()
             order.setdefault('date', now.strftime('%d/%m/%Y %H:%M'))
@@ -1064,7 +1773,7 @@ class Handler(SimpleHTTPRequestHandler):
             # Itemized-invoice data must be part of the transaction definition
             # (the handshake), not just the iframe display URL — otherwise the
             # invoicing module ignores it and prints a default, unnamed line.
-            purchase_data = build_purchase_data(order)
+            purchase_data = build_purchase_data(order, pricing)
 
             # Step 1: get handshake token from Tranzila
             hw_data = {
@@ -1154,8 +1863,16 @@ if __name__ == '__main__':
     httpd = HTTPServer(('', PORT), Handler)
 
     sheets_ready = bool(SHEET_ID and os.path.exists(CREDENTIALS_FILE))
+    store = load_store()
+    # Loud, because a production container without STEELO_DATA_DIR pointed at a
+    # mounted volume silently loses every discount and coupon on the next deploy.
+    persistent = STORE_DIR != BASE_DIR
     print(f'\n  Steelo store  →  http://localhost:{PORT}')
     print(f'  Admin panel   →  http://localhost:{PORT}/admin.html')
+    print(f'  Data store    →  {STORE_PATH} '
+          f'{"✓ persistent" if persistent else "⚠ NOT persistent — set STEELO_DATA_DIR to a mounted volume"}')
+    print(f'                   {len(store["overrides"])} product overrides · '
+          f'{len(store["coupons"])} coupons · {len(store["redemptions"])} redemptions')
     print(f'  Google Sheets →  {"✓ configured" if sheets_ready else "⚠ not configured (add SHEET_ID + credentials.json)"}')
     print(f'  Tranzila      →  {"✓ password set" if TRANZILA_PASSWORD else "⚠ TRANZILA_PASSWORD not set"}')
     print()

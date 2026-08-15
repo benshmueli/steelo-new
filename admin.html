@@ -327,6 +327,128 @@
       margin: 2rem 0;
     }
 
+    /* ---- Tabs ---- */
+    .tabs { display: flex; gap: 0.5rem; }
+    .tab {
+      background: none;
+      border: 1px solid transparent;
+      color: var(--ink-400);
+      padding: 0.4rem 1rem;
+      font-family: 'Montserrat', sans-serif;
+      font-size: 0.6rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: color 0.2s, border-color 0.2s;
+    }
+    .tab:hover { color: var(--sand); }
+    .tab.active { color: var(--sand); border-color: var(--ink-500); }
+
+    /* ---- Coupons ---- */
+    #view-coupons { flex: 1; overflow-y: auto; padding: 2rem; }
+    .coupons-wrap { max-width: 1000px; margin: 0 auto; }
+    .coupons-wrap h2 {
+      font-family: 'Cormorant', serif;
+      font-weight: 300; font-size: 1.75rem;
+      margin: 0 0 0.35rem;
+    }
+    .coupons-wrap .sub {
+      font-size: 0.72rem; color: var(--ink-400);
+      line-height: 1.7; margin: 0 0 2rem;
+    }
+
+    .coupon-form-card {
+      background: var(--sand-100);
+      border: 1px solid var(--sand-300);
+      padding: 1.75rem;
+      margin-bottom: 2.5rem;
+    }
+    .coupon-form-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+      gap: 1.25rem;
+    }
+    .coupon-form-grid .form-group.wide { grid-column: span 2; }
+    .hint { font-size: 0.6rem; color: var(--ink-300); letter-spacing: 0; text-transform: none; }
+    .code-row { display: flex; gap: 0.5rem; }
+    .code-row input { text-transform: uppercase; letter-spacing: 0.15em; }
+    .code-row button {
+      flex-shrink: 0;
+      background: none; border: 1px solid var(--sand-300); color: var(--ink-400);
+      padding: 0 0.8rem; font-family: 'Montserrat', sans-serif;
+      font-size: 0.6rem; letter-spacing: 0.1em; text-transform: uppercase;
+      cursor: pointer; transition: border-color 0.2s, color 0.2s;
+    }
+    .code-row button:hover { border-color: var(--ink); color: var(--ink); }
+    .quick-picks { display: flex; gap: 0.4rem; flex-wrap: wrap; margin-top: 0.4rem; }
+    .quick-pick {
+      background: none; border: 1px solid var(--sand-300); color: var(--ink-400);
+      padding: 0.25rem 0.6rem; font-family: 'Montserrat', sans-serif;
+      font-size: 0.6rem; cursor: pointer; transition: border-color 0.2s, color 0.2s;
+    }
+    .quick-pick:hover { border-color: var(--ink); color: var(--ink); }
+
+    #coupon-save {
+      margin-top: 1.5rem;
+      background: var(--ink); color: var(--sand); border: none;
+      padding: 0.75rem 2rem;
+      font-family: 'Montserrat', sans-serif;
+      font-size: 0.65rem; letter-spacing: 0.2em; text-transform: uppercase;
+      cursor: pointer; transition: opacity 0.2s;
+    }
+    #coupon-save:hover { opacity: 0.85; }
+    #coupon-save:disabled { opacity: 0.4; cursor: default; }
+    #coupon-form-error { color: var(--red); font-size: 0.72rem; margin: 0.75rem 0 0; }
+
+    .coupon-table { width: 100%; border-collapse: collapse; }
+    .coupon-table th {
+      text-align: left;
+      font-size: 0.55rem; letter-spacing: 0.2em; text-transform: uppercase;
+      color: var(--ink-400); font-weight: 400;
+      padding: 0 0.75rem 0.75rem; border-bottom: 1px solid var(--sand-300);
+    }
+    .coupon-table td {
+      padding: 0.9rem 0.75rem;
+      border-bottom: 1px solid var(--sand-200);
+      font-size: 0.78rem; vertical-align: middle;
+    }
+    .coupon-table tr.is-off td { opacity: 0.5; }
+    .coupon-code {
+      font-weight: 600; letter-spacing: 0.12em;
+      font-size: 0.8rem;
+    }
+    .coupon-note { display: block; font-size: 0.65rem; color: var(--ink-400); margin-top: 0.2rem; }
+
+    .pill {
+      display: inline-block;
+      font-size: 0.55rem; letter-spacing: 0.15em; text-transform: uppercase;
+      padding: 0.25rem 0.6rem; border: 1px solid currentColor;
+    }
+    .pill.active    { color: var(--green); }
+    .pill.paused    { color: var(--ink-400); }
+    .pill.expired,
+    .pill.exhausted { color: var(--red); }
+    .pill.scheduled { color: #B85C38; }
+
+    .row-actions { display: flex; gap: 0.4rem; justify-content: flex-end; }
+    .row-actions button {
+      background: none; border: 1px solid var(--sand-300); color: var(--ink-400);
+      padding: 0.3rem 0.65rem; font-family: 'Montserrat', sans-serif;
+      font-size: 0.58rem; letter-spacing: 0.1em; text-transform: uppercase;
+      cursor: pointer; transition: border-color 0.2s, color 0.2s; white-space: nowrap;
+    }
+    .row-actions button:hover      { border-color: var(--ink); color: var(--ink); }
+    .row-actions button.del:hover  { border-color: var(--red); color: var(--red); }
+    .redemptions td {
+      background: var(--sand-100);
+      font-size: 0.68rem; color: var(--ink-500); line-height: 1.9;
+    }
+    .empty-coupons {
+      border: 1px dashed var(--sand-300);
+      padding: 3rem; text-align: center;
+      color: var(--ink-400); font-size: 0.75rem;
+    }
+
     /* ---- Login overlay ---- */
     #login-overlay {
       display: none;
@@ -441,6 +563,10 @@
     <div style="display:flex;align-items:center;gap:1.5rem;">
       <span class="brand">STEELO</span>
       <span class="tag">Admin</span>
+      <div class="tabs">
+        <button class="tab active" data-view="products">Products</button>
+        <button class="tab" data-view="coupons">Coupons</button>
+      </div>
     </div>
     <div style="display:flex;align-items:center;gap:0.75rem;">
       <span id="save-status"></span>
@@ -449,7 +575,7 @@
     </div>
   </header>
 
-  <!-- Bulk discount bar -->
+  <!-- Bulk discount bar (products view only) -->
   <div id="discount-bar" style="background:var(--sand-200);border-bottom:1px solid var(--sand-300);padding:0.75rem 2rem;display:flex;align-items:center;gap:1.25rem;flex-wrap:wrap;">
     <span style="font-size:0.6rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--ink-400);">Bulk Discount</span>
     <div style="display:flex;align-items:center;gap:0.5rem;">
@@ -486,6 +612,71 @@
 
   </div>
 
+  <!-- Coupons view -->
+  <div id="view-coupons" style="display:none;">
+    <div class="coupons-wrap">
+      <h2>Coupons</h2>
+      <p class="sub">
+        One coupon per order — codes never stack, and a coupon applies on top of whatever
+        sale prices are already set. Pausing takes effect immediately, on the next checkout.<br>
+        Send a personal code as a link and the customer never has to type it:
+        <code>steelo-design.com/?coupon=CODE</code>
+      </p>
+
+      <div class="coupon-form-card">
+        <div class="coupon-form-grid">
+          <div class="form-group">
+            <label for="c-code">Code</label>
+            <div class="code-row">
+              <input id="c-code" type="text" placeholder="WELCOME10" maxlength="32" autocomplete="off">
+              <button type="button" id="c-generate" title="Generate a random code">Gen</button>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="c-type">Type</label>
+            <select id="c-type">
+              <option value="percent">% off</option>
+              <option value="fixed">₪ off</option>
+              <option value="free_shipping">Free shipping</option>
+            </select>
+          </div>
+          <div class="form-group" id="c-value-group">
+            <label for="c-value">Value <span class="hint" id="c-value-unit">(%)</span></label>
+            <input id="c-value" type="number" min="1" step="1" placeholder="10">
+          </div>
+          <div class="form-group">
+            <label for="c-max-uses">Max uses <span class="hint">(blank = unlimited)</span></label>
+            <input id="c-max-uses" type="number" min="1" step="1" placeholder="∞">
+            <div class="quick-picks">
+              <button type="button" class="quick-pick" data-max="10">First 10 orders</button>
+              <button type="button" class="quick-pick" data-max="1">Single use</button>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="c-per-customer">Per customer <span class="hint">(blank = unlimited)</span></label>
+            <input id="c-per-customer" type="number" min="1" step="1" placeholder="∞">
+          </div>
+          <div class="form-group">
+            <label for="c-min">Minimum order ₪ <span class="hint">(0 = none)</span></label>
+            <input id="c-min" type="number" min="0" step="10" placeholder="0">
+          </div>
+          <div class="form-group">
+            <label for="c-expires">Expires <span class="hint">(blank = never)</span></label>
+            <input id="c-expires" type="date">
+          </div>
+          <div class="form-group wide">
+            <label for="c-note">Internal note <span class="hint">(never shown to the customer)</span></label>
+            <input id="c-note" type="text" maxlength="200" placeholder="For Dana at studio X">
+          </div>
+        </div>
+        <button id="coupon-save">Save coupon</button>
+        <p id="coupon-form-error" style="display:none;"></p>
+      </div>
+
+      <div id="coupons-table-wrap"></div>
+    </div>
+  </div>
+
   <!-- Delete confirm overlay -->
   <div id="confirm-overlay">
     <div id="confirm-box">
@@ -512,15 +703,16 @@
     async function checkAuth() {
       const token = getToken();
       if (!token) { showLogin(); return; }
-      // Validate against server
+      // /admin/verify only checks the token. This used to POST an empty array to
+      // /admin/save — which the server dutifully saved, wiping the catalogue on
+      // every page load.
       try {
-        const res = await fetch('/admin/save', {
+        const res = await fetch('/admin/verify', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-          body: JSON.stringify([]),   // empty array — just testing auth
         });
         if (res.status === 401) { clearToken(); showLogin(); }
-        else { hideLogin(); }
+        else { hideLogin(); loadCoupons(); }
       } catch { hideLogin(); } // server not reachable — let them in locally
     }
 
@@ -859,6 +1051,188 @@
       if (selectedId) renderEditPanel();
       markDirty();
       setStatus('All discounts cleared — save to publish');
+    });
+
+    /* ============================================================
+       Tabs
+       ============================================================ */
+    document.querySelectorAll('.tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        const view = tab.dataset.view;
+        document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t === tab));
+        const products = view === 'products';
+        document.querySelector('.workspace').style.display = products ? 'flex'  : 'none';
+        document.getElementById('discount-bar').style.display = products ? 'flex' : 'none';
+        document.getElementById('view-coupons').style.display = products ? 'none' : 'block';
+        // "Save Changes" only ever meant products; coupons save on their own.
+        document.getElementById('save-all').style.display = products ? '' : 'none';
+        if (!products) loadCoupons();
+      });
+    });
+
+    /* ============================================================
+       Coupons
+
+       Deliberately separate from the products save button: pausing a code has
+       to take effect at the next checkout, not the next time someone remembers
+       to press Save. Every action here writes to the server immediately.
+       ============================================================ */
+    let coupons = [];
+    let expandedCoupon = null;
+
+    async function couponRequest(body) {
+      const res = await fetch('/admin/coupons', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${getToken()}` },
+        body: JSON.stringify(body),
+      });
+      return res.json();
+    }
+
+    async function loadCoupons() {
+      try {
+        const res  = await fetch('/admin/coupons', {
+          headers: { 'Authorization': `Bearer ${getToken()}` },
+        });
+        const data = await res.json();
+        if (data.ok) { coupons = data.coupons || []; renderCoupons(); }
+      } catch (e) { /* offline — leave whatever is on screen */ }
+    }
+
+    function couponValueLabel(c) {
+      if (c.type === 'free_shipping') return 'Free shipping';
+      if (c.type === 'fixed')         return `₪${Number(c.value).toLocaleString()} off`;
+      return `${Number(c.value)}% off`;
+    }
+
+    function renderCoupons() {
+      const wrap = document.getElementById('coupons-table-wrap');
+      if (!coupons.length) {
+        wrap.innerHTML = '<div class="empty-coupons">No coupons yet — create one above.</div>';
+        return;
+      }
+      const rows = coupons.map(c => {
+        const uses = c.max_uses ? `${c.used_count} / ${c.max_uses}` : `${c.used_count} / ∞`;
+        const limits = [
+          c.per_customer ? `${c.per_customer} per customer` : '',
+          c.min_subtotal ? `min ₪${Number(c.min_subtotal).toLocaleString()}` : '',
+        ].filter(Boolean).join(' · ');
+        const open = expandedCoupon === c.code;
+        const redemptions = (c.redemptions || []).map(r =>
+          `<div>${esc(r.date) || '—'} · ${esc(r.name) || esc(r.email)} · ${esc(r.order_id)}</div>`
+        ).join('') || '<div>No redemptions yet.</div>';
+        return `
+          <tr class="${c.status === 'active' ? '' : 'is-off'}">
+            <td>
+              <span class="coupon-code">${esc(c.code)}</span>
+              ${c.note ? `<span class="coupon-note">${esc(c.note)}</span>` : ''}
+            </td>
+            <td>${couponValueLabel(c)}${limits ? `<span class="coupon-note">${limits}</span>` : ''}</td>
+            <td>
+              ${uses}
+              ${c.used_count ? `<span class="coupon-note"><a href="#" data-expand="${esc(c.code)}" style="color:var(--ink-400);">${open ? 'hide' : 'who used it'}</a></span>` : ''}
+            </td>
+            <td>${c.expires_at ? esc(c.expires_at) : '—'}</td>
+            <td><span class="pill ${c.status}">${c.status}</span></td>
+            <td>
+              <div class="row-actions">
+                <button data-toggle="${esc(c.code)}" data-active="${c.active ? '0' : '1'}">${c.active ? 'Pause' : 'Resume'}</button>
+                <button data-copy="${esc(c.code)}">Copy link</button>
+                <button class="del" data-delete="${esc(c.code)}">Delete</button>
+              </div>
+            </td>
+          </tr>
+          ${open ? `<tr class="redemptions"><td colspan="6">${redemptions}</td></tr>` : ''}`;
+      }).join('');
+
+      wrap.innerHTML = `
+        <table class="coupon-table">
+          <thead>
+            <tr><th>Code</th><th>Discount</th><th>Used</th><th>Expires</th><th>Status</th><th></th></tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>`;
+
+      wrap.querySelectorAll('[data-toggle]').forEach(b => b.addEventListener('click', async () => {
+        const data = await couponRequest({ action: 'toggle', code: b.dataset.toggle,
+                                           active: b.dataset.active === '1' });
+        if (data.ok) { coupons = data.coupons; renderCoupons();
+                       setStatus(`${b.dataset.toggle} ${b.dataset.active === '1' ? 'resumed' : 'paused'} ✓`); }
+      }));
+      wrap.querySelectorAll('[data-copy]').forEach(b => b.addEventListener('click', () => {
+        const link = `https://www.steelo-design.com/?coupon=${b.dataset.copy}`;
+        navigator.clipboard.writeText(link).then(
+          () => setStatus('Link copied ✓'),
+          () => setStatus(link, false),
+        );
+      }));
+      wrap.querySelectorAll('[data-delete]').forEach(b => b.addEventListener('click', () => {
+        showConfirm(`Delete ${b.dataset.delete}? Past redemptions stay in the log.`, async () => {
+          const data = await couponRequest({ action: 'delete', code: b.dataset.delete });
+          if (data.ok) { coupons = data.coupons; renderCoupons(); setStatus('Coupon deleted ✓'); }
+        });
+      }));
+      wrap.querySelectorAll('[data-expand]').forEach(a => a.addEventListener('click', e => {
+        e.preventDefault();
+        expandedCoupon = expandedCoupon === a.dataset.expand ? null : a.dataset.expand;
+        renderCoupons();
+      }));
+    }
+
+    /* ---- Coupon form ---- */
+    const cType = document.getElementById('c-type');
+    cType.addEventListener('change', () => {
+      const isShipping = cType.value === 'free_shipping';
+      document.getElementById('c-value-group').style.display = isShipping ? 'none' : '';
+      document.getElementById('c-value-unit').textContent = cType.value === 'fixed' ? '(₪)' : '(%)';
+    });
+
+    document.getElementById('c-generate').addEventListener('click', () => {
+      // No 0/O or 1/I — these get read off a screen and typed by hand.
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+      let code = '';
+      for (let i = 0; i < 8; i++) code += chars[Math.floor(Math.random() * chars.length)];
+      document.getElementById('c-code').value = code;
+    });
+
+    document.querySelectorAll('.quick-pick').forEach(b => b.addEventListener('click', () => {
+      document.getElementById('c-max-uses').value = b.dataset.max;
+    }));
+
+    document.getElementById('coupon-save').addEventListener('click', async () => {
+      const btn = document.getElementById('coupon-save');
+      const err = document.getElementById('coupon-form-error');
+      const val = id => document.getElementById(id).value.trim();
+      err.style.display = 'none';
+      btn.disabled = true;
+      try {
+        const data = await couponRequest({ action: 'save', coupon: {
+          code:         val('c-code'),
+          type:         cType.value,
+          value:        cType.value === 'free_shipping' ? 0 : val('c-value'),
+          max_uses:     val('c-max-uses'),
+          per_customer: val('c-per-customer'),
+          min_subtotal: val('c-min') || 0,
+          expires_at:   val('c-expires'),
+          note:         val('c-note'),
+          active:       true,
+        }});
+        if (!data.ok) {
+          err.textContent = data.error || 'Could not save the coupon';
+          err.style.display = 'block';
+          return;
+        }
+        coupons = data.coupons;
+        renderCoupons();
+        setStatus(`Coupon ${val('c-code').toUpperCase()} saved ✓`);
+        ['c-code', 'c-value', 'c-max-uses', 'c-per-customer', 'c-min', 'c-expires', 'c-note']
+          .forEach(id => document.getElementById(id).value = '');
+      } catch (e) {
+        err.textContent = 'Could not reach the server.';
+        err.style.display = 'block';
+      } finally {
+        btn.disabled = false;
+      }
     });
 
     /* ---- Init ---- */

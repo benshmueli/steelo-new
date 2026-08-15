@@ -713,6 +713,91 @@ h1, h2, h3, h4, h5, h6, .hero-display {
   margin: 1rem 0 0;
 }
 
+/* ── Coupon ──────────────────────────────────────────────────────────────────
+   Collapsed to a plain text link by default. A prominent code field is one of
+   the reliable ways to lose a checkout: shoppers without a code leave to hunt
+   for one. Only someone who already has a code opens this. */
+.coupon { margin-top: 0.75rem; }
+
+.coupon-toggle {
+  background: none; border: none; padding: 0; cursor: pointer;
+  font-family: 'Montserrat', 'Heebo', sans-serif;
+  font-size: 0.75rem; font-weight: 300; color: var(--ink-400);
+  text-decoration: underline; text-underline-offset: 3px;
+  transition: color 0.2s;
+}
+.coupon-toggle:hover { color: var(--ink); }
+
+.coupon-form { display: flex; gap: 0.5rem; margin-top: 0.6rem; }
+.coupon-input {
+  flex: 1; min-width: 0;
+  /* Codes are Latin inside an RTL page — force the caret and text to the left
+     or "WELCOME10" types back to front. */
+  direction: ltr; text-align: left; text-transform: uppercase;
+  padding: 0.7rem 0.85rem;
+  background: var(--sand-100);
+  border: 1px solid var(--sand-300);
+  font-family: 'Montserrat', sans-serif;
+  font-size: 0.8rem; letter-spacing: 0.12em; color: var(--ink);
+  outline: none; transition: border-color 0.2s;
+}
+.coupon-input:focus { border-color: var(--ink); }
+.coupon-input::placeholder { color: var(--ink-400); letter-spacing: 0.12em; }
+
+.coupon-apply {
+  flex: 0 0 auto; padding: 0.7rem 1.4rem;
+  background: var(--ink); color: var(--sand); border: none; cursor: pointer;
+  font-family: 'Montserrat', 'Heebo', sans-serif;
+  font-size: 0.65rem; letter-spacing: 0.2em; text-transform: uppercase;
+  transition: opacity 0.2s;
+}
+.coupon-apply:hover    { opacity: 0.8; }
+.coupon-apply:disabled { opacity: 0.4; cursor: default; }
+
+.coupon-chip {
+  display: flex; align-items: center; gap: 0.6rem;
+  margin-top: 0.6rem; padding: 0.6rem 0.85rem;
+  background: var(--sand-200); border: 1px solid #B85C38;
+}
+.coupon-chip-code {
+  direction: ltr;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 0.72rem; letter-spacing: 0.15em; color: #B85C38; font-weight: 500;
+}
+.coupon-chip-amount {
+  flex: 1;
+  font-family: 'Cormorant', Georgia, serif; font-weight: 300;
+  font-size: 1.05rem; color: #B85C38;
+}
+.coupon-remove {
+  background: none; border: none; padding: 0.2rem 0.35rem; cursor: pointer;
+  font-size: 0.85rem; line-height: 1; color: var(--ink-400);
+  transition: color 0.2s;
+}
+.coupon-remove:hover { color: var(--ink); }
+
+/* Specific, never "invalid code": a shopper told the code expired stops
+   retyping it, a shopper told nothing tries four more times and leaves. */
+.coupon-error {
+  font-family: 'Montserrat', 'Heebo', sans-serif;
+  font-size: 0.72rem; color: #c0392b; margin: 0.5rem 0 0;
+}
+
+/* Summary rows added by buildOrderSummary() — subtotal, discount, delivery. */
+.checkout-sum-row {
+  display: flex; justify-content: space-between; align-items: baseline;
+  padding: 0.45rem 0; gap: 1rem;
+}
+.checkout-sum-row span:first-child {
+  font-family: 'Montserrat', 'Heebo', sans-serif;
+  font-size: 0.75rem; letter-spacing: 0.05em; color: var(--ink-500);
+}
+.checkout-sum-row span:last-child {
+  font-family: 'Cormorant', Georgia, serif; font-weight: 300;
+  font-size: 1.1rem; color: var(--ink); white-space: nowrap;
+}
+.checkout-sum-row.is-discount span { color: #B85C38; }
+
 .checkout-card-preview {
   display: flex; align-items: center; gap: 0.75rem;
   padding: 1rem; background: var(--sand-200);

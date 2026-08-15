@@ -16,13 +16,46 @@ function publicProducts() {
   return PRODUCTS.filter(p => p.id !== 'test').sort((a, b) => of(a) - of(b));
 }
 
+/* ---- Discount badge (same markup as grid_cards() in build.py) ---- */
+function discountBadge(discount) {
+  const badge = document.createElement('div');
+  badge.className = 'card-badge';
+  badge.textContent = `${discount}% OFF`;
+  badge.style.cssText = 'position:absolute;top:1rem;left:1rem;background:#B85C38;color:#fff;font-family:Montserrat,sans-serif;font-size:0.7rem;font-weight:600;letter-spacing:0.18em;padding:0.3rem 0.65rem;z-index:3;';
+  return badge;
+}
+
+/* Refresh prices on the static grid.
+
+   build.py bakes the grid into index.html at build time, on a laptop — great
+   for crawlers, but it means a discount set in the admin afterwards would never
+   show. PRODUCTS is served with the current discounts applied, so re-render the
+   price cell and badge from it and leave the rest of the card alone. */
+function refreshGridPrices(grid) {
+  grid.querySelectorAll('a[href^="/products/"]').forEach(card => {
+    const id = card.getAttribute('href').split('/').filter(Boolean).pop();
+    const p  = PRODUCTS.find(x => x.id === id);
+    if (!p) return;
+
+    const priceEl = card.querySelector('.card-price');
+    if (priceEl) priceEl.innerHTML = fmtPrice(p.price, p.discount);
+
+    const box   = card.querySelector('.product-card');
+    const badge = card.querySelector('.card-badge');
+    if (!box) return;
+    if (p.discount > 0 && !badge)      box.appendChild(discountBadge(p.discount));
+    else if (p.discount > 0 && badge)  badge.textContent = `${p.discount}% OFF`;
+    else if (badge)                    badge.remove();
+  });
+}
+
 /* ---- Render product grid ---- */
 function renderGrid() {
   const grid = document.getElementById('products-grid');
   if (!grid) return;
-  // The grid is pre-rendered as static HTML (for SEO/crawlability). If it's
-  // already populated with product links, leave it as-is (CSS handles hover).
-  if (grid.querySelector('a[href^="/products/"]')) return;
+  // The grid is pre-rendered as static HTML (for SEO/crawlability). Keep that
+  // markup — only the prices need bringing up to date.
+  if (grid.querySelector('a[href^="/products/"]')) return refreshGridPrices(grid);
   grid.innerHTML = '';
 
   publicProducts().forEach(p => {
@@ -72,12 +105,7 @@ function renderGrid() {
     imgBox.appendChild(overlay);
 
     /* discount badge */
-    if (p.discount > 0) {
-      const badge = document.createElement('div');
-      badge.textContent = `${p.discount}% OFF`;
-      badge.style.cssText = 'position:absolute;top:1rem;left:1rem;background:#B85C38;color:#fff;font-family:Montserrat,sans-serif;font-size:0.7rem;font-weight:600;letter-spacing:0.18em;padding:0.3rem 0.65rem;z-index:3;';
-      imgBox.appendChild(badge);
-    }
+    if (p.discount > 0) imgBox.appendChild(discountBadge(p.discount));
 
     /* header — category + name, above the image (mirrors grid_cards in build.py) */
     const head = document.createElement('div');

@@ -307,6 +307,19 @@ MODALS = '''  <!-- CART -->
           <div id="checkout-step2" style="display:none;">
             <h2 class="checkout-title">סיכום הזמנה</h2>
             <div id="checkout-order-items"></div>
+            <div class="coupon">
+              <button type="button" id="coupon-toggle" class="coupon-toggle">יש לך קוד קופון?</button>
+              <div id="coupon-form" class="coupon-form" style="display:none;">
+                <input id="coupon-input" type="text" dir="ltr" autocomplete="off" spellcheck="false" maxlength="32" placeholder="CODE" class="coupon-input">
+                <button type="button" id="coupon-apply" class="coupon-apply">החל</button>
+              </div>
+              <div id="coupon-chip" class="coupon-chip" style="display:none;">
+                <span id="coupon-chip-code" class="coupon-chip-code"></span>
+                <span id="coupon-chip-amount" class="coupon-chip-amount"></span>
+                <button type="button" id="coupon-remove" class="coupon-remove" aria-label="הסרת הקופון">✕</button>
+              </div>
+              <p id="coupon-error" class="coupon-error" style="display:none;"></p>
+            </div>
             <div class="checkout-total-row"><span>סה״כ</span><span id="checkout-order-total"></span></div>
             <p class="checkout-note">כל הפריטים מיוצרים בהזמנה — זמן אספקה 5-10 ימי עסקים. נאשר את ההזמנה במייל ובוואטסאפ.</p>
             <p id="checkout-pay-error" style="display:none;font-family:Montserrat,Heebo;font-size:0.75rem;color:#c0392b;margin:1rem 0 0;"></p>
@@ -346,13 +359,13 @@ MODALS = '''  <!-- CART -->
 
 SCRIPTS = '''  <script src="/js/nav.js?v=1"></script>
   <script src="/js/i18n.js?v=1"></script>
-  <script src="/js/data.js?v=16"></script>
+  <script src="/js/data.js?v=17"></script>
   <!-- tracking before cart/checkout: they call into it on user actions -->
   <script src="/js/tracking.js?v=1"></script>
   <script src="/js/cart.js?v=9"></script>
   <!-- jQuery required by Tranzila's embedded payment iframe (Apple Pay / Google Pay) -->
   <script src="/js/jquery.min.js?v=1"></script>
-  <script src="/js/checkout.js?v=10"></script>
+  <script src="/js/checkout.js?v=11"></script>
   <!-- Tranzila Apple Pay bridge (must load on the page that hosts the payment iframe) -->
   <script type="text/javascript" src="https://direct.tranzila.com/Tranzila_files/jquery.js"></script>
   <script>document.write('<script src="https://direct.tranzila.com/js/tranzilanapple_v3.js?v=' + Date.now() + '"><\\/script>');</script>
@@ -530,7 +543,7 @@ def product_page(p):
   <meta property="product:price:amount" content="{price}">
   <meta property="product:price:currency" content="ILS">
   {FONTS}
-  <link rel="stylesheet" href="/css/styles.css?v=25">
+  <link rel="stylesheet" href="/css/styles.css?v=26">
   <script type="application/ld+json">{json.dumps(ld_product, ensure_ascii=False)}</script>
   <script type="application/ld+json">{json.dumps(ld_crumbs, ensure_ascii=False)}</script>
   {META_PIXEL_TAG}
@@ -562,7 +575,10 @@ def product_page(p):
         <div>
           <p style="font-family:Montserrat,Heebo;font-size:0.65rem;letter-spacing:0.3em;text-transform:uppercase;color:var(--ink-400);margin:0 0 1rem;">{esc(cat)}</p>
           <h1 style="font-family:'Cormorant','Frank Ruhl Libre',Georgia,serif;font-weight:300;font-size:clamp(2.5rem,4.5vw,3.75rem);line-height:1.05;color:var(--ink);margin:0 0 1.5rem;">{esc(name)}</h1>
-          <div style="font-family:'Cormorant','Frank Ruhl Libre',Georgia,serif;font-weight:300;font-size:2.5rem;color:var(--ink);line-height:1;margin-bottom:2rem;">{price_html(price)}</div>
+          <!-- Rendered here for crawlers and no-JS, then re-rendered from
+               PRODUCTS on load so an admin discount set after this page was
+               built still shows. See the pdp-price script at the bottom. -->
+          <div id="pdp-price" data-product="{esc(pid)}" style="font-family:'Cormorant','Frank Ruhl Libre',Georgia,serif;font-weight:300;font-size:2.5rem;color:var(--ink);line-height:1;margin-bottom:2rem;">{price_cell_html(p)}</div>
           {desc_html}
           <div style="border-top:1px solid var(--sand-300);margin-bottom:2rem;">
             {dim_html}
@@ -594,6 +610,18 @@ def product_page(p):
         "currency": "ILS",
     }, ensure_ascii=False)};
     if (typeof stlTrackViewContent === 'function') stlTrackViewContent();
+
+    /* Re-render the price from PRODUCTS, which the server serves with the
+       admin's current discounts applied. Without this the page would keep
+       showing whatever price it was built with, while the cart charged the
+       discounted one. fmtPrice() is cart.js's, so all three price displays —
+       grid, quick-view and here — round the same way. */
+    (function () {{
+      var el = document.getElementById('pdp-price');
+      if (!el || typeof PRODUCTS === 'undefined' || typeof fmtPrice !== 'function') return;
+      var p = PRODUCTS.find(function (x) {{ return x.id === el.dataset.product; }});
+      if (p) el.innerHTML = fmtPrice(p.price, p.discount);
+    }})();
   </script>
 </body>
 </html>
@@ -669,7 +697,7 @@ def content_page(slug, title, mdesc, h1, body_html, crumb, ld_extra=None):
   <meta property="og:url" content="{url}">
   <meta property="og:image" content="{SITE}/images/logo.png">
   {FONTS}
-  <link rel="stylesheet" href="/css/styles.css?v=25">
+  <link rel="stylesheet" href="/css/styles.css?v=26">
   <style>
 {CONTENT_CSS}
   </style>
@@ -762,7 +790,9 @@ def grid_cards(products):
         secondary = imgs[1] if len(imgs) > 1 else primary
         alt = f"{name} — {cat} מנירוסטה" if cat else name
         discount = p.get("discount") or 0
-        badge = (f'\n          <div style="position:absolute;top:1rem;left:1rem;background:#B85C38;color:#fff;'
+        # class="card-badge" so refreshGridPrices() in main.js can find and update
+        # it when the admin changes the discount after this page was built.
+        badge = (f'\n          <div class="card-badge" style="position:absolute;top:1rem;left:1rem;background:#B85C38;color:#fff;'
                  f'font-family:Montserrat,sans-serif;font-size:0.7rem;font-weight:600;letter-spacing:0.18em;'
                  f'padding:0.3rem 0.65rem;z-index:3;">{discount}% OFF</div>') if discount > 0 else ""
         out.append(
