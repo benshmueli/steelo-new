@@ -1433,14 +1433,49 @@ class Handler(SimpleHTTPRequestHandler):
             self._json(400, {'ok': False, 'error': f'Payment not confirmed (Response={response})'})
 
     def _handle_payment_result(self):
-        """Legacy /payment-result handler — kept for backwards compat."""
+        """Legacy /payment-result handler — still live, not dead code: the
+        Tranzila terminal's own dashboard is configured with this URL and uses
+        it in preference to the success_url/fail_url we pass per transaction.
+
+        Tranzila appends its whole result payload to that URL, which already
+        ends in `?status=…`, so everything arrives double-encoded *inside* the
+        `status` value. The old test — `'success' in status` — matched on any
+        substring, and that blob always contains
+        `success_url=…/payment-result?status=success`. A genuinely DECLINED
+        card (Response=141, Amex on an acquirer that doesn't take it) was
+        therefore treated as paid: marked Paid in the sheet, redirected to the
+        thank-you page, and reported to Meta as a Purchase.
+
+        So decide on Tranzila's numeric Response code, which is unambiguous:
+        '000' is the only approval. The unpacked payload also carries the real
+        Order_ID, so the order no longer has to be guessed from the pending
+        list.
+        """
         import urllib.parse
         parsed = urllib.parse.urlparse(self.path)
         params = urllib.parse.parse_qs(parsed.query)
-        status   = params.get('status', ['fail'])[0]
-        order_id = (params.get('Order_ID', None) or params.get('order_id', ['']))[0]
-        print(f'  [PaymentResult/legacy] status={status} path={self.path}')
-        if 'success' in status:
+
+        # Unpack the payload Tranzila buried inside `status`.
+        status = (params.get('status') or [''])[0]
+        if '=' in status:
+            for key, val in urllib.parse.parse_qs(status).items():
+                params.setdefault(key, val)
+            status = status.split('&', 1)[0]
+
+        response = (params.get('Response') or [''])[0].strip()
+        order_id = (params.get('Order_ID') or params.get('order_id') or [''])[0]
+
+        # A Response code, when present, is authoritative. Only fall back to
+        # the `status` word when Tranzila sent no code at all.
+        if response:
+            approved = response == '000'
+        else:
+            approved = status.strip().lower() == 'success'
+
+        print(f'  [PaymentResult/legacy] approved={approved} '
+              f'Response={response or "(none)"} order={order_id or "(none)"}')
+
+        if approved:
             self._save_order_from_params(params, order_id)
             redirect_url = f'/?payment=success&order_id={urllib.parse.quote(order_id)}'
         else:
