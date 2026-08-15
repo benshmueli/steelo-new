@@ -798,6 +798,15 @@ h1, h2, h3, h4, h5, h6, .hero-display {
 }
 .checkout-sum-row.is-discount span { color: #B85C38; }
 
+/* Shown when a coupon replaced a running sale, so the rows above are priced at
+   the ticket price rather than the sale price the product page advertises. */
+.coupon-stack-note {
+  font-family: 'Montserrat', 'Heebo', sans-serif;
+  font-size: 0.65rem; letter-spacing: 0.05em;
+  color: var(--ink-400);
+  margin: 0 0 0.35rem;
+}
+
 .checkout-card-preview {
   display: flex; align-items: center; gap: 0.75rem;
   padding: 1rem; background: var(--sand-200);
