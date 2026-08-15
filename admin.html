@@ -387,6 +387,13 @@
       font-size: 0.6rem; cursor: pointer; transition: border-color 0.2s, color 0.2s;
     }
     .quick-pick:hover { border-color: var(--ink); color: var(--ink); }
+    .checkbox-label {
+      display: flex; align-items: center; gap: 0.6rem;
+      cursor: pointer; text-transform: none; letter-spacing: 0.05em;
+      font-size: 0.75rem; color: var(--ink);
+    }
+    .checkbox-label input { width: auto; margin: 0; cursor: pointer; accent-color: var(--ink); }
+    .hint strong { color: var(--ink-400); font-weight: 600; }
 
     #coupon-save {
       margin-top: 1.5rem;
@@ -667,6 +674,17 @@
           <div class="form-group wide">
             <label for="c-note">Internal note <span class="hint">(never shown to the customer)</span></label>
             <input id="c-note" type="text" maxlength="200" placeholder="For Dana at studio X">
+          </div>
+          <div class="form-group wide" id="c-stackable-group">
+            <label class="checkbox-label">
+              <input id="c-stackable" type="checkbox">
+              <span>Combines with sale prices</span>
+            </label>
+            <span class="hint">
+              Leave unchecked for ללא כפל מבצעים — the coupon <strong>replaces</strong> any running
+              sale. During a 10% sale, a 25% coupon then gives the customer 25% off the list price,
+              not 32.5%. Tick it to have the coupon stack on top of the sale instead.
+            </span>
           </div>
         </div>
         <button id="coupon-save">Save coupon</button>
@@ -1127,7 +1145,13 @@
               <span class="coupon-code">${esc(c.code)}</span>
               ${c.note ? `<span class="coupon-note">${esc(c.note)}</span>` : ''}
             </td>
-            <td>${couponValueLabel(c)}${limits ? `<span class="coupon-note">${limits}</span>` : ''}</td>
+            <td>
+              ${couponValueLabel(c)}
+              ${c.type !== 'free_shipping'
+                ? `<span class="coupon-note">${c.stackable ? 'stacks with sales' : 'no stacking'}</span>`
+                : ''}
+              ${limits ? `<span class="coupon-note">${limits}</span>` : ''}
+            </td>
             <td>
               ${uses}
               ${c.used_count ? `<span class="coupon-note"><a href="#" data-expand="${esc(c.code)}" style="color:var(--ink-400);">${open ? 'hide' : 'who used it'}</a></span>` : ''}
@@ -1136,6 +1160,7 @@
             <td><span class="pill ${c.status}">${c.status}</span></td>
             <td>
               <div class="row-actions">
+                <button data-edit="${esc(c.code)}">Edit</button>
                 <button data-toggle="${esc(c.code)}" data-active="${c.active ? '0' : '1'}">${c.active ? 'Pause' : 'Resume'}</button>
                 <button data-copy="${esc(c.code)}">Copy link</button>
                 <button class="del" data-delete="${esc(c.code)}">Delete</button>
@@ -1177,13 +1202,41 @@
         expandedCoupon = expandedCoupon === a.dataset.expand ? null : a.dataset.expand;
         renderCoupons();
       }));
+      wrap.querySelectorAll('[data-edit]').forEach(b => b.addEventListener('click', () => {
+        loadCouponIntoForm(b.dataset.edit);
+      }));
+    }
+
+    /* Saving upserts on the code, so loading a coupon back into the form and
+       pressing Save updates it — no separate edit endpoint needed. Without this
+       every field had to be retyped just to flip one setting. */
+    function loadCouponIntoForm(code) {
+      const c = coupons.find(x => x.code === code);
+      if (!c) return;
+      const set = (id, v) => document.getElementById(id).value = v == null ? '' : v;
+      set('c-code', c.code);
+      cType.value = c.type || 'percent';
+      cType.dispatchEvent(new Event('change'));
+      set('c-value', c.type === 'free_shipping' ? '' : c.value);
+      set('c-max-uses', c.max_uses);
+      set('c-per-customer', c.per_customer);
+      set('c-min', c.min_subtotal || '');
+      set('c-expires', c.expires_at);
+      set('c-note', c.note);
+      document.getElementById('c-stackable').checked = !!c.stackable;
+      document.querySelector('.coupon-form-card').scrollIntoView({ behavior: 'smooth', block: 'center' });
+      document.getElementById('c-code').focus();
+      setStatus(`Editing ${c.code} — press Save coupon to apply`);
     }
 
     /* ---- Coupon form ---- */
     const cType = document.getElementById('c-type');
     cType.addEventListener('change', () => {
+      // Free shipping has no sale price to stack with, so both the value and
+      // the stacking choice are meaningless for it.
       const isShipping = cType.value === 'free_shipping';
-      document.getElementById('c-value-group').style.display = isShipping ? 'none' : '';
+      document.getElementById('c-value-group').style.display     = isShipping ? 'none' : '';
+      document.getElementById('c-stackable-group').style.display = isShipping ? 'none' : '';
       document.getElementById('c-value-unit').textContent = cType.value === 'fixed' ? '(₪)' : '(%)';
     });
 
@@ -1215,6 +1268,7 @@
           min_subtotal: val('c-min') || 0,
           expires_at:   val('c-expires'),
           note:         val('c-note'),
+          stackable:    document.getElementById('c-stackable').checked,
           active:       true,
         }});
         if (!data.ok) {
@@ -1227,6 +1281,7 @@
         setStatus(`Coupon ${val('c-code').toUpperCase()} saved ✓`);
         ['c-code', 'c-value', 'c-max-uses', 'c-per-customer', 'c-min', 'c-expires', 'c-note']
           .forEach(id => document.getElementById(id).value = '');
+        document.getElementById('c-stackable').checked = false;   // back to no-stacking
       } catch (e) {
         err.textContent = 'Could not reach the server.';
         err.style.display = 'block';

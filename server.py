@@ -710,14 +710,18 @@ def order_lines(order):
         qty = max(1, min(int(item.get('qty', 1) or 1), 99))
         p   = catalog.get(pid)
         if p:
-            unit = sale_price(p['price'], p['discount'])
+            # `list_unit` is the pre-sale price. A non-stacking coupon is
+            # measured against it, so "25% off" means 25% off the ticket price
+            # rather than 25% off an already-reduced one.
+            list_unit = int(p['price'])
+            unit      = sale_price(list_unit, p['discount'])
             name, cat, dims = p['name'], p['category'], p['dimensions']
         else:
             # Unknown id (a product deleted mid-checkout): fall back to what the
             # browser sent rather than dropping a paid-for line from the order.
-            unit = int(item.get('price', 0) or 0)
+            unit = list_unit = int(item.get('price', 0) or 0)
             name, cat, dims = item.get('name', ''), item.get('category', ''), ''
-        lines.append({'id': pid, 'qty': qty, 'unit': unit,
+        lines.append({'id': pid, 'qty': qty, 'unit': unit, 'list_unit': list_unit,
                       'name': name, 'category': cat, 'dimensions': dims})
     return lines
 
@@ -734,16 +738,22 @@ def price_order(order, coupon_code=None):
     delivery = compute_delivery_fee(order, lines)
 
     code = (coupon_code or '').strip().upper()
+    # `subtotal` and `coupon_discount` are the sale-price basis and the real
+    # reduction — build_purchase_data() divides by them to spread the coupon
+    # across invoice lines, so their meaning must not drift. The display_* pair
+    # is what the summary screen shows, and it only differs for a non-stacking
+    # coupon, which prices against the ticket price instead.
     result = {
         'lines': lines, 'subtotal': subtotal, 'delivery_fee': delivery,
         'coupon': '', 'coupon_discount': 0, 'coupon_label': '',
         'free_shipping': False, 'coupon_error': '',
+        'display_subtotal': subtotal, 'display_discount': 0, 'list_price_ids': [],
         'total': subtotal + delivery,
     }
     if not code:
         return result
 
-    ok, discount, free_shipping, message = evaluate_coupon(
+    ok, discount, free_shipping, message, list_ids = evaluate_coupon(
         code, lines, subtotal, delivery, order,
     )
     if not ok:
@@ -754,8 +764,17 @@ def price_order(order, coupon_code=None):
     result['coupon_discount'] = discount
     result['coupon_label']    = message
     result['free_shipping']   = free_shipping
+    result['list_price_ids']  = list_ids
     result['delivery_fee']    = 0 if free_shipping else delivery
     result['total']           = max(subtotal - discount, 0) + result['delivery_fee']
+
+    # Re-express the same reduction against whatever the rows will be priced at,
+    # so the summary always reconciles:
+    #   display_subtotal − display_discount == subtotal − coupon_discount
+    display_subtotal = sum((l['list_unit'] if l['id'] in list_ids else l['unit']) * l['qty']
+                           for l in lines)
+    result['display_subtotal'] = display_subtotal
+    result['display_discount'] = display_subtotal - (subtotal - discount)
     return result
 
 
@@ -842,6 +861,7 @@ _MSG = {
     'min':       'הקופון תקף מהזמנה של ₪{}',
     'items':     'הקופון לא תקף למוצרים שבעגלה',
     'zero':      'לא ניתן להשלים הזמנה בסכום 0 — צרו קשר',
+    'worse':     'המבצע הקיים משתלם יותר מהקופון',
 }
 
 
@@ -938,53 +958,74 @@ def evaluate_coupon(code, lines, subtotal, delivery, order):
     """
     coupon = find_coupon(code)
     if not coupon:
-        return False, 0, False, _MSG['unknown']
+        return False, 0, False, _MSG['unknown'], []
     if not coupon.get('active', True):
-        return False, 0, False, _MSG['inactive']
+        return False, 0, False, _MSG['inactive'], []
 
     today = _il_today()
     starts, expires = _as_date(coupon.get('starts_at')), _as_date(coupon.get('expires_at'))
     if starts and today < starts:
-        return False, 0, False, _MSG['early']
+        return False, 0, False, _MSG['early'], []
     if expires and today > expires:
-        return False, 0, False, _MSG['expired']
+        return False, 0, False, _MSG['expired'], []
 
     max_uses = coupon.get('max_uses')
     if max_uses and coupon_used_count(coupon['code']) >= int(max_uses):
-        return False, 0, False, _MSG['exhausted']
+        return False, 0, False, _MSG['exhausted'], []
 
     per_customer = coupon.get('per_customer')
     if per_customer:
         used = coupon_customer_uses(coupon['code'], order.get('email'), order.get('phone'))
         if used >= int(per_customer):
-            return False, 0, False, _MSG['per_cust']
+            return False, 0, False, _MSG['per_cust'], []
 
     min_subtotal = int(coupon.get('min_subtotal') or 0)
     if min_subtotal and subtotal < min_subtotal:
-        return False, 0, False, _MSG['min'].format(f'{min_subtotal:,}')
+        return False, 0, False, _MSG['min'].format(f'{min_subtotal:,}'), []
 
     applies_to = coupon.get('applies_to') or None
-    if applies_to:
-        eligible = sum(l['unit'] * l['qty'] for l in lines if l['id'] in applies_to)
-        if eligible <= 0:
-            return False, 0, False, _MSG['items']
-    else:
-        eligible = subtotal
+    in_scope   = [l for l in lines if not applies_to or l['id'] in applies_to]
+    eligible      = sum(l['unit']      * l['qty'] for l in in_scope)   # sale prices
+    eligible_list = sum(l['list_unit'] * l['qty'] for l in in_scope)   # ticket prices
+    if applies_to and eligible <= 0:
+        return False, 0, False, _MSG['items'], []
 
     ctype = coupon.get('type', 'percent')
     value = float(coupon.get('value') or 0)
     if ctype == 'free_shipping':
-        return True, 0, True, norm_code(coupon['code'])
-    if ctype == 'fixed':
-        discount = min(int(round(value)), eligible)
-    else:  # percent — applies to the already-discounted subtotal, by design
-        discount = int(round(eligible * value / 100))
+        # Shipping carries no sale price, so stacking is meaningless for it.
+        return True, 0, True, norm_code(coupon['code']), []
+
+    # Missing on coupons written before the flag existed. True keeps their
+    # original behaviour rather than quietly making them stingier.
+    stackable = coupon.get('stackable', True)
+
+    # The two modes differ only in what the discount is measured from, so work
+    # out the price the customer should land on and derive the discount:
+    #
+    #   stacks      → off what they'd otherwise pay, so 25% on top of a 10% sale
+    #                 takes 32.5% off the ticket price.
+    #   no stacking → the coupon *replaces* the sale. 25% means they pay 75% of
+    #                 the ticket price, full stop; the sale they were already
+    #                 getting is netted out of the discount.
+    base   = eligible if stackable else eligible_list
+    target = base - round(value) if ctype == 'fixed' else base * (1 - value / 100)
+    discount = int(round(eligible - target))
+
+    # A non-stacking coupon weaker than the running sale would otherwise *raise*
+    # the price. Nobody may end up worse off for entering a code.
+    if discount <= 0:
+        return False, 0, False, _MSG['worse'], []
 
     # Never eats into shipping, and never leaves a total Tranzila cannot charge.
     discount = max(0, min(discount, subtotal))
     if subtotal - discount + delivery < 1:
-        return False, 0, False, _MSG['zero']
-    return True, discount, False, norm_code(coupon['code'])
+        return False, 0, False, _MSG['zero'], []
+
+    # Which rows the summary should price at the ticket rate — empty when the
+    # coupon stacks, since then the sale prices still stand.
+    list_ids = [] if stackable else [l['id'] for l in in_scope]
+    return True, discount, False, norm_code(coupon['code']), list_ids
 
 
 def redeem_coupon(order):
@@ -1067,6 +1108,9 @@ def upsert_coupon(payload):
             'max_uses':     n_or_none(payload.get('max_uses')),
             'per_customer': n_or_none(payload.get('per_customer')),
             'min_subtotal': int(payload.get('min_subtotal') or 0),
+            # False = "ללא כפל מבצעים": the coupon replaces any running sale
+            # rather than compounding with it.
+            'stackable':    bool(payload.get('stackable', False)),
             'starts_at':    (payload.get('starts_at') or '')[:10] or None,
             'expires_at':   (payload.get('expires_at') or '')[:10] or None,
             'applies_to':   payload.get('applies_to') or None,
@@ -1289,6 +1333,12 @@ class Handler(SimpleHTTPRequestHandler):
                 'subtotal':      pricing['subtotal'],
                 'delivery_fee':  pricing['delivery_fee'],
                 'total':         pricing['total'],
+                # What the summary renders. Equal to the pair above unless the
+                # coupon replaces a sale, in which case rows price at the ticket
+                # price so a "25% off" code visibly takes 25% off.
+                'display_subtotal': pricing['display_subtotal'],
+                'display_discount': pricing['display_discount'],
+                'list_price_ids':   pricing['list_price_ids'],
             })
         except Exception as e:
             print(f'  [Coupon] validate failed: {e}')

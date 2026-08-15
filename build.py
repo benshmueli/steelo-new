@@ -365,7 +365,7 @@ SCRIPTS = '''  <script src="/js/nav.js?v=1"></script>
   <script src="/js/cart.js?v=9"></script>
   <!-- jQuery required by Tranzila's embedded payment iframe (Apple Pay / Google Pay) -->
   <script src="/js/jquery.min.js?v=1"></script>
-  <script src="/js/checkout.js?v=11"></script>
+  <script src="/js/checkout.js?v=12"></script>
   <!-- Tranzila Apple Pay bridge (must load on the page that hosts the payment iframe) -->
   <script type="text/javascript" src="https://direct.tranzila.com/Tranzila_files/jquery.js"></script>
   <script>document.write('<script src="https://direct.tranzila.com/js/tranzilanapple_v3.js?v=' + Date.now() + '"><\\/script>');</script>
@@ -543,7 +543,7 @@ def product_page(p):
   <meta property="product:price:amount" content="{price}">
   <meta property="product:price:currency" content="ILS">
   {FONTS}
-  <link rel="stylesheet" href="/css/styles.css?v=26">
+  <link rel="stylesheet" href="/css/styles.css?v=27">
   <script type="application/ld+json">{json.dumps(ld_product, ensure_ascii=False)}</script>
   <script type="application/ld+json">{json.dumps(ld_crumbs, ensure_ascii=False)}</script>
   {META_PIXEL_TAG}
@@ -697,7 +697,7 @@ def content_page(slug, title, mdesc, h1, body_html, crumb, ld_extra=None):
   <meta property="og:url" content="{url}">
   <meta property="og:image" content="{SITE}/images/logo.png">
   {FONTS}
-  <link rel="stylesheet" href="/css/styles.css?v=26">
+  <link rel="stylesheet" href="/css/styles.css?v=27">
   <style>
 {CONTENT_CSS}
   </style>

@@ -84,8 +84,10 @@ function renderCoupon() {
     toggle.style.display = 'none';
     chip.style.display   = 'flex';
     document.getElementById('coupon-chip-code').textContent = '✓ ' + appliedCoupon.code;
+    // displayDiscount, so the chip and the summary row never disagree — for a
+    // sale-replacing coupon the two figures differ.
     document.getElementById('coupon-chip-amount').innerHTML =
-      appliedCoupon.free_shipping ? 'משלוח חינם' : '−' + fmt(appliedCoupon.discount);
+      appliedCoupon.free_shipping ? 'משלוח חינם' : '−' + fmt(appliedCoupon.displayDiscount);
   } else {
     chip.style.display   = 'none';
     toggle.style.display = '';
@@ -119,8 +121,18 @@ async function applyCoupon(code, opts) {
       if (!(opts && opts.silent)) showCouponError(data.error || 'קוד קופון לא קיים');
       return false;
     }
-    appliedCoupon = { code: data.code, discount: data.discount,
-                      free_shipping: data.free_shipping };
+    appliedCoupon = {
+      code:          data.code,
+      discount:      data.discount,
+      free_shipping: data.free_shipping,
+      // What the summary renders. Differs from `discount` only for a coupon
+      // that replaces a sale rather than stacking with it: the rows in
+      // listPriceIds are then priced at the ticket price, so a 25% code shows
+      // a 25% reduction instead of a smaller number off an already-cut price.
+      displaySubtotal: data.display_subtotal,
+      displayDiscount: data.display_discount,
+      listPriceIds:    data.list_price_ids || [],
+    };
     renderCoupon();
     buildOrderSummary();
     return true;
@@ -190,6 +202,13 @@ function showCheckoutStep(n) {
 function buildOrderSummary() {
   const el = document.getElementById('checkout-order-items');
   el.innerHTML = '';
+
+  // A non-stacking coupon replaces the sale, so the rows it covers are priced
+  // at the ticket price. cart.js already keeps `originalPrice` on every item.
+  const listIds  = (appliedCoupon && appliedCoupon.listPriceIds) || [];
+  const rowPrice = item => (listIds.includes(item.id) ? item.originalPrice : item.price);
+  const replacesSale = listIds.length > 0;
+
   cart.forEach(item => {
     const row = document.createElement('div');
     row.style.cssText = 'display:flex;justify-content:space-between;align-items:baseline;padding:0.6rem 0;border-bottom:1px solid var(--sand-300);gap:1rem;';
@@ -198,14 +217,20 @@ function buildOrderSummary() {
         <span style="font-family:Cormorant,Georgia,serif;font-weight:300;font-size:1.15rem;color:var(--ink);">${item.name}</span>
         <span style="font-family:Montserrat;font-size:0.7rem;letter-spacing:0.15em;text-transform:uppercase;color:var(--ink-400);margin-left:0.5rem;">×${item.quantity}</span>
       </div>
-      <span style="font-family:Cormorant,Georgia,serif;font-weight:300;font-size:1.1rem;color:var(--ink);white-space:nowrap;">${fmt(item.price * item.quantity)}</span>`;
+      <span style="font-family:Cormorant,Georgia,serif;font-weight:300;font-size:1.1rem;color:var(--ink);white-space:nowrap;">${fmt(rowPrice(item) * item.quantity)}</span>`;
     el.appendChild(row);
   });
-  const itemsTotal = cart.reduce((s, i) => s + i.price * i.quantity, 0);
+
   const isPickup = getDeliveryMethod() === 'pickup';
   const freeShip = !!(appliedCoupon && appliedCoupon.free_shipping);
   const fee      = freeShip ? 0 : deliveryFee();
-  const discount = appliedCoupon && !freeShip ? appliedCoupon.discount : 0;
+  // The server's figures win whenever a coupon is applied — it is the only side
+  // that knows the stacking rule, and the total shown has to be the total
+  // charged. Falls back to the cart's own arithmetic when there is no coupon.
+  const itemsTotal = appliedCoupon && !freeShip
+    ? appliedCoupon.displaySubtotal
+    : cart.reduce((s, i) => s + i.price * i.quantity, 0);
+  const discount = appliedCoupon && !freeShip ? appliedCoupon.displayDiscount : 0;
 
   const sumRow = (label, value, cls) => {
     const row = document.createElement('div');
@@ -219,6 +244,14 @@ function buildOrderSummary() {
   if (discount) {
     sumRow('ביניים', fmt(itemsTotal));
     sumRow(`הנחה (${appliedCoupon.code})`, '−' + fmt(discount), 'is-discount');
+    // Explains why these rows are dearer than the sale prices on the product
+    // page — the coupon took the sale's place rather than adding to it.
+    if (replacesSale) {
+      const note = document.createElement('p');
+      note.className = 'coupon-stack-note';
+      note.textContent = 'ללא כפל מבצעים';
+      el.appendChild(note);
+    }
   }
   if (isPickup)      sumRow('איסוף עצמי', 'חינם');
   else if (freeShip) sumRow('משלוח', 'חינם', 'is-discount');
@@ -289,6 +322,9 @@ document.getElementById('checkout-to-payment-btn').addEventListener('click', asy
   const method    = getDeliveryMethod();
   const freeShip  = !!(appliedCoupon && appliedCoupon.free_shipping);
   const fee       = freeShip ? 0 : deliveryFee();
+  // `discount`, not `displayDiscount`: this pairs with the cart's sale prices,
+  // where the summary pairs displayDiscount with displaySubtotal. Both land on
+  // the same total, and the server recomputes it regardless.
   const discount  = appliedCoupon && !freeShip ? appliedCoupon.discount : 0;
   const itemsTotal = cart.reduce((s, i) => s + i.price * i.quantity, 0);
   const total     = Math.max(itemsTotal - discount, 0) + fee;
