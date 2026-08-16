@@ -1,26 +1,51 @@
 /* ──────────────────────────────────────────────────────────────────────────
-   STEELO — Launch event popup
+   STEELO — Pop-up store & sale announcement
    Shows on every visit (no dismissal memory). Clear X to close (also Esc /
-   backdrop click) plus an "Add to Calendar" button linking to the event.
+   backdrop click) plus a button through to the collection.
 
    The invitation used to be a single 1535x1024 JPEG. On a phone that renders
    around 350px wide, so its lettering landed at roughly 23% of design size and
    no CSS could enlarge it — the text was pixels. The copy is now real HTML and
    only the product panel stayed an image (images/launch-invite-panel.jpg, the
-   right half of the original). The date can be edited here without a graphics
-   tool, and a screen reader can read it.
+   right half of the original). The dates can be edited here without a graphics
+   tool, and a screen reader can read them.
+
+   Was the launch-night invitation; now runs the KIXBOX pop-up and the sale.
+
+   The two dates below expire themselves, because they expire on different days:
+   the sale ends 22.8 but the pop-up runs to 14.9. Left to a human to remember,
+   that gap is a fortnight in which the popup keeps promising 10% off after the
+   discount has been switched off in /admin.html — and the cart charges full
+   price. Extending either one means changing the date here AND the discount in
+   the admin; they have to move together.
    ────────────────────────────────────────────────────────────────────────── */
 (function () {
-  var CALENDAR_URL = 'https://calendar.app.google/crQeDPq9hND7Mo699';
-  var PANEL_IMG    = 'images/launch-invite-panel.jpg';
+  var SHOP_URL  = '#collection';
+  var PANEL_IMG = 'images/launch-invite-panel.jpg';
+
+  var SALE_ENDS  = '2026-08-22';   // after this day the sale line disappears
+  var POPUP_ENDS = '2026-09-14';   // after this day nothing shows at all
+
+  /* Inclusive to the end of the visitor's own day: "until 22.8" has to still be
+     true at 22:00 on the 22nd. No timezone suffix, so the string parses as
+     local time rather than UTC. */
+  function past(date) {
+    return Date.now() > new Date(date + 'T23:59:59').getTime();
+  }
+
+  if (past(POPUP_ENDS)) return;    // nothing injected — no styles, no markup
+
+  var showSale = !past(SALE_ENDS);
 
   // Event details — edit here.
   var EVENT = {
-    intro:  "We're excited to invite you to our launch event",
-    venue:  'At KIXBOX, Tel Aviv',
-    label:  'Opening night',
-    when:   '13.8  |  19:00–23:00',
-    where:  'Shenkin 57, Tel Aviv'
+    intro:     'Our pop-up store is now open at KIXBOX',
+    venue:     'Come and visit us in store',
+    label:     'On now until',
+    when:      '14.9',
+    where:     'Shenkin 57, Tel Aviv',
+    saleTitle: '10% off everything',
+    saleNote:  'This week only — until 22.8'
   };
 
   // ── Styles ────────────────────────────────────────────────────────────────
@@ -67,6 +92,22 @@
     display:block;font-family:'Montserrat',sans-serif;font-weight:400;
     font-size:1.15rem;letter-spacing:.04em;color:#1A1715;
   }
+  /* Sale block — same typographic scale as the date above it, separated by a
+     hairline rather than a coloured badge so it reads as part of the card. */
+  #event-popup .evt-sale{
+    margin:0;padding-top:1.25rem;width:100%;max-width:24ch;
+    border-top:1px solid #E6DFD8;
+  }
+  #event-popup .evt-sale-title{
+    display:block;font-family:'Montserrat',sans-serif;font-weight:500;
+    font-size:.9rem;letter-spacing:.18em;text-transform:uppercase;color:#1A1715;
+    margin-bottom:.4rem;
+  }
+  #event-popup .evt-sale-note{
+    display:block;font-family:'Montserrat',sans-serif;font-weight:300;
+    font-size:.8rem;letter-spacing:.04em;color:#746862;
+  }
+
   #event-popup .evt-cal{
     display:inline-flex;align-items:center;gap:.6rem;
     font-family:'Montserrat',sans-serif;font-weight:500;
@@ -109,7 +150,7 @@
   overlay.id = 'event-popup-overlay';
   overlay.setAttribute('role', 'dialog');
   overlay.setAttribute('aria-modal', 'true');
-  overlay.setAttribute('aria-label', 'STEELO launch event invitation');
+  overlay.setAttribute('aria-label', 'STEELO pop-up store and sale');
   overlay.innerHTML = `
     <div id="event-popup">
       <button id="event-popup-close" aria-label="Close invitation">
@@ -125,9 +166,13 @@
           <span class="evt-when">${EVENT.when}</span>
         </p>
         <p class="evt-where">${EVENT.where}</p>
-        <a class="evt-cal" href="${CALENDAR_URL}" target="_blank" rel="noopener">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-          Add to Calendar
+        ${showSale ? `<p class="evt-sale">
+          <span class="evt-sale-title">${EVENT.saleTitle}</span>
+          <span class="evt-sale-note">${EVENT.saleNote}</span>
+        </p>` : ''}
+        <a class="evt-cal" id="evt-shop" href="${SHOP_URL}">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+          Shop the Collection
         </a>
       </div>
 
@@ -147,6 +192,10 @@
     document.body.appendChild(overlay);
     document.body.style.overflow = 'hidden';
     overlay.querySelector('#event-popup-close').addEventListener('click', close);
+    // The CTA is an in-page anchor now, not an external link. Without this the
+    // overlay would stay up and body overflow:hidden would block the very
+    // scroll the anchor just asked for.
+    overlay.querySelector('#evt-shop').addEventListener('click', close);
     overlay.addEventListener('click', function (e) {
       if (e.target === overlay) close();      // click outside the card
     });
