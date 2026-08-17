@@ -5,3 +5,6 @@ __pycache__/
 credentials.json
 store.json
 store.json.tmp
+analytics.db
+analytics.db-wal
+analytics.db-shm

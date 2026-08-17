@@ -261,6 +261,9 @@
             </div>
             <div class="checkout-total-row"><span>סה״כ</span><span id="checkout-order-total"></span></div>
             <p class="checkout-note">כל הפריטים מיוצרים בהזמנה — זמן אספקה 5-10 ימי עסקים. נאשר את ההזמנה במייל ובוואטסאפ.</p>
+            <!-- TEMPORARY: mirror of the note in index.html. Delete both together
+                 once the acquirer enables Amex/Diners, then rerun build.py. -->
+            <p class="checkout-note" style="border-top:1px solid var(--sand-300);padding-top:1rem;">לתשומת לבכם: כרגע איננו מקבלים כרטיסי <span style="color:var(--ink);">אמריקן אקספרס ודיינרס</span> — גם לא בתשלום דרך Apple Pay.&lrm;</p>
             <p id="checkout-pay-error" style="display:none;font-family:Montserrat,Heebo;font-size:0.75rem;color:#c0392b;margin:1rem 0 0;"></p>
             <div style="display:flex;flex-direction:column;gap:0.75rem;margin-top:1.5rem;">
               <button type="button" id="checkout-to-payment-btn" class="btn-primary">מעבר לתשלום ←</button>
@@ -300,10 +303,12 @@
   <script src="/js/data.js?v=17"></script>
   <!-- tracking before cart/checkout: they call into it on user actions -->
   <script src="/js/tracking.js?v=1"></script>
-  <script src="/js/cart.js?v=9"></script>
+  <!-- first-party funnel analytics; independent of the Meta pixel above -->
+  <script src="/js/analytics.js?v=1"></script>
+  <script src="/js/cart.js?v=10"></script>
   <!-- jQuery required by Tranzila's embedded payment iframe (Apple Pay / Google Pay) -->
   <script src="/js/jquery.min.js?v=1"></script>
-  <script src="/js/checkout.js?v=12"></script>
+  <script src="/js/checkout.js?v=13"></script>
   <!-- Tranzila Apple Pay bridge (must load on the page that hosts the payment iframe) -->
   <script type="text/javascript" src="https://direct.tranzila.com/Tranzila_files/jquery.js"></script>
   <script>document.write('<script src="https://direct.tranzila.com/js/tranzilanapple_v3.js?v=' + Date.now() + '"><\/script>');</script>
@@ -390,6 +395,9 @@
   <script>
     window.STEELO_PRODUCT = {"id": "ripple", "name": "Ripple Stool", "category": "מגזינים", "price": 450, "currency": "ILS"};
     if (typeof stlTrackViewContent === 'function') stlTrackViewContent();
+    /* Fired here rather than inside analytics.js: that file runs with the other
+       scripts, before this block defines STEELO_PRODUCT. */
+    if (typeof stlTrack === 'function') stlTrack('view_product');
 
     /* Re-render the price from PRODUCTS, which the server serves with the
        admin's current discounts applied. Without this the page would keep

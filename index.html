@@ -637,6 +637,11 @@
               <span id="checkout-order-total"></span>
             </div>
             <p class="checkout-note">כל הפריטים מיוצרים בהזמנה — זמן אספקה 5-10 ימי עסקים. נאשר את ההזמנה במייל ובוואטסאפ.</p>
+            <!-- TEMPORARY: the acquirer does not currently take Amex/Diners, and a
+                 customer only found out when the card was declined inside Tranzila's
+                 form. Delete this whole <p> once they are enabled — and mirror the
+                 deletion in build.py MODALS, or the product pages keep showing it. -->
+            <p class="checkout-note" style="border-top:1px solid var(--sand-300);padding-top:1rem;">לתשומת לבכם: כרגע איננו מקבלים כרטיסי <span style="color:var(--ink);">אמריקן אקספרס ודיינרס</span> — גם לא בתשלום דרך Apple Pay.&lrm;</p>
             <p id="checkout-pay-error" style="display:none;font-family:Montserrat,Heebo;font-size:0.75rem;color:#c0392b;margin:1rem 0 0;"></p>
             <div style="display:flex;flex-direction:column;gap:0.75rem;margin-top:1.5rem;">
               <button type="button" id="checkout-to-payment-btn" class="btn-primary">מעבר לתשלום ←</button>
@@ -682,11 +687,13 @@
   <script src="js/data.js?v=17"></script>
   <!-- tracking before cart/checkout: they call into it on user actions -->
   <script src="js/tracking.js?v=1"></script>
-  <script src="js/cart.js?v=9"></script>
+  <!-- first-party funnel analytics; independent of the Meta pixel above -->
+  <script src="js/analytics.js?v=1"></script>
+  <script src="js/cart.js?v=10"></script>
   <script src="js/modal.js?v=7"></script>
   <!-- jQuery required by Tranzila's embedded payment iframe (Apple Pay / Google Pay) -->
   <script src="js/jquery.min.js?v=1"></script>
-  <script src="js/checkout.js?v=12"></script>
+  <script src="js/checkout.js?v=13"></script>
   <!-- Tranzila Apple Pay bridge (must load on the page that hosts the payment iframe) -->
   <script type="text/javascript" src="https://direct.tranzila.com/Tranzila_files/jquery.js"></script>
   <script>document.write('<script src="https://direct.tranzila.com/js/tranzilanapple_v3.js?v=' + Date.now() + '"><\/script>');</script>

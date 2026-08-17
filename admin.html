@@ -456,6 +456,78 @@
       color: var(--ink-400); font-size: 0.75rem;
     }
 
+    /* ---- Analytics ---- */
+    #view-analytics { flex: 1; overflow-y: auto; padding: 2rem; }
+    .an-wrap { max-width: 1100px; margin: 0 auto; }
+    .an-controls {
+      display: flex; gap: 2rem; align-items: flex-end; flex-wrap: wrap;
+      margin-bottom: 2rem;
+    }
+    .an-controls .form-group { gap: 0.4rem; }
+    .seg { display: flex; }
+    .seg button {
+      background: none; border: 1px solid var(--sand-300); border-right: none;
+      color: var(--ink-400); padding: 0.45rem 0.9rem;
+      font-family: 'Montserrat', sans-serif; font-size: 0.62rem;
+      letter-spacing: 0.12em; text-transform: uppercase; cursor: pointer;
+      transition: background 0.2s, color 0.2s;
+    }
+    .seg button:last-child  { border-right: 1px solid var(--sand-300); }
+    .seg button:hover       { color: var(--ink); }
+    .seg button.on          { background: var(--ink); color: var(--sand); border-color: var(--ink); }
+
+    .kpis {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 1px; background: var(--sand-300);
+      border: 1px solid var(--sand-300); margin-bottom: 2.5rem;
+    }
+    .kpi { background: var(--sand-100); padding: 1.25rem 1.5rem; }
+    .kpi .k {
+      font-size: 0.55rem; letter-spacing: 0.2em; text-transform: uppercase;
+      color: var(--ink-400); margin-bottom: 0.5rem;
+    }
+    .kpi .v { font-family: 'Cormorant', serif; font-weight: 300; font-size: 2rem; line-height: 1; }
+
+    .an-section { margin-bottom: 2.5rem; }
+    .an-section h3 {
+      font-size: 0.6rem; letter-spacing: 0.2em; text-transform: uppercase;
+      color: var(--ink-400); font-weight: 400; margin: 0 0 1rem;
+    }
+
+    .fn-row { display: flex; align-items: center; gap: 1rem; margin-bottom: 0.5rem; }
+    .fn-name {
+      width: 130px; flex-shrink: 0; font-size: 0.72rem; color: var(--ink-500);
+      text-align: right;
+    }
+    .fn-track { flex: 1; background: var(--sand-200); height: 30px; position: relative; }
+    .fn-fill  { background: var(--ink); height: 100%; transition: width 0.4s ease; }
+    .fn-fill.thin { background: #B85C38; }
+    .fn-val {
+      position: absolute; top: 0; left: 0.6rem; height: 30px;
+      display: flex; align-items: center;
+      font-size: 0.7rem; color: var(--sand); mix-blend-mode: difference;
+    }
+    .fn-pct { width: 110px; flex-shrink: 0; font-size: 0.68rem; color: var(--ink-400); }
+    .fn-pct b { color: var(--ink); font-weight: 500; }
+
+    .chart { width: 100%; height: 180px; display: block; }
+    .chart rect { fill: var(--ink); transition: fill 0.2s; }
+    .chart rect:hover { fill: #B85C38; }
+    .chart text { font-family: 'Montserrat', sans-serif; font-size: 8px; fill: var(--ink-400); }
+
+    .an-note {
+      font-size: 0.68rem; color: var(--ink-400); line-height: 1.7;
+      border-left: 2px solid var(--sand-300); padding-left: 0.9rem; margin-top: 1rem;
+    }
+    #an-exclude {
+      background: none; border: 1px solid var(--sand-300); color: var(--ink-400);
+      padding: 0.45rem 1rem; font-family: 'Montserrat', sans-serif;
+      font-size: 0.6rem; letter-spacing: 0.12em; text-transform: uppercase;
+      cursor: pointer; transition: border-color 0.2s, color 0.2s;
+    }
+    #an-exclude:hover { border-color: var(--ink); color: var(--ink); }
+    #an-exclude.on { background: var(--green); color: #fff; border-color: var(--green); }
+
     /* ---- Login overlay ---- */
     #login-overlay {
       display: none;
@@ -573,6 +645,7 @@
       <div class="tabs">
         <button class="tab active" data-view="products">Products</button>
         <button class="tab" data-view="coupons">Coupons</button>
+        <button class="tab" data-view="analytics">Analytics</button>
       </div>
     </div>
     <div style="display:flex;align-items:center;gap:0.75rem;">
@@ -692,6 +765,70 @@
       </div>
 
       <div id="coupons-table-wrap"></div>
+    </div>
+  </div>
+
+  <!-- Analytics view -->
+  <div id="view-analytics" style="display:none;">
+    <div class="an-wrap">
+      <div class="an-controls">
+        <div class="form-group">
+          <label>Granularity</label>
+          <div class="seg" id="an-grain">
+            <button data-grain="hour">שעה</button>
+            <button data-grain="day" class="on">יום</button>
+            <button data-grain="week">שבוע</button>
+            <button data-grain="month">חודש</button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Range</label>
+          <div class="seg" id="an-range">
+            <button data-days="1">24h</button>
+            <button data-days="7">7d</button>
+            <button data-days="30" class="on">30d</button>
+            <button data-days="90">90d</button>
+            <button data-days="365">1y</button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>This device</label>
+          <button id="an-exclude" type="button">Ignore this device</button>
+        </div>
+      </div>
+
+      <div class="kpis" id="an-kpis"></div>
+
+      <div class="an-section">
+        <h3>Funnel — unique people</h3>
+        <div id="an-funnel"></div>
+        <p class="an-note">
+          Each bar is <strong>people</strong>, not events — one person adding three items is one
+          add-to-cart.<br>
+          The steps are <strong>not strictly nested</strong>: a shopper can add to cart from the
+          homepage without ever opening a product page, so "of previous" can read above 100% on
+          that step. "Of visitors" is the reliable number to watch.<br>
+          The last two steps are recorded by the server, so they survive ad blockers; everything
+          above them is undercounted by whatever share of visitors blocks scripts.
+        </p>
+      </div>
+
+      <div class="an-section">
+        <h3>Unique visitors over time</h3>
+        <div id="an-chart"></div>
+      </div>
+
+      <div class="an-section">
+        <h3>By traffic source</h3>
+        <div id="an-sources"></div>
+        <p class="an-note">
+          Source is <strong>first touch</strong> — where each person originally arrived from, even
+          if they came back later by typing the address. Paid Meta traffic is identified by the
+          <code>fbclid</code> Meta appends to every ad click, plus any <code>utm_*</code> on the
+          link. These numbers will not match Ads Manager: Meta counts on its own attribution
+          windows and loses iOS users to ATT, while this counts who actually reached the site.
+        </p>
+      </div>
     </div>
   </div>
 
@@ -1078,13 +1215,14 @@
       tab.addEventListener('click', () => {
         const view = tab.dataset.view;
         document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t === tab));
-        const products = view === 'products';
-        document.querySelector('.workspace').style.display = products ? 'flex'  : 'none';
-        document.getElementById('discount-bar').style.display = products ? 'flex' : 'none';
-        document.getElementById('view-coupons').style.display = products ? 'none' : 'block';
+        document.querySelector('.workspace').style.display    = view === 'products'  ? 'flex'  : 'none';
+        document.getElementById('discount-bar').style.display = view === 'products'  ? 'flex'  : 'none';
+        document.getElementById('view-coupons').style.display = view === 'coupons'   ? 'block' : 'none';
+        document.getElementById('view-analytics').style.display = view === 'analytics' ? 'block' : 'none';
         // "Save Changes" only ever meant products; coupons save on their own.
-        document.getElementById('save-all').style.display = products ? '' : 'none';
-        if (!products) loadCoupons();
+        document.getElementById('save-all').style.display = view === 'products' ? '' : 'none';
+        if (view === 'coupons')   loadCoupons();
+        if (view === 'analytics') loadAnalytics();
       });
     });
 
@@ -1288,6 +1426,169 @@
       } finally {
         btn.disabled = false;
       }
+    });
+
+    /* ============================================================
+       Analytics
+
+       Read-only: one GET, everything rendered from the response. Charts are
+       inline SVG rather than a library — the site has no build step and
+       self-hosts even jQuery, so a CDN dependency for two bar charts would be
+       out of keeping.
+       ============================================================ */
+    let anGrain = 'day';
+    let anDays  = 30;
+
+    const nfmt = n => (n || 0).toLocaleString('he-IL');
+
+    async function loadAnalytics() {
+      try {
+        const res  = await fetch(`/admin/analytics?granularity=${anGrain}&days=${anDays}`, {
+          headers: { 'Authorization': `Bearer ${getToken()}` },
+        });
+        const data = await res.json();
+        if (!data.ok) { setStatus(data.error || 'Analytics unavailable', false); return; }
+        renderKpis(data.totals);
+        renderFunnel(data.funnel);
+        renderChart(data.series);
+        renderSources(data.sources);
+      } catch (e) {
+        setStatus('Could not load analytics', false);
+      }
+      syncExcludeButton();
+    }
+
+    function renderKpis(t) {
+      document.getElementById('an-kpis').innerHTML = [
+        ['Unique visitors', nfmt(t.visitors)],
+        ['Pageviews',       nfmt(t.pageviews)],
+        ['Orders',          nfmt(t.orders)],
+        ['Revenue',         '₪' + nfmt(t.revenue)],
+        ['Conversion',      t.cvr + '%'],
+      ].map(([k, v]) => `<div class="kpi"><div class="k">${k}</div><div class="v">${v}</div></div>`).join('');
+    }
+
+    function renderFunnel(rows) {
+      const top = rows.length ? rows[0].people : 0;
+      document.getElementById('an-funnel').innerHTML = rows.map(r => {
+        const width = top ? Math.max(r.people / top * 100, r.people ? 1.5 : 0) : 0;
+        // Once a bar is too narrow to hold its own label, move the number out.
+        const inside = width > 12;
+        return `
+          <div class="fn-row">
+            <div class="fn-name">${esc(r.label)}</div>
+            <div class="fn-track">
+              <div class="fn-fill ${inside ? '' : 'thin'}" style="width:${width}%"></div>
+              ${inside ? `<div class="fn-val">${nfmt(r.people)}</div>` : ''}
+            </div>
+            <div class="fn-pct">
+              ${inside ? '' : `<b>${nfmt(r.people)}</b> · `}
+              <b>${r.of_visitors}%</b> of visitors
+              ${r.step_pct === null ? `` : `<br><span style="opacity:0.7">${r.step_pct}% of previous</span>`}
+            </div>
+          </div>`;
+      }).join('');
+    }
+
+    function renderChart(series) {
+      const el = document.getElementById('an-chart');
+      if (!series.length) { el.innerHTML = '<div class="empty-coupons">No data yet.</div>'; return; }
+      const max = Math.max(...series.map(s => s.visitors), 1);
+      const W = 1000, H = 160, gap = 2;
+      const bw = Math.max((W - gap * series.length) / series.length, 1);
+      // Only ever ~8 labels, whatever the bucket count — more is unreadable.
+      const every = Math.ceil(series.length / 8);
+      const bars = series.map((s, i) => {
+        const h = Math.round(s.visitors / max * (H - 24));
+        const x = i * (bw + gap);
+        const label = (i % every === 0)
+          ? `<text x="${x + bw / 2}" y="${H - 2}" text-anchor="middle">${esc(shortBucket(s.bucket))}</text>`
+          : '';
+        return `<rect x="${x}" y="${H - 20 - h}" width="${bw}" height="${h}">
+                  <title>${esc(s.bucket)} — ${s.visitors} visitors, ${s.pageviews} pageviews</title>
+                </rect>${label}`;
+      }).join('');
+      el.innerHTML = `<svg class="chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${bars}</svg>`;
+    }
+
+    function shortBucket(b) {
+      if (anGrain === 'hour')  return b.slice(11) + ':00';
+      if (anGrain === 'month') return b;
+      return b.slice(5);                       // MM-DD
+    }
+
+    function renderSources(rows) {
+      const any = rows.some(r => r.visitors > 0);
+      if (!any) {
+        document.getElementById('an-sources').innerHTML =
+          '<div class="empty-coupons">No traffic recorded yet.</div>';
+        return;
+      }
+      document.getElementById('an-sources').innerHTML = `
+        <table class="coupon-table">
+          <thead><tr>
+            <th>Source</th><th>Visitors</th><th>Share</th>
+            <th>Add to cart</th><th>Checkout</th><th>Orders</th><th>CVR</th>
+          </tr></thead>
+          <tbody>${rows.filter(r => r.visitors > 0).map(r => `
+            <tr>
+              <td><span class="coupon-code">${esc(r.label)}</span></td>
+              <td>${nfmt(r.visitors)}</td>
+              <td>${r.share}%</td>
+              <td>${nfmt(r.add_to_cart)}</td>
+              <td>${nfmt(r.checkout)}</td>
+              <td>${nfmt(r.purchases)}</td>
+              <td><b>${r.cvr}%</b></td>
+            </tr>`).join('')}
+          </tbody>
+        </table>`;
+    }
+
+    /* ---- Controls ---- */
+    document.querySelectorAll('#an-grain button').forEach(b => b.addEventListener('click', () => {
+      anGrain = b.dataset.grain;
+      document.querySelectorAll('#an-grain button').forEach(x => x.classList.toggle('on', x === b));
+      loadAnalytics();
+    }));
+    document.querySelectorAll('#an-range button').forEach(b => b.addEventListener('click', () => {
+      anDays = parseInt(b.dataset.days);
+      document.querySelectorAll('#an-range button').forEach(x => x.classList.toggle('on', x === b));
+      loadAnalytics();
+    }));
+
+    /* ---- Ignore this device ----
+       Flags the browser locally so it stops sending, and flags the visitor
+       server-side so events it already sent drop out of the reports too. */
+    const NO_TRACK = 'steelo_no_track';
+    const VISITOR  = 'steelo_vid';
+
+    function syncExcludeButton() {
+      const off = !!localStorage.getItem(NO_TRACK);
+      const btn = document.getElementById('an-exclude');
+      btn.classList.toggle('on', off);
+      btn.textContent = off ? 'Ignored ✓ — click to count again' : 'Ignore this device';
+    }
+
+    document.getElementById('an-exclude').addEventListener('click', async () => {
+      const off = !localStorage.getItem(NO_TRACK);
+      // The admin page never sends events, so it may have no visitor id of its
+      // own yet; mint the same one the storefront would so both sides agree.
+      let vid = localStorage.getItem(VISITOR);
+      if (!vid) {
+        vid = Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 12);
+        localStorage.setItem(VISITOR, vid);
+      }
+      if (off) localStorage.setItem(NO_TRACK, '1');
+      else     localStorage.removeItem(NO_TRACK);
+      try {
+        await fetch('/admin/analytics/exclude', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${getToken()}` },
+          body: JSON.stringify({ visitor: vid, excluded: off }),
+        });
+      } catch (e) {}
+      syncExcludeButton();
+      loadAnalytics();
     });
 
     /* ---- Init ---- */

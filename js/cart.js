@@ -35,6 +35,7 @@ function addToCart(product) {
   // Every add path funnels through here — the quick-view modal, the product
   // page button and buy-now — so this is the only place AddToCart is reported.
   if (typeof stlTrackAddToCart === 'function') stlTrackAddToCart(product);
+  if (typeof stlTrack === 'function') stlTrack('add_to_cart');
 }
 
 function changeQty(id, delta) {
