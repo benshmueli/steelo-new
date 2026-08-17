@@ -261,6 +261,9 @@
             </div>
             <div class="checkout-total-row"><span>סה״כ</span><span id="checkout-order-total"></span></div>
             <p class="checkout-note">כל הפריטים מיוצרים בהזמנה — זמן אספקה 5-10 ימי עסקים. נאשר את ההזמנה במייל ובוואטסאפ.</p>
+            <!-- TEMPORARY: mirror of the note in index.html. Delete both together
+                 once the acquirer enables Amex/Diners, then rerun build.py. -->
+            <p class="checkout-note" style="border-top:1px solid var(--sand-300);padding-top:1rem;">לתשומת לבכם: כרגע איננו מקבלים כרטיסי <span style="color:var(--ink);">אמריקן אקספרס ודיינרס</span> — גם לא בתשלום דרך Apple Pay.&lrm;</p>
             <p id="checkout-pay-error" style="display:none;font-family:Montserrat,Heebo;font-size:0.75rem;color:#c0392b;margin:1rem 0 0;"></p>
             <div style="display:flex;flex-direction:column;gap:0.75rem;margin-top:1.5rem;">
               <button type="button" id="checkout-to-payment-btn" class="btn-primary">מעבר לתשלום ←</button>
