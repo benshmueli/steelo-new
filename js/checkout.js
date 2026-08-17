@@ -155,10 +155,17 @@ function removeCoupon() {
 }
 
 /* ── Open / Close ─────────────────────────────────────────── */
-/* Event ID for the InitiateCheckout pair. Minted in the browser when checkout
-   opens, then sent to /payment/init so the server-side copy of the same event
-   carries the same ID and Meta counts one, not two. */
+/* Event IDs for the two Meta checkout events. Each is minted here and shared
+   with its CAPI twin so Meta collapses the pair into one event.
+
+   They deliberately fire at different moments, and their twins are sent from
+   different places. InitiateCheckout goes out the instant the modal opens, its
+   twin from the /meta/event beacon — that pairing is what keeps the counts 1:1
+   even when the customer abandons. AddPaymentInfo fires on the click through to
+   payment, its twin from /payment/init, where a real order exists and the
+   customer's details can be hashed into it. */
 let metaCheckoutEventId = '';
+let metaPaymentEventId  = '';
 
 function openCheckout() {
   if (!cart || cart.length === 0) return;
@@ -333,6 +340,13 @@ document.getElementById('checkout-to-payment-btn').addEventListener('click', asy
   const val = id => (f[id] ? f[id].value.trim() : '');
   const checked = id => { const el = document.getElementById(id); return !!(el && el.checked); };
 
+  // Fired here, before the request, so its id can ride along and the CAPI twin
+  // sent from /payment/init carries the same one.
+  if (typeof stlTrackAddPaymentInfo === 'function') {
+    metaPaymentEventId = stlEventId('api');
+    stlTrackAddPaymentInfo(cart, total, metaPaymentEventId);
+  }
+
   const payload = {
     order_id:    orderId,
     date:        dateStr,
@@ -364,6 +378,7 @@ document.getElementById('checkout-to-payment-btn').addEventListener('click', asy
     payload.meta_fbp = fb.fbp;
     payload.meta_fbc = fb.fbc;
     payload.meta_event_id = metaCheckoutEventId;
+    payload.meta_api_event_id = metaPaymentEventId;
   }
 
   // Lets the server record the last two funnel stages against the same person

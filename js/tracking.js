@@ -11,10 +11,14 @@
    than waited on in Events Manager.
 
    Server-side counterparts (Conversions API) exist for AddToCart,
-   InitiateCheckout and Purchase. Each shares an event ID with its browser twin
-   so Meta counts one event, not two — see meta_capi.py. AddToCart's twin is
-   sent from /meta/event; the other two from the payment path, where the order
-   is known to be real.
+   InitiateCheckout, AddPaymentInfo and Purchase. Each shares an event ID with
+   its browser twin so Meta counts one event, not two — see meta_capi.py.
+
+   Where each twin is sent from matters. AddToCart and InitiateCheckout go out
+   from /meta/event, at the same instant as the Pixel call, which is what keeps
+   their counts 1:1. AddPaymentInfo and Purchase are sent from the payment path
+   instead, where a real order exists — so no browser can conjure them, and they
+   carry the customer's hashed details rather than just cookies.
 */
 
 /* Single consent gate. There is no cookie banner on the site today, so this
@@ -135,20 +139,61 @@ function stlTrackAddToCart(product) {
    keeps it, so the same ID can ride along to /payment/init and be reused for
    the server-side copy of this event. */
 function stlTrackInitiateCheckout(items, fee, eventId) {
-  if (!stlReady() || !items || !items.length) return;
+  if (!items || !items.length) return;
   const contents = items.map(i => ({
     id: i.id, quantity: i.quantity, item_price: i.price,
   }));
   const value = items.reduce((s, i) => s + i.price * i.quantity, 0) + (fee || 0);
-  fbq('track', 'InitiateCheckout', {
-    content_ids:  items.map(i => i.id),
-    content_type: 'product',
-    contents:     contents,
-    num_items:    items.reduce((s, i) => s + i.quantity, 0),
-    value:        value,
-    currency:     STL_CURRENCY,
-  }, { eventID: eventId });
-  stlReportEvent('InitiateCheckout', eventId, { value: value, fired: true });
+  const fired = stlReady();
+
+  if (fired) {
+    fbq('track', 'InitiateCheckout', {
+      content_ids:  items.map(i => i.id),
+      content_type: 'product',
+      contents:     contents,
+      num_items:    items.reduce((s, i) => s + i.quantity, 0),
+      value:        value,
+      currency:     STL_CURRENCY,
+    }, { eventID: eventId });
+  }
+
+  // The server twin is sent from this beacon, at the same moment as the Pixel
+  // event. It used to be sent from /payment/init instead, which fired only for
+  // customers who reached the payment step — so everyone who opened checkout and
+  // abandoned produced a browser event with no server counterpart, and Meta
+  // reported the resulting coverage gap.
+  //
+  // Item ids and quantities only: the server prices them from the catalogue, so
+  // a forged beacon cannot report an invented cart value into the ad account.
+  stlReportEvent('InitiateCheckout', eventId, {
+    items: items.map(i => ({ id: i.id, qty: i.quantity })),
+    fee:   fee || 0,
+    fired: fired,
+  });
+}
+
+/* ---- AddPaymentInfo ---- */
+/* Fired from checkout.js when the customer commits to paying. This is the point
+   the old server-side InitiateCheckout used to represent, and it is where the
+   customer's details finally exist — so its CAPI twin, sent from /payment/init,
+   carries a full set of hashed identifiers rather than just cookies. */
+function stlTrackAddPaymentInfo(items, total, eventId) {
+  const fired = stlReady();
+  if (fired) {
+    fbq('track', 'AddPaymentInfo', {
+      content_ids:  (items || []).map(i => i.id),
+      content_type: 'product',
+      contents:     (items || []).map(i => ({
+        id: i.id, quantity: i.quantity, item_price: i.price,
+      })),
+      num_items:    (items || []).reduce((s, i) => s + i.quantity, 0),
+      value:        total,
+      currency:     STL_CURRENCY,
+    }, { eventID: eventId });
+  }
+  // Log only — the server copy comes from /payment/init, where the order is
+  // real, so this beacon must not be able to conjure one.
+  stlReportEvent('AddPaymentInfo', eventId, { fired: fired });
 }
 
 /* ---- Purchase ----
