@@ -6,9 +6,15 @@
    served by server.py at /meta/pixel.js, built from the META_PIXEL_ID env
    var, so the ID is never hardcoded here or in any committed HTML.
 
-   Server-side counterparts (Conversions API) exist for InitiateCheckout and
-   Purchase only. Those two share an event ID with their browser twin so Meta
-   counts each once — see meta_capi.py.
+   Every event carries an eventID, and every event is reported to our own server
+   via stlReportEvent so deduplication coverage can be measured locally rather
+   than waited on in Events Manager.
+
+   Server-side counterparts (Conversions API) exist for AddToCart,
+   InitiateCheckout and Purchase. Each shares an event ID with its browser twin
+   so Meta counts one event, not two — see meta_capi.py. AddToCart's twin is
+   sent from /meta/event; the other two from the payment path, where the order
+   is known to be real.
 */
 
 /* Single consent gate. There is no cookie banner on the site today, so this
@@ -41,6 +47,35 @@ function stlEventId(prefix) {
          Math.random().toString(36).slice(2, 10);
 }
 
+/* Tell our own server which event ID the Pixel just fired.
+
+   Two reasons. It builds a local ledger of every event and its ID, so
+   deduplication coverage can be measured from our own data instead of waiting
+   on Events Manager's 7-28 day reporting window. And for the events listed in
+   META_SERVER_TWIN on the server (AddToCart today), it is what lets the CAPI
+   copy go out carrying the SAME id — which is the whole mechanism by which Meta
+   collapses the pair into one event.
+
+   Fire-and-forget, and wrapped: tracking must never break a page. */
+function stlReportEvent(name, eventId, extra) {
+  try {
+    var fb   = (typeof stlFbCookies === 'function') ? stlFbCookies() : { fbp: '', fbc: '' };
+    var body = JSON.stringify(Object.assign({
+      event:    name,
+      event_id: eventId,
+      fbp:      fb.fbp,
+      fbc:      fb.fbc,
+      url:      location.href,
+    }, extra || {}));
+    if (navigator.sendBeacon) {
+      navigator.sendBeacon('/meta/event', new Blob([body], { type: 'application/json' }));
+    } else {
+      fetch('/meta/event', { method: 'POST', body: body, keepalive: true,
+                             headers: { 'Content-Type': 'application/json' } }).catch(function () {});
+    }
+  } catch (e) {}
+}
+
 const STL_CURRENCY = 'ILS';
 
 /* ---- ViewContent — product pages ---- */
@@ -49,6 +84,7 @@ function stlTrackViewContent() {
   if (!stlReady()) return;
   const p = window.STEELO_PRODUCT;
   if (!p) return;
+  const eventId = stlEventId('vc');
   fbq('track', 'ViewContent', {
     content_ids:  [p.id],
     content_name: p.name,
@@ -56,7 +92,8 @@ function stlTrackViewContent() {
     content_category: p.category || '',
     value:    p.price,
     currency: STL_CURRENCY,
-  }, { eventID: stlEventId('vc') });
+  }, { eventID: eventId });
+  stlReportEvent('ViewContent', eventId, { content_id: p.id, value: p.price, fired: true });
 }
 
 /* ---- AddToCart ---- */
@@ -65,19 +102,32 @@ function stlTrackViewContent() {
    add; bumping quantity with the +/- controls in the cart drawer does not
    count as a new add. */
 function stlTrackAddToCart(product) {
-  if (!stlReady() || !product) return;
+  if (!product) return;
   const price = (typeof salePrice === 'function')
     ? salePrice(product.price, product.discount)
     : product.price;
-  fbq('track', 'AddToCart', {
-    content_ids:  [product.id],
-    content_name: product.name,
-    content_type: 'product',
-    content_category: product.category || '',
-    contents: [{ id: product.id, quantity: 1, item_price: price }],
-    value:    price,
-    currency: STL_CURRENCY,
-  }, { eventID: stlEventId('atc') });
+  const eventId = stlEventId('atc');
+  const fired   = stlReady();
+
+  if (fired) {
+    fbq('track', 'AddToCart', {
+      content_ids:  [product.id],
+      content_name: product.name,
+      content_type: 'product',
+      content_category: product.category || '',
+      contents: [{ id: product.id, quantity: 1, item_price: price }],
+      value:    price,
+      currency: STL_CURRENCY,
+    }, { eventID: eventId });
+  }
+
+  // Reported whether or not the Pixel fired. When it is blocked this is the
+  // only copy that reaches Meta at all — the server sends the CAPI twin from
+  // here. `fired` tells the server whether a browser event really happened, so
+  // the ledger doesn't claim one that didn't.
+  stlReportEvent('AddToCart', eventId, {
+    content_id: product.id, value: price, fired: fired,
+  });
 }
 
 /* ---- InitiateCheckout ---- */
@@ -98,6 +148,7 @@ function stlTrackInitiateCheckout(items, fee, eventId) {
     value:        value,
     currency:     STL_CURRENCY,
   }, { eventID: eventId });
+  stlReportEvent('InitiateCheckout', eventId, { value: value, fired: true });
 }
 
 /* ---- Purchase ----
@@ -141,4 +192,5 @@ function stlTrackPurchaseFromRedirect(orderId) {
     order_id:     rec.order_id,
     // event_id = order_id, matching the server event for this same order.
   }, { eventID: rec.order_id });
+  stlReportEvent('Purchase', rec.order_id, { value: rec.value, fired: true });
 }

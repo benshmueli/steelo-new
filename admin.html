@@ -819,6 +819,20 @@
       </div>
 
       <div class="an-section">
+        <h3>Meta events — Pixel vs Conversions API</h3>
+        <div id="an-meta"></div>
+        <p class="an-note">
+          Counted from what this server actually sent. <strong>Matched</strong> is the number of
+          event IDs that appear on both channels — that is what Meta deduplicates on, and it is the
+          number to compare against Events Manager.<br>
+          Matched will never equal the totals, and shouldn't: a server event with no browser twin is
+          an ad-blocked visitor finally being counted, which is the whole reason the Conversions API
+          exists. Events Manager reports over a 7–28 day window, so it lags this table by days.
+        </p>
+        <div id="an-meta-recent"></div>
+      </div>
+
+      <div class="an-section">
         <h3>By traffic source</h3>
         <div id="an-sources"></div>
         <p class="an-note">
@@ -1455,7 +1469,64 @@
       } catch (e) {
         setStatus('Could not load analytics', false);
       }
+      loadMetaCoverage();
       syncExcludeButton();
+    }
+
+    /* ---- Meta event ledger ----
+       Answers "is deduplication working" from our own records, without waiting
+       on Events Manager's reporting window. */
+    async function loadMetaCoverage() {
+      const el     = document.getElementById('an-meta');
+      const recent = document.getElementById('an-meta-recent');
+      try {
+        const res  = await fetch(`/admin/meta?days=${anDays}`, {
+          headers: { 'Authorization': `Bearer ${getToken()}` },
+        });
+        const data = await res.json();
+        if (!data.ok || !data.events.length) {
+          el.innerHTML = '<div class="empty-coupons">No Meta events sent yet in this range.</div>';
+          recent.innerHTML = '';
+          return;
+        }
+        el.innerHTML = `
+          <table class="coupon-table">
+            <thead><tr>
+              <th>Event</th><th>Browser</th><th>Server</th><th>Matched</th><th>Deduplicated</th>
+            </tr></thead>
+            <tbody>${data.events.map(e => `
+              <tr>
+                <td><span class="coupon-code">${esc(e.event_name)}</span></td>
+                <td>${nfmt(e.browser)}</td>
+                <td>${nfmt(e.server)}</td>
+                <td>${nfmt(e.matched)}</td>
+                <td>${e.dedup_pct === null
+                      ? '<span style="color:var(--ink-400)">browser only</span>'
+                      : `<b>${e.dedup_pct}%</b>`}</td>
+              </tr>`).join('')}
+            </tbody>
+          </table>`;
+        recent.innerHTML = `
+          <details style="margin-top:1rem;">
+            <summary style="cursor:pointer;font-size:0.68rem;color:var(--ink-400);">
+              Last ${data.recent.length} raw events
+            </summary>
+            <table class="coupon-table" style="margin-top:0.75rem;">
+              <thead><tr><th>When</th><th>Event</th><th>Channel</th><th>Event ID</th><th>Status</th></tr></thead>
+              <tbody>${data.recent.map(r => `
+                <tr>
+                  <td>${new Date(r.ts * 1000).toLocaleString('he-IL')}</td>
+                  <td>${esc(r.event_name)}</td>
+                  <td>${esc(r.channel)}</td>
+                  <td style="font-size:0.65rem;direction:ltr;">${esc(r.event_id)}</td>
+                  <td style="font-size:0.65rem;">${esc(r.status || '')}</td>
+                </tr>`).join('')}
+              </tbody>
+            </table>
+          </details>`;
+      } catch (e) {
+        el.innerHTML = '<div class="empty-coupons">Could not load Meta events.</div>';
+      }
     }
 
     function renderKpis(t) {
