@@ -39,13 +39,13 @@
 
   // Event details — edit here.
   var EVENT = {
-    intro:     'Our pop-up store is now open at KIXBOX',
-    venue:     'Come and visit us in store',
-    label:     'On now until',
-    when:      '14.9',
-    where:     'Shenkin 57, Tel Aviv',
-    saleTitle: '10% off everything',
-    saleNote:  'This week only — until 22.8'
+    intro:     'Steelo Pop-Up at KIXBOX',
+    when:      '13.8–14.9',
+    venue:     'Come visit us in store!',
+    where:     '📍 Shenkin 57, Tel Aviv',
+    saleIntro: 'Special discount for launch week',
+    saleTitle: '10% off everything!',
+    saleNote:  'Valid until 22.8 — don’t miss out'
   };
 
   // ── Styles ────────────────────────────────────────────────────────────────
@@ -83,20 +83,22 @@
     font-size:.95rem;line-height:1.5;color:#1A1715;
   }
   #event-popup .evt-night{margin:0;}
-  #event-popup .evt-label{
-    display:block;font-family:'Montserrat',sans-serif;font-weight:500;
-    font-size:.8rem;letter-spacing:.22em;text-transform:uppercase;color:#1A1715;
-    margin-bottom:.4rem;
-  }
   #event-popup .evt-when{
     display:block;font-family:'Montserrat',sans-serif;font-weight:400;
     font-size:1.15rem;letter-spacing:.04em;color:#1A1715;
   }
   /* Sale block — same typographic scale as the date above it, separated by a
      hairline rather than a coloured badge so it reads as part of the card. */
+  /* No max-width: the sale copy is three full sentences and a narrow measure
+     was orphaning the last word of two of them. The rule spanning the copy
+     column also reads more deliberate than a short centred dash. */
   #event-popup .evt-sale{
-    margin:0;padding-top:1.25rem;width:100%;max-width:24ch;
+    margin:0;padding-top:1.25rem;width:100%;
     border-top:1px solid #E6DFD8;
+  }
+  #event-popup .evt-sale-intro{
+    display:block;font-family:'Montserrat',sans-serif;font-weight:300;
+    font-size:.85rem;line-height:1.5;color:#1A1715;margin-bottom:.5rem;
   }
   #event-popup .evt-sale-title{
     display:block;font-family:'Montserrat',sans-serif;font-weight:500;
@@ -160,13 +162,13 @@
       <div class="evt-copy">
         <img class="evt-logo" src="images/logo.png" alt="STEELO">
         <p class="evt-intro">${EVENT.intro}</p>
-        <p class="evt-venue">${EVENT.venue}</p>
         <p class="evt-night">
-          <span class="evt-label">${EVENT.label}</span>
           <span class="evt-when">${EVENT.when}</span>
         </p>
+        <p class="evt-venue">${EVENT.venue}</p>
         <p class="evt-where">${EVENT.where}</p>
         ${showSale ? `<p class="evt-sale">
+          <span class="evt-sale-intro">${EVENT.saleIntro}</span>
           <span class="evt-sale-title">${EVENT.saleTitle}</span>
           <span class="evt-sale-note">${EVENT.saleNote}</span>
         </p>` : ''}
