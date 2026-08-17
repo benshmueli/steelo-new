@@ -28,6 +28,16 @@ RATE_WINDOW  = 60         # seconds
 RATE_LIMIT   = 5          # max attempts per window
 ANALYTICS_LIMIT = 120     # funnel beacons per window — a real session sends a
                           # handful; this only sheds a flood
+META_EVENT_LIMIT = 60     # Pixel-event reports per window
+# Events whose CAPI twin this public endpoint may send. Strictly an allow-list:
+# Purchase and InitiateCheckout are sent from the payment path instead, where the
+# order is known to be real, so a browser cannot conjure a conversion.
+META_SERVER_TWIN = {'AddToCart'}
+# Names the ledger will record at all. /meta/event is public, and without this
+# anyone could fill the diagnostics table with noise — which matters, because
+# that table is what we use to judge whether deduplication is working.
+META_KNOWN_EVENTS = {'PageView', 'ViewContent', 'AddToCart',
+                     'InitiateCheckout', 'Purchase'}
 COUPON_LIMIT = 15         # coupon tries per window — enough for honest typos,
                           # not enough to enumerate codes
 
@@ -1238,7 +1248,14 @@ class Handler(SimpleHTTPRequestHandler):
                 "s.parentNode.insertBefore(t,s)}(window,document,'script',\n"
                 "'https://connect.facebook.net/en_US/fbevents.js');\n"
                 f"fbq('init', {json.dumps(meta_capi.PIXEL_ID)});\n"
-                "if (window.STEELO_CONSENT !== false) fbq('track', 'PageView');\n"
+                # PageView is the highest-volume event on the site, and without
+                # an eventID every one of them counts against Meta's "browser
+                # events with an Event ID" coverage. No server twin — CAPI
+                # PageView is noise — the id exists so the event is well-formed.
+                "window.STEELO_PV_ID = 'pv-' + Date.now().toString(36) + '-' +\n"
+                "  Math.random().toString(36).slice(2, 10);\n"
+                "if (window.STEELO_CONSENT !== false)\n"
+                "  fbq('track', 'PageView', {}, { eventID: window.STEELO_PV_ID });\n"
             )
         else:
             body = '/* Meta Pixel disabled — META_PIXEL_ID not set */\n'
@@ -1347,6 +1364,86 @@ class Handler(SimpleHTTPRequestHandler):
             print(f'  [Coupon] validate failed: {e}')
             self._json(400, {'ok': False, 'error': 'קוד קופון לא קיים'})
 
+    # ── Meta events ──────────────────────────────────────────────────────────
+    def _handle_meta_event(self, raw, ip):
+        """POST /meta/event — the browser reporting a Pixel event it just fired.
+
+        Two jobs. For every event it records the id in the local ledger, which is
+        what lets us measure deduplication ourselves instead of waiting on
+        Events Manager's 7-28 day window. For AddToCart it also sends the CAPI
+        twin *with the same id*, so ad-blocked visitors stop being invisible for
+        the event campaigns optimise on.
+
+        The server-twin list is a strict allow-list: this endpoint is public, and
+        without one it would be a way to inject arbitrary conversions into the
+        ad account. Purchase and InitiateCheckout are absent on purpose — their
+        server copies are sent from the payment path, where the order is real.
+        """
+        self.send_response(204)
+        self.send_header('Content-Length', '0')
+        self._cors()
+        self.end_headers()
+
+        if not rate_check(ip, 'meta', META_EVENT_LIMIT):
+            return
+        if analytics.is_bot(self.headers.get('User-Agent', '')):
+            return
+        try:
+            data     = json.loads(raw or b'{}')
+            name     = str(data.get('event', ''))[:40]
+            event_id = str(data.get('event_id', ''))[:100]
+            if not name or not event_id or name not in META_KNOWN_EVENTS:
+                return
+
+            # `fired` is false when the Pixel was blocked. The CAPI twin below
+            # still goes out — that is the point — but the ledger must not claim
+            # a browser event that never reached Meta, or the coverage figures
+            # would flatter themselves.
+            if data.get('fired'):
+                analytics.log_meta_event(name, event_id, 'browser', 'fired')
+
+            if name not in META_SERVER_TWIN:
+                return
+
+            pid   = str(data.get('content_id', ''))[:64]
+            price = float(data.get('value') or 0)
+            # No email or phone exists at add-to-cart, so fbp/fbc plus IP and
+            # user agent are the only matching signals. Lower match quality than
+            # Purchase, which is expected for an anonymous browsing event.
+            user_data = meta_capi.build_user_data(
+                {}, fbp=str(data.get('fbp') or '')[:200],
+                    fbc=str(data.get('fbc') or '')[:400],
+                    ip=self._client_ip(),
+                    ua=self.headers.get('User-Agent', '')[:500],
+            )
+            meta_capi.send_event(
+                name,
+                event_id=event_id,
+                user_data=user_data,
+                custom_data={
+                    'currency':     meta_capi.CURRENCY,
+                    'value':        price,
+                    'content_type': 'product',
+                    'content_ids':  [pid] if pid else [],
+                    'contents':     [{'id': pid, 'quantity': 1, 'item_price': price}] if pid else [],
+                },
+                event_source_url=str(data.get('url') or '')[:400] or None,
+            )
+        except Exception as e:
+            print(f'  [Meta] /meta/event rejected: {e}')
+
+    def _handle_meta_coverage(self):
+        if not check_admin_token(self):
+            self._json(401, {'ok': False, 'error': 'Unauthorised'})
+            return
+        import urllib.parse
+        params = urllib.parse.parse_qs(self.path.partition('?')[2])
+        try:
+            days = max(1, min(int(params.get('days', ['7'])[0]), 90))
+        except ValueError:
+            days = 7
+        self._json(200, analytics.meta_coverage(days))
+
     # ── Analytics ────────────────────────────────────────────────────────────
     def _handle_analytics_beacon(self, raw, ip):
         """POST /a — one funnel stage from the browser.
@@ -1420,6 +1517,8 @@ class Handler(SimpleHTTPRequestHandler):
             self._handle_admin_coupons_get()
         elif route == '/admin/analytics':
             self._handle_analytics_report()
+        elif route == '/admin/meta':
+            self._handle_meta_coverage()
         elif _PRODUCT_ROUTE.match(route):
             self._serve_product_page(route)
         elif self.path.startswith('/payment/confirm'):
@@ -1743,6 +1842,9 @@ class Handler(SimpleHTTPRequestHandler):
         elif self.path == '/admin/analytics/exclude':
             self._handle_analytics_exclude(raw)
 
+        elif self.path == '/meta/event':
+            self._handle_meta_event(raw, ip)
+
         elif self.path == '/payment/init':
             self._handle_payment_init(raw, ip)
 
@@ -1896,24 +1998,31 @@ class Handler(SimpleHTTPRequestHandler):
             # already started checkout by this point. Reporting it after the
             # handshake would silently lose the signal whenever Tranzila is
             # down — exactly when the funnel data matters most.
-            if meta_event_id:
-                _contents, _ids = meta_capi.contents_from_items(order.get('items'))
-                meta_capi.send_event(
-                    'InitiateCheckout',
-                    event_id=meta_event_id,
-                    user_data=meta_capi.build_user_data(
-                        order, fbp=order['meta_fbp'], fbc=order['meta_fbc'],
-                        ip=order['meta_ip'], ua=order['meta_ua'],
-                    ),
-                    custom_data={
-                        'currency':     meta_capi.CURRENCY,
-                        'value':        float(order['total']),
-                        'content_type': 'product',
-                        'content_ids':  _ids,
-                        'contents':     _contents,
-                        'num_items':    sum(c['quantity'] for c in _contents),
-                    },
-                )
+            #
+            # Sent whether or not the browser managed to fire its own copy. This
+            # used to be skipped when meta_event_id was missing — which is
+            # precisely the ad-blocked case CAPI exists to cover, so the event
+            # vanished from both channels at once. The fallback id is derived
+            # from the order rather than random, so a retried /payment/init for
+            # the same order can't produce two uncorrelated InitiateCheckouts.
+            ic_event_id = meta_event_id or f'ic-{order_id}'
+            _contents, _ids = meta_capi.contents_from_items(order.get('items'))
+            meta_capi.send_event(
+                'InitiateCheckout',
+                event_id=ic_event_id,
+                user_data=meta_capi.build_user_data(
+                    order, fbp=order['meta_fbp'], fbc=order['meta_fbc'],
+                    ip=order['meta_ip'], ua=order['meta_ua'],
+                ),
+                custom_data={
+                    'currency':     meta_capi.CURRENCY,
+                    'value':        float(order['total']),
+                    'content_type': 'product',
+                    'content_ids':  _ids,
+                    'contents':     _contents,
+                    'num_items':    sum(c['quantity'] for c in _contents),
+                },
+            )
 
             # Internal test orders (the hidden 'test' product) go to separate
             # tabs so the real orders/marketing data stays clean.
@@ -2046,6 +2155,9 @@ if __name__ == '__main__':
     sheets_ready = bool(SHEET_ID and os.path.exists(CREDENTIALS_FILE))
     store = load_store()
     analytics.init(STORE_DIR)
+    # Gives meta_capi a local record of every CAPI send without it having to
+    # know the analytics database exists.
+    meta_capi.set_ledger(analytics.log_meta_event)
     # Loud, because a production container without STEELO_DATA_DIR pointed at a
     # mounted volume silently loses every discount and coupon on the next deploy.
     persistent = STORE_DIR != BASE_DIR

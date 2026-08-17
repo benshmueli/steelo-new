@@ -36,6 +36,26 @@ TIMEOUT  = 10
 enabled = bool(PIXEL_ID and ACCESS_TOKEN)
 _warned = False
 
+# Optional sink for a local record of what was sent, set by server.py to
+# analytics.log_meta_event. Injected rather than imported so this module keeps
+# working on its own, with no dependency on the analytics database.
+_ledger = None
+
+
+def set_ledger(fn):
+    """fn(event_name, event_id, channel, status) — called after each send."""
+    global _ledger
+    _ledger = fn
+
+
+def _record(event_name, event_id, status):
+    if not _ledger:
+        return
+    try:
+        _ledger(event_name, event_id, 'server', status)
+    except Exception as e:
+        print(f'  [Meta] ledger hook failed: {e}')
+
 
 def _hash(value):
     """SHA-256 of a normalised string, or None if there is nothing to hash.
@@ -150,6 +170,9 @@ def send_event(event_name, event_id, user_data, custom_data=None,
                 missing.append('META_CAPI_ACCESS_TOKEN')
             print(f'  [Meta] CAPI disabled — {" and ".join(missing)} not set')
             _warned = True
+        # Still recorded: the id the server *would* have used is what makes the
+        # deduplication wiring testable on a dev machine with no credentials.
+        _record(event_name, event_id, 'skipped: CAPI disabled')
         return
 
     event = {
@@ -182,10 +205,13 @@ def _post(url, payload, event_name, event_id):
         with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
             received = json.loads(resp.read().decode()).get('events_received')
             print(f'  [Meta] {event_name} {event_id} → OK (received={received})')
+            _record(event_name, event_id, f'ok received={received}')
     except urllib.error.HTTPError as e:
         # Meta puts the actual reason in the body, not the status line — an
         # expired token and a malformed payload are both plain 400s.
         detail = e.read().decode(errors='replace')[:400]
         print(f'  [Meta] {event_name} {event_id} → HTTP {e.code}: {detail}')
+        _record(event_name, event_id, f'HTTP {e.code}: {detail[:120]}')
     except Exception as e:
         print(f'  [Meta] {event_name} {event_id} → failed: {e}')
+        _record(event_name, event_id, f'failed: {e}')

@@ -126,6 +126,21 @@ CREATE TABLE IF NOT EXISTS visitors (
   excluded   INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS ix_visitors_excl ON visitors(excluded);
+
+-- A ledger of every event sent to Meta, from both channels, so event_id
+-- coverage and deduplication can be measured from what we actually sent rather
+-- than inferred from Events Manager's own reporting window.
+CREATE TABLE IF NOT EXISTS meta_events (
+  id         INTEGER PRIMARY KEY,
+  ts         INTEGER NOT NULL,
+  il_day     TEXT NOT NULL,
+  event_name TEXT NOT NULL,
+  event_id   TEXT NOT NULL,
+  channel    TEXT NOT NULL,   -- 'browser' | 'server'
+  status     TEXT
+);
+CREATE INDEX IF NOT EXISTS ix_meta_day ON meta_events(il_day);
+CREATE INDEX IF NOT EXISTS ix_meta_eid ON meta_events(event_id);
 """
 
 
@@ -236,6 +251,95 @@ def is_excluded(visitor):
         return bool(row and row['excluded'])
     except Exception:
         return False
+
+
+# ── Meta event ledger ─────────────────────────────────────────────────────────
+# Meta's own diagnostics report over a 7-28 day window, so a fix made today can
+# read as 0% for weeks. This records what we sent, when, and with which id, so
+# "is deduplication working" becomes a question about our own data.
+META_CHANNELS = ('browser', 'server')
+
+
+def log_meta_event(event_name, event_id, channel, status=''):
+    """Record one Pixel or CAPI send. Never raises."""
+    if not ready():
+        return False
+    event_name = _clean(event_name, 40)
+    event_id   = _clean(event_id, 100)
+    if not event_name or not event_id or channel not in META_CHANNELS:
+        return False
+    _, day = _buckets()
+    try:
+        with _lock, _connect() as db:
+            db.execute(
+                'INSERT INTO meta_events (ts, il_day, event_name, event_id, channel, status)'
+                ' VALUES (?,?,?,?,?,?)',
+                (int(time.time()), day, event_name, event_id, channel,
+                 _clean(status, 200)),
+            )
+        return True
+    except Exception as e:
+        print(f'  [Meta] ledger write failed: {e}')
+        return False
+
+
+def meta_coverage(days=7):
+    """Per event name: how many went out on each channel, how many ids appear on
+    BOTH — which is what Meta calls deduplication — and the last raw rows.
+
+    `matched` is deliberately not expected to equal the totals. A server event
+    with no browser twin is ad-blocked traffic being counted, which is the whole
+    point of CAPI; the number to watch is that every event has an id at all.
+    """
+    if not ready():
+        return {'ok': False, 'error': 'analytics not initialised'}
+    since = _since_day(days)
+    with _lock, _connect() as db:
+        rows = db.execute("""
+            SELECT event_name,
+                   SUM(channel='browser') AS browser,
+                   SUM(channel='server')  AS server,
+                   COUNT(DISTINCT event_id) AS ids
+            FROM meta_events WHERE il_day >= ?
+            GROUP BY event_name ORDER BY event_name
+        """, (since,)).fetchall()
+
+        matched = {r['event_name']: r['n'] for r in db.execute("""
+            SELECT event_name, COUNT(*) AS n FROM (
+              SELECT event_name, event_id FROM meta_events WHERE il_day >= ?
+              GROUP BY event_name, event_id
+              HAVING COUNT(DISTINCT channel) = 2
+            ) GROUP BY event_name
+        """, (since,)).fetchall()}
+
+        recent = [dict(r) for r in db.execute("""
+            SELECT ts, event_name, event_id, channel, status
+            FROM meta_events ORDER BY id DESC LIMIT 30
+        """).fetchall()]
+
+    events = []
+    for r in rows:
+        name = r['event_name']
+        both = matched.get(name, 0)
+        # Both channels fired for this action, so it is a candidate for
+        # deduplication — measured against whichever channel sent fewer.
+        pairable = min(r['browser'] or 0, r['server'] or 0)
+        events.append({
+            'event_name': name,
+            'browser':    r['browser'] or 0,
+            'server':     r['server'] or 0,
+            'ids':        r['ids'] or 0,
+            'matched':    both,
+            'dedup_pct':  round(both / pairable * 100, 1) if pairable else None,
+        })
+    total = sum(e['browser'] + e['server'] for e in events)
+    return {'ok': True, 'days': days, 'events': events, 'recent': recent,
+            # Every row in this table carried an id by construction — the ledger
+            # refuses a write without one — so this is 100% whenever anything
+            # was sent. It is here to be compared against Events Manager: if
+            # ours says 100% and Meta says less, Meta's window is catching up.
+            'id_coverage_pct': 100.0 if total else None,
+            'total_events': total}
 
 
 # ── Reporting ─────────────────────────────────────────────────────────────────
