@@ -9,6 +9,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
 import meta_capi
+import analytics
 
 # Railway injects PORT; fall back to 8891 for local dev
 PORT     = int(os.environ.get('PORT', 8891))
@@ -25,6 +26,8 @@ ADMIN_TOKEN = hashlib.sha256(ADMIN_PASSWORD.encode()).hexdigest()
 _rate: dict = {}          # ip → [timestamp, ...]
 RATE_WINDOW  = 60         # seconds
 RATE_LIMIT   = 5          # max attempts per window
+ANALYTICS_LIMIT = 120     # funnel beacons per window — a real session sends a
+                          # handful; this only sheds a flood
 COUPON_LIMIT = 15         # coupon tries per window — enough for honest typos,
                           # not enough to enumerate codes
 
@@ -1344,6 +1347,69 @@ class Handler(SimpleHTTPRequestHandler):
             print(f'  [Coupon] validate failed: {e}')
             self._json(400, {'ok': False, 'error': 'קוד קופון לא קיים'})
 
+    # ── Analytics ────────────────────────────────────────────────────────────
+    def _handle_analytics_beacon(self, raw, ip):
+        """POST /a — one funnel stage from the browser.
+
+        Public by necessity, so it trusts nothing: stage names are allow-listed,
+        the two server-recorded stages are refused outright (otherwise anyone
+        could award themselves a purchase), every field is length-capped in
+        analytics._clean, and bots are dropped on the user agent.
+
+        Always answers 204, even on rejection. A beacon is fire-and-forget; there
+        is nobody to tell, and an error status would only invite probing.
+        """
+        self.send_response(204)
+        self.send_header('Content-Length', '0')
+        self._cors()
+        self.end_headers()
+
+        if not rate_check(ip, 'analytics', ANALYTICS_LIMIT):
+            return
+        if analytics.is_bot(self.headers.get('User-Agent', '')):
+            return
+        try:
+            data  = json.loads(raw or b'{}')
+            stage = str(data.get('stage', ''))
+            if stage not in analytics.BROWSER_STAGES:
+                return
+            analytics.record(
+                stage,
+                visitor=data.get('visitor', ''),
+                session=data.get('session', ''),
+                source=data.get('source', 'direct'),
+                campaign=data.get('campaign', ''),
+            )
+        except Exception as e:
+            print(f'  [Analytics] beacon rejected: {e}')
+
+    def _handle_analytics_report(self):
+        if not check_admin_token(self):
+            self._json(401, {'ok': False, 'error': 'Unauthorised'})
+            return
+        import urllib.parse
+        params = urllib.parse.parse_qs(self.path.partition('?')[2])
+        grain  = (params.get('granularity', ['day'])[0] or 'day')
+        try:
+            days = max(1, min(int(params.get('days', ['30'])[0]), 730))
+        except ValueError:
+            days = 30
+        self._json(200, analytics.report(grain, days))
+
+    def _handle_analytics_exclude(self, raw):
+        """Flag or unflag the owner's own device, so their browsing stops
+        skewing a funnel that currently sees very little traffic."""
+        if not check_admin_token(self):
+            self._json(401, {'ok': False, 'error': 'Unauthorised'})
+            return
+        try:
+            data = json.loads(raw or b'{}')
+            ok = analytics.set_excluded(data.get('visitor', ''),
+                                        bool(data.get('excluded', True)))
+            self._json(200 if ok else 400, {'ok': ok})
+        except Exception as e:
+            self._json(500, {'ok': False, 'error': str(e)})
+
     def do_GET(self):
         route = self.path.partition('?')[0]
         if route == '/meta/pixel.js':
@@ -1352,6 +1418,8 @@ class Handler(SimpleHTTPRequestHandler):
             self._serve_data_js()
         elif route == '/admin/coupons':
             self._handle_admin_coupons_get()
+        elif route == '/admin/analytics':
+            self._handle_analytics_report()
         elif _PRODUCT_ROUTE.match(route):
             self._serve_product_page(route)
         elif self.path.startswith('/payment/confirm'):
@@ -1530,6 +1598,20 @@ class Handler(SimpleHTTPRequestHandler):
         """
         if not claim_purchase(order_id):
             return
+
+        # The funnel's purchase step. Sitting behind claim_purchase means it is
+        # counted exactly once no matter which callback path got here first.
+        # When the in-memory order is gone the buyer can't be tied to their
+        # earlier browsing, but the sale still happened and must still show up,
+        # so it is recorded against a stand-in id.
+        analytics.record(
+            'purchase',
+            visitor=(order or {}).get('visitor_id') or f'unknown-{order_id}',
+            source=(order or {}).get('visitor_source', 'direct'),
+            order_id=order_id,
+            value=(order or {}).get('total') or 0,
+        )
+
         if not order:
             print(f'  [Meta] Purchase {order_id} — no order in memory, '
                   f'leaving it to the browser pixel')
@@ -1653,6 +1735,13 @@ class Handler(SimpleHTTPRequestHandler):
         # ── Coupon validation (public, for the checkout UI) ──────────────────
         elif self.path == '/coupon/validate':
             self._handle_coupon_validate(raw, ip)
+
+        # ── Funnel analytics ─────────────────────────────────────────────────
+        elif self.path == '/a':
+            self._handle_analytics_beacon(raw, ip)
+
+        elif self.path == '/admin/analytics/exclude':
+            self._handle_analytics_exclude(raw)
 
         elif self.path == '/payment/init':
             self._handle_payment_init(raw, ip)
@@ -1914,6 +2003,13 @@ class Handler(SimpleHTTPRequestHandler):
             iframe_params = urllib.parse.urlencode(iframe_fields, quote_via=urllib.parse.quote)
             iframe_url = f'{TRANZILA_IFRAME_BASE}?{iframe_params}'
             print(f'  [Payment] Init {order_id} — ₪{order["total"]} — handshake OK')
+            # Recorded here rather than from the browser: this is the point the
+            # payment page actually exists, and a server-side record survives ad
+            # blockers, so the bottom of the funnel stays trustworthy even when
+            # the top is undercounted.
+            analytics.record('checkout_created', visitor=order.get('visitor_id', ''),
+                             source=order.get('visitor_source', 'direct'),
+                             order_id=order_id, value=order['total'])
             print(f'  [Payment] Invoice items (u71/json_purchase_data): {purchase_data or "(none)"}')
 
             # `total` is server-authoritative (items + delivery fee, recomputed
@@ -1949,6 +2045,7 @@ if __name__ == '__main__':
 
     sheets_ready = bool(SHEET_ID and os.path.exists(CREDENTIALS_FILE))
     store = load_store()
+    analytics.init(STORE_DIR)
     # Loud, because a production container without STEELO_DATA_DIR pointed at a
     # mounted volume silently loses every discount and coupon on the next deploy.
     persistent = STORE_DIR != BASE_DIR
@@ -1958,6 +2055,7 @@ if __name__ == '__main__':
           f'{"✓ persistent" if persistent else "⚠ NOT persistent — set STEELO_DATA_DIR to a mounted volume"}')
     print(f'                   {len(store["overrides"])} product overrides · '
           f'{len(store["coupons"])} coupons · {len(store["redemptions"])} redemptions')
+    print(f'  Analytics     →  {"✓ ready" if analytics.ready() else "⚠ disabled (could not open the database)"}')
     print(f'  Google Sheets →  {"✓ configured" if sheets_ready else "⚠ not configured (add SHEET_ID + credentials.json)"}')
     print(f'  Tranzila      →  {"✓ password set" if TRANZILA_PASSWORD else "⚠ TRANZILA_PASSWORD not set"}')
     print()

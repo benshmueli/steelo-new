@@ -171,6 +171,7 @@ function openCheckout() {
     metaCheckoutEventId = stlEventId('ic');
     stlTrackInitiateCheckout(cart, deliveryFee(), metaCheckoutEventId);
   }
+  if (typeof stlTrack === 'function') stlTrack('details');
 }
 
 function closeCheckout() {
@@ -272,6 +273,7 @@ document.getElementById('checkout-next-btn').addEventListener('click', () => {
   if (!valid) return;
   buildOrderSummary();
   showCheckoutStep(2);
+  if (typeof stlTrack === 'function') stlTrack('summary');
 
   // A coupon's discount is an absolute figure computed for one particular cart,
   // so it has to be re-checked every time this summary is built — the customer
@@ -362,6 +364,16 @@ document.getElementById('checkout-to-payment-btn').addEventListener('click', asy
     payload.meta_fbp = fb.fbp;
     payload.meta_fbc = fb.fbc;
     payload.meta_event_id = metaCheckoutEventId;
+  }
+
+  // Lets the server record the last two funnel stages against the same person
+  // who did the browsing. Those two are recorded server-side so they survive ad
+  // blockers — but only the browser knows which visitor this is.
+  if (typeof stlVisitorId === 'function') {
+    payload.visitor_id = stlVisitorId();
+    try {
+      payload.visitor_source = JSON.parse(sessionStorage.getItem('steelo_src')).source;
+    } catch (e) {}
   }
 
   try {
