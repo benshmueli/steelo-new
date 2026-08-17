@@ -32,12 +32,16 @@ META_EVENT_LIMIT = 60     # Pixel-event reports per window
 # Events whose CAPI twin this public endpoint may send. Strictly an allow-list:
 # Purchase and InitiateCheckout are sent from the payment path instead, where the
 # order is known to be real, so a browser cannot conjure a conversion.
-META_SERVER_TWIN = {'AddToCart'}
+# InitiateCheckout is here so its CAPI copy goes out at the same instant as the
+# Pixel call. It used to be sent from /payment/init, which only fires for people
+# who reach the payment step — so every abandoned checkout was a browser event
+# with no server twin, which is the coverage gap Meta reported.
+META_SERVER_TWIN = {'AddToCart', 'InitiateCheckout'}
 # Names the ledger will record at all. /meta/event is public, and without this
 # anyone could fill the diagnostics table with noise — which matters, because
 # that table is what we use to judge whether deduplication is working.
 META_KNOWN_EVENTS = {'PageView', 'ViewContent', 'AddToCart',
-                     'InitiateCheckout', 'Purchase'}
+                     'InitiateCheckout', 'AddPaymentInfo', 'Purchase'}
 COUPON_LIMIT = 15         # coupon tries per window — enough for honest typos,
                           # not enough to enumerate codes
 
@@ -1405,10 +1409,20 @@ class Handler(SimpleHTTPRequestHandler):
             if name not in META_SERVER_TWIN:
                 return
 
-            pid   = str(data.get('content_id', ''))[:64]
-            price = float(data.get('value') or 0)
-            # No email or phone exists at add-to-cart, so fbp/fbc plus IP and
-            # user agent are the only matching signals. Lower match quality than
+            # Priced from the catalogue, never from the beacon. The browser is
+            # trusted for *which* products and how many, not for what they cost —
+            # otherwise this public endpoint would let anyone report a
+            # million-shekel conversion into the ad account. order_lines() is the
+            # same helper checkout prices real orders with.
+            items = data.get('items')
+            if not items:
+                pid = str(data.get('content_id', ''))[:64]
+                items = [{'id': pid, 'qty': 1}] if pid else []
+            lines = order_lines({'items': items[:50]})
+            value = sum(l['unit'] * l['qty'] for l in lines) + float(data.get('fee') or 0)
+
+            # No email or phone exists this early, so fbp/fbc plus IP and user
+            # agent are the only matching signals. Lower match quality than
             # Purchase, which is expected for an anonymous browsing event.
             user_data = meta_capi.build_user_data(
                 {}, fbp=str(data.get('fbp') or '')[:200],
@@ -1422,10 +1436,12 @@ class Handler(SimpleHTTPRequestHandler):
                 user_data=user_data,
                 custom_data={
                     'currency':     meta_capi.CURRENCY,
-                    'value':        price,
+                    'value':        value,
                     'content_type': 'product',
-                    'content_ids':  [pid] if pid else [],
-                    'contents':     [{'id': pid, 'quantity': 1, 'item_price': price}] if pid else [],
+                    'content_ids':  [l['id'] for l in lines],
+                    'contents':     [{'id': l['id'], 'quantity': l['qty'],
+                                      'item_price': l['unit']} for l in lines],
+                    'num_items':    sum(l['qty'] for l in lines),
                 },
                 event_source_url=str(data.get('url') or '')[:400] or None,
             )
@@ -1983,33 +1999,39 @@ class Handler(SimpleHTTPRequestHandler):
             order['meta_fbc'] = str(order.get('meta_fbc') or '')[:400]
             order['meta_ip']  = self._client_ip()
             order['meta_ua']  = self.headers.get('User-Agent', '')[:500]
-            # Not kept on the order — it belongs to the InitiateCheckout event
-            # the browser already fired, not to the purchase.
-            meta_event_id     = str(order.pop('meta_event_id', '') or '')[:100]
+            # Belong to the checkout events, not to the purchase, so neither is
+            # kept on the order.
+            order.pop('meta_event_id', None)
+            api_event_id = str(order.pop('meta_api_event_id', '') or '')[:100]
 
             _pending_orders[order_id] = order
 
-            # Server-side twin of the InitiateCheckout the browser fired when
-            # the checkout modal opened. Same event ID, so Meta counts one —
-            # but this copy carries the customer's hashed details, which the
-            # browser event cannot.
+            # AddPaymentInfo — the customer has committed to paying. This is the
+            # moment the server-side InitiateCheckout used to be sent from, which
+            # was the coverage bug: the browser fires InitiateCheckout when the
+            # modal opens, so everyone who abandoned before this point left a
+            # browser event with no server twin. InitiateCheckout's CAPI copy now
+            # goes out from /meta/event at modal-open time instead, and this
+            # step reports what it actually is.
             #
-            # Sent here, before the Tranzila handshake, because the customer has
-            # already started checkout by this point. Reporting it after the
+            # Worth keeping as its own event because it is the best-matched one
+            # on the site: by now the customer has typed name, email, phone, city
+            # and postcode, so build_user_data sends a full set of hashed
+            # identifiers rather than just cookies.
+            #
+            # Sent before the Tranzila handshake, because the customer has
+            # already reached payment by this point. Reporting it after the
             # handshake would silently lose the signal whenever Tranzila is
             # down — exactly when the funnel data matters most.
             #
-            # Sent whether or not the browser managed to fire its own copy. This
-            # used to be skipped when meta_event_id was missing — which is
-            # precisely the ad-blocked case CAPI exists to cover, so the event
-            # vanished from both channels at once. The fallback id is derived
-            # from the order rather than random, so a retried /payment/init for
-            # the same order can't produce two uncorrelated InitiateCheckouts.
-            ic_event_id = meta_event_id or f'ic-{order_id}'
+            # Sent whether or not the browser managed to fire its own copy, so
+            # the ad-blocked case CAPI exists for is still counted. The fallback
+            # id is derived from the order rather than random, so a retried
+            # /payment/init can't produce two uncorrelated events.
             _contents, _ids = meta_capi.contents_from_items(order.get('items'))
             meta_capi.send_event(
-                'InitiateCheckout',
-                event_id=ic_event_id,
+                'AddPaymentInfo',
+                event_id=api_event_id or f'api-{order_id}',
                 user_data=meta_capi.build_user_data(
                     order, fbp=order['meta_fbp'], fbc=order['meta_fbc'],
                     ip=order['meta_ip'], ua=order['meta_ua'],
