@@ -380,6 +380,19 @@
       cursor: pointer; transition: border-color 0.2s, color 0.2s;
     }
     .code-row button:hover { border-color: var(--ink); color: var(--ink); }
+    .scope-picker {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+      gap: 0.4rem 1rem; margin-top: 0.75rem;
+      max-height: 220px; overflow-y: auto;
+      border: 1px solid var(--sand-300); padding: 0.9rem; background: var(--sand-100);
+    }
+    .scope-picker label {
+      display: flex; align-items: center; gap: 0.5rem; cursor: pointer;
+      text-transform: none; letter-spacing: 0; font-size: 0.75rem; color: var(--ink);
+    }
+    .scope-picker input { width: auto; margin: 0; cursor: pointer; accent-color: var(--ink); }
+    .scope-picker .cat { color: var(--ink-400); font-size: 0.65rem; }
+
     .quick-picks { display: flex; gap: 0.4rem; flex-wrap: wrap; margin-top: 0.4rem; }
     .quick-pick {
       background: none; border: 1px solid var(--sand-300); color: var(--ink-400);
@@ -758,6 +771,16 @@
               sale. During a 10% sale, a 25% coupon then gives the customer 25% off the list price,
               not 32.5%. Tick it to have the coupon stack on top of the sale instead.
             </span>
+          </div>
+          <div class="form-group wide">
+            <label>Applies to</label>
+            <div class="seg" id="c-scope">
+              <button type="button" data-scope="all" class="on">All products</button>
+              <button type="button" data-scope="products">Specific products</button>
+              <button type="button" data-scope="category">Category</button>
+            </div>
+            <div id="c-scope-picker" class="scope-picker" style="display:none;"></div>
+            <span class="hint" id="c-scope-hint"></span>
           </div>
         </div>
         <button id="coupon-save">Save coupon</button>
@@ -1248,7 +1271,9 @@
        to press Save. Every action here writes to the server immediately.
        ============================================================ */
     let coupons = [];
+    let catalogue = [];          // [{id, name, category}] — drives the scope picker
     let expandedCoupon = null;
+    let couponScope = 'all';     // 'all' | 'products' | 'category'
 
     async function couponRequest(body) {
       const res = await fetch('/admin/coupons', {
@@ -1265,7 +1290,11 @@
           headers: { 'Authorization': `Bearer ${getToken()}` },
         });
         const data = await res.json();
-        if (data.ok) { coupons = data.coupons || []; renderCoupons(); }
+        if (data.ok) {
+          coupons = data.coupons || [];
+          catalogue = data.products || [];
+          renderCoupons();
+        }
       } catch (e) { /* offline — leave whatever is on screen */ }
     }
 
@@ -1302,6 +1331,7 @@
               ${c.type !== 'free_shipping'
                 ? `<span class="coupon-note">${c.stackable ? 'stacks with sales' : 'no stacking'}</span>`
                 : ''}
+              <span class="coupon-note">${esc(scopeLabel(c))}</span>
               ${limits ? `<span class="coupon-note">${limits}</span>` : ''}
             </td>
             <td>
@@ -1376,9 +1406,97 @@
       set('c-expires', c.expires_at);
       set('c-note', c.note);
       document.getElementById('c-stackable').checked = !!c.stackable;
+      // Restored explicitly: leaving the picker on its previous state would
+      // silently widen a scoped coupon to the whole catalogue on the next save.
+      const cats = c.applies_to_categories || [];
+      const ids  = c.applies_to || [];
+      setCouponScope(cats.length ? 'category' : ids.length ? 'products' : 'all', ids, cats);
       document.querySelector('.coupon-form-card').scrollIntoView({ behavior: 'smooth', block: 'center' });
       document.getElementById('c-code').focus();
       setStatus(`Editing ${c.code} — press Save coupon to apply`);
+    }
+
+    /* ---- Scope picker ----
+       A coupon can be limited to named products or to whole categories. The
+       category form is stored as a rule, not a snapshot, so a product added to
+       that category later is covered without editing the coupon. */
+    function categoriesFromCatalogue() {
+      // Folded by lowercase: the catalogue contains both 'Stool' and 'STOOL',
+      // and they are one category everywhere else on the site.
+      const seen = new Map();
+      catalogue.forEach(p => {
+        const raw = p.category || '';
+        const key = raw.toLowerCase();
+        if (!key) return;
+        if (!seen.has(key)) seen.set(key, { key, label: raw, count: 0 });
+        seen.get(key).count++;
+      });
+      return [...seen.values()].sort((a, b) => a.label.localeCompare(b.label));
+    }
+
+    function renderScopePicker(selectedIds, selectedCats) {
+      const box  = document.getElementById('c-scope-picker');
+      const hint = document.getElementById('c-scope-hint');
+      if (couponScope === 'all') {
+        box.style.display = 'none';
+        hint.textContent  = 'The coupon applies to everything in the cart.';
+        return;
+      }
+      box.style.display = 'grid';
+      if (couponScope === 'products') {
+        hint.textContent = 'Only the ticked products are discounted. A cart with none of them is refused.';
+        box.innerHTML = catalogue.map(p => `
+          <label>
+            <input type="checkbox" class="scope-product" value="${esc(p.id)}"
+                   ${(selectedIds || []).includes(p.id) ? 'checked' : ''}>
+            <span>${esc(p.name)} <span class="cat">${esc(p.category || '')}</span></span>
+          </label>`).join('');
+      } else {
+        hint.textContent = 'Products added to a ticked category later are covered automatically.';
+        box.innerHTML = categoriesFromCatalogue().map(c => `
+          <label>
+            <input type="checkbox" class="scope-category" value="${esc(c.key)}"
+                   ${(selectedCats || []).includes(c.key) ? 'checked' : ''}>
+            <span>${esc(c.label)} <span class="cat">${c.count}</span></span>
+          </label>`).join('');
+      }
+    }
+
+    function setCouponScope(scope, ids, cats) {
+      couponScope = scope;
+      document.querySelectorAll('#c-scope button')
+        .forEach(b => b.classList.toggle('on', b.dataset.scope === scope));
+      renderScopePicker(ids, cats);
+    }
+
+    function scopeFromForm() {
+      const pick = sel => [...document.querySelectorAll(sel)]
+        .filter(i => i.checked).map(i => i.value);
+      return {
+        applies_to:            couponScope === 'products' ? pick('.scope-product')  : [],
+        applies_to_categories: couponScope === 'category' ? pick('.scope-category') : [],
+      };
+    }
+
+    document.querySelectorAll('#c-scope button').forEach(b =>
+      b.addEventListener('click', () => setCouponScope(b.dataset.scope)));
+
+    function scopeLabel(c) {
+      const cats = c.applies_to_categories || [];
+      const ids  = c.applies_to || [];
+      if (cats.length) {
+        return cats.map(k => {
+          const hit = catalogue.find(p => (p.category || '').toLowerCase() === k);
+          return hit ? hit.category : k;
+        }).join(', ');
+      }
+      if (ids.length) {
+        if (ids.length <= 2) {
+          return ids.map(i => (catalogue.find(p => p.id === i) || {}).name || i).join(', ');
+        }
+        return `${ids.length} products`;
+      }
+      return 'all products';
     }
 
     /* ---- Coupon form ---- */
@@ -1422,6 +1540,7 @@
           note:         val('c-note'),
           stackable:    document.getElementById('c-stackable').checked,
           active:       true,
+          ...scopeFromForm(),
         }});
         if (!data.ok) {
           err.textContent = data.error || 'Could not save the coupon';
@@ -1434,6 +1553,7 @@
         ['c-code', 'c-value', 'c-max-uses', 'c-per-customer', 'c-min', 'c-expires', 'c-note']
           .forEach(id => document.getElementById(id).value = '');
         document.getElementById('c-stackable').checked = false;   // back to no-stacking
+        setCouponScope('all');
       } catch (e) {
         err.textContent = 'Could not reach the server.';
         err.style.display = 'block';
