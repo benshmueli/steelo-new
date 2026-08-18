@@ -765,6 +765,7 @@ def price_order(order, coupon_code=None):
         'coupon': '', 'coupon_discount': 0, 'coupon_label': '',
         'free_shipping': False, 'coupon_error': '',
         'display_subtotal': subtotal, 'display_discount': 0, 'list_price_ids': [],
+        'scope_note': '',
         'total': subtotal + delivery,
     }
     if not code:
@@ -779,6 +780,7 @@ def price_order(order, coupon_code=None):
 
     result['coupon']          = code
     result['coupon_discount'] = discount
+    result['scope_note']      = coupon_scope_note(find_coupon(code) or {})
     result['coupon_label']    = message
     result['free_shipping']   = free_shipping
     result['list_price_ids']  = list_ids
@@ -868,6 +870,20 @@ def build_purchase_data(order, pricing=None):
 # tries four more times and then leaves.
 COUPON_TYPES = ('percent', 'fixed', 'free_shipping')
 
+# Hebrew category labels for the customer-facing scope note. Mirror of
+# CATEGORY_HE in build.py — kept in step by hand, the same way DELIVERY_FEE is
+# mirrored across build.py, server.py and js/checkout.js. Several English
+# categories deliberately share one Hebrew label, which is how the storefront
+# already presents them.
+CATEGORY_HE = {
+    'coffee table':      'שולחנות סלון',
+    'living room table': 'שולחנות סלון',
+    'dining table':      'שולחנות אוכל',
+    'side table':        'שידות צד',
+    'nesting tables':    'שידות צד',
+    'stool':             'מעמדי מגזינים',
+}
+
 _MSG = {
     'unknown':   'קוד קופון לא קיים',
     'inactive':  'הקופון אינו פעיל',
@@ -949,6 +965,27 @@ def coupon_customer_uses(code, email, phone):
     return uses
 
 
+def coupon_scope_note(coupon):
+    """Hebrew description of what a scoped coupon covers, for the checkout
+    summary. Without it a shopper whose cart is only partly eligible sees a
+    discount smaller than the headline percentage and no reason why."""
+    ids  = coupon.get('applies_to') or []
+    cats = coupon.get('applies_to_categories') or []
+    if not ids and not cats:
+        return ''
+    if cats:
+        # dict.fromkeys keeps declaration order while removing the duplicates
+        # that arise because several categories share one Hebrew label.
+        labels = list(dict.fromkeys(
+            CATEGORY_HE.get(str(c).lower(), str(c)) for c in cats))
+    else:
+        catalog = products_by_id()
+        labels = [catalog[i]['name'] for i in ids if i in catalog]
+    if not labels:
+        return ''
+    return 'ההנחה חלה על ' + ', '.join(labels) + ' בלבד'
+
+
 def coupon_status(coupon):
     """The label the admin table shows. Order matters: an exhausted coupon that
     is also expired reads as expired, which is the more useful thing to know."""
@@ -1000,11 +1037,20 @@ def evaluate_coupon(code, lines, subtotal, delivery, order):
     if min_subtotal and subtotal < min_subtotal:
         return False, 0, False, _MSG['min'].format(f'{min_subtotal:,}'), []
 
-    applies_to = coupon.get('applies_to') or None
-    in_scope   = [l for l in lines if not applies_to or l['id'] in applies_to]
+    # Scope is the union of the two lists; both empty means the whole cart.
+    # Category matching is case-insensitive because the catalogue holds both
+    # 'Stool' and 'STOOL' — the same reason CATEGORY_ORDER and the delivery-fee
+    # lookups fold case.
+    ids    = set(coupon.get('applies_to') or [])
+    cats   = {str(c).lower() for c in (coupon.get('applies_to_categories') or [])}
+    scoped = bool(ids or cats)
+    in_scope = [l for l in lines
+                if not scoped
+                or l['id'] in ids
+                or (l['category'] or '').lower() in cats]
     eligible      = sum(l['unit']      * l['qty'] for l in in_scope)   # sale prices
     eligible_list = sum(l['list_unit'] * l['qty'] for l in in_scope)   # ticket prices
-    if applies_to and eligible <= 0:
+    if scoped and eligible <= 0:
         return False, 0, False, _MSG['items'], []
 
     ctype = coupon.get('type', 'percent')
@@ -1111,6 +1157,18 @@ def upsert_coupon(payload):
     if ctype == 'fixed' and value <= 0:
         return False, 'Fixed amount must be above 0'
 
+    # Validated here rather than left to fail silently at checkout: an unknown id
+    # or category would create a coupon that matches nothing and simply looks
+    # broken to whoever was given it.
+    catalog    = products_by_id()
+    known_cats = {(p.get('category') or '').lower() for p in catalog.values()}
+    ids  = [str(i).strip() for i in (payload.get('applies_to') or []) if str(i).strip()]
+    cats = [str(c).strip().lower() for c in (payload.get('applies_to_categories') or [])
+            if str(c).strip()]
+    unknown = [i for i in ids if i not in catalog] + [c for c in cats if c not in known_cats]
+    if unknown:
+        return False, f'Unknown product or category: {", ".join(unknown[:3])}'
+
     n_or_none = lambda v: int(v) if str(v or '').strip() not in ('', '0', 'None') else None
 
     with _store_lock:
@@ -1130,7 +1188,8 @@ def upsert_coupon(payload):
             'stackable':    bool(payload.get('stackable', False)),
             'starts_at':    (payload.get('starts_at') or '')[:10] or None,
             'expires_at':   (payload.get('expires_at') or '')[:10] or None,
-            'applies_to':   payload.get('applies_to') or None,
+            'applies_to':            ids or None,
+            'applies_to_categories': cats or None,
             'note':         str(payload.get('note') or '')[:200],
         })
         if not existing:
@@ -1312,7 +1371,8 @@ class Handler(SimpleHTTPRequestHandler):
         self._json(200, {
             'ok': True,
             'coupons':  coupons_for_admin(),
-            'products': [{'id': p['id'], 'name': p['name']}
+            'products': [{'id': p['id'], 'name': p['name'],
+                          'category': p.get('category', '')}
                          for p in products_by_id().values()],
         })
 
@@ -1363,6 +1423,7 @@ class Handler(SimpleHTTPRequestHandler):
                 'display_subtotal': pricing['display_subtotal'],
                 'display_discount': pricing['display_discount'],
                 'list_price_ids':   pricing['list_price_ids'],
+                'scope_note':       pricing['scope_note'],
             })
         except Exception as e:
             print(f'  [Coupon] validate failed: {e}')

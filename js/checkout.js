@@ -132,6 +132,10 @@ async function applyCoupon(code, opts) {
       displaySubtotal: data.display_subtotal,
       displayDiscount: data.display_discount,
       listPriceIds:    data.list_price_ids || [],
+      // Set only for a coupon limited to certain products or a category. Shown
+      // under the discount row so a partly-eligible cart doesn't look like the
+      // coupon shortchanged them.
+      scopeNote:       data.scope_note || '',
     };
     renderCoupon();
     buildOrderSummary();
@@ -254,12 +258,15 @@ function buildOrderSummary() {
     sumRow(`הנחה (${appliedCoupon.code})`, '−' + fmt(discount), 'is-discount');
     // Explains why these rows are dearer than the sale prices on the product
     // page — the coupon took the sale's place rather than adding to it.
-    if (replacesSale) {
+    const notes = [];
+    if (appliedCoupon.scopeNote) notes.push(appliedCoupon.scopeNote);
+    if (replacesSale)            notes.push('ללא כפל מבצעים');
+    notes.forEach(text => {
       const note = document.createElement('p');
       note.className = 'coupon-stack-note';
-      note.textContent = 'ללא כפל מבצעים';
+      note.textContent = text;
       el.appendChild(note);
-    }
+    });
   }
   if (isPickup)      sumRow('איסוף עצמי', 'חינם');
   else if (freeShip) sumRow('משלוח', 'חינם', 'is-discount');
