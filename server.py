@@ -808,15 +808,30 @@ VAT_RATE = 1.18  # 18% Israeli VAT; listed prices are VAT-inclusive
 
 def _invoice_line_name(line):
     """A meaningful invoice description: product name (+ dimensions when known),
-    resolved server-side so it never depends on what the browser cart stored."""
+    resolved server-side so it never depends on what the browser cart stored.
+
+    Kept to Hebrew, ASCII and spaces: the label survives an encode/decode round
+    trip through Tranzila's iframe and (for Apple Pay) their jQuery bridge, and
+    exotic punctuation is the kind of thing that turns into mojibake on the way."""
     name  = (line.get('name') or line.get('id') or 'מוצר').strip()
     dims  = (line.get('dimensions') or '').strip()
-    label = f'{name} · {dims}' if dims else name
-    return label[:118]
+    label = f'{name} - {dims}' if dims else name
+    label = ''.join(ch for ch in label if ch.isprintable())
+    return ' '.join(label.split())[:118]
 
 
 def build_purchase_data(order, pricing=None):
-    """Tranzila json_purchase_data (invoice line items) as a compact JSON string.
+    """Tranzila json_purchase_data (invoice line items), rawurlencoded.
+
+    The return value is the encoded string, not raw JSON — that is Tranzila's
+    contract: the field VALUE must already be rawurlencode()d, and the transport
+    (POST form, or urlencode on the handshake call) then adds its own layer,
+    which Tranzila peels off before rawurldecode()ing back to JSON. Sending raw
+    JSON and relying on a single transport layer is what left the product
+    description blank on every invoice. quote(safe='') is Python's rawurlencode:
+    spaces become %20, never '+' — Tranzila rejects '+', and their Apple Pay
+    bridge re-encodes the value with jQuery.param(), which emits '+' for spaces
+    unless the value is already encoded.
 
     product_price is sent PRE-VAT (price / 1.18) because the account applies VAT;
     a rounding delta is absorbed on the last line so the post-VAT total matches
@@ -825,6 +840,7 @@ def build_purchase_data(order, pricing=None):
     A coupon is spread proportionally across the product lines rather than added
     as a negative line — Tranzila's invoicing rejects those, and the lines still
     have to reconcile to the charge. '' if there is nothing to invoice."""
+    import urllib.parse
     if pricing is None:
         pricing = price_order(order, order.get('coupon_code'))
     subtotal = pricing['subtotal']
@@ -857,7 +873,8 @@ def build_purchase_data(order, pricing=None):
     last      = lines[-1]
     last_post = round(charged - others, 2)
     last['product_price'] = round(last_post / VAT_RATE / last['product_quantity'], 2)
-    return json.dumps(lines, separators=(',', ':'), ensure_ascii=False)
+    raw = json.dumps(lines, separators=(',', ':'), ensure_ascii=False)
+    return urllib.parse.quote(raw, safe='')  # rawurlencode, per Tranzila's spec
 
 
 # ── Coupons ───────────────────────────────────────────────────────────────────
@@ -2173,7 +2190,10 @@ class Handler(SimpleHTTPRequestHandler):
             if not thtk:
                 raise Exception(f'No thtk in response: {hw_resp[:300]}')
 
-            # Step 2: build iframe URL
+            # Step 2: build the payment-page fields. The browser POSTs these into
+            # the iframe rather than loading them as a query string — Tranzila
+            # require POST for json_purchase_data because a browser will happily
+            # re-decode a URL and change the encoding on the way.
             base_site = 'https://www.steelo-design.com'
             iframe_fields = {
                 'sum':         f"{order['total']:.2f}",
@@ -2191,6 +2211,10 @@ class Handler(SimpleHTTPRequestHandler):
             if purchase_data:
                 iframe_fields['u71'] = '1'                       # enable itemized invoice
                 iframe_fields['json_purchase_data'] = purchase_data
+            # GET fallback, for a browser still running a cached checkout.js
+            # that doesn't know how to POST. urlencode adds the second layer the
+            # pre-encoded value expects, so this form is spec-correct too — POST
+            # is preferred only because a browser can rewrite a URL in transit.
             # quote_via=quote → spaces encode as %20 (not +), per Tranzila's spec
             iframe_params = urllib.parse.urlencode(iframe_fields, quote_via=urllib.parse.quote)
             iframe_url = f'{TRANZILA_IFRAME_BASE}?{iframe_params}'
@@ -2202,12 +2226,18 @@ class Handler(SimpleHTTPRequestHandler):
             analytics.record('checkout_created', visitor=order.get('visitor_id', ''),
                              source=order.get('visitor_source', 'direct'),
                              order_id=order_id, value=order['total'])
-            print(f'  [Payment] Invoice items (u71/json_purchase_data): {purchase_data or "(none)"}')
+            # Logged decoded: the wire format is unreadable, and when an invoice
+            # comes back wrong this line is the only record of what we sent.
+            print(f'  [Payment] Invoice items (u71/json_purchase_data): '
+                  f'{urllib.parse.unquote(purchase_data) if purchase_data else "(none)"}')
 
             # `total` is server-authoritative (items + delivery fee, recomputed
             # above). The browser needs it back so its Purchase event reports
             # the amount actually charged — the cart alone has no delivery fee.
-            self._json(200, {'ok': True, 'iframe_url': iframe_url,
+            self._json(200, {'ok': True,
+                             'iframe_action': TRANZILA_IFRAME_BASE,
+                             'iframe_fields': iframe_fields,
+                             'iframe_url':    iframe_url,   # fallback, see above
                              'order_id': order_id, 'total': order['total']})
         except Exception as e:
             print(f'  [Payment/init] Error: {e}')
