@@ -370,7 +370,7 @@ SCRIPTS = '''  <script src="/js/nav.js?v=1"></script>
   <script src="/js/cart.js?v=10"></script>
   <!-- jQuery required by Tranzila's embedded payment iframe (Apple Pay / Google Pay) -->
   <script src="/js/jquery.min.js?v=1"></script>
-  <script src="/js/checkout.js?v=16"></script>
+  <script src="/js/checkout.js?v=17"></script>
   <!-- Tranzila Apple Pay bridge (must load on the page that hosts the payment iframe) -->
   <script type="text/javascript" src="https://direct.tranzila.com/Tranzila_files/jquery.js"></script>
   <script>document.write('<script src="https://direct.tranzila.com/js/tranzilanapple_v3.js?v=' + Date.now() + '"><\\/script>');</script>

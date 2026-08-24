@@ -442,12 +442,38 @@ document.getElementById('checkout-to-payment-btn').addEventListener('click', asy
     const spinner = document.getElementById('checkout-spinner');
     wrap.innerHTML = '';
     const iframe = document.createElement('iframe');
-    iframe.src   = data.iframe_url;
+    iframe.name  = 'stl-tranzila-frame';
     iframe.title = 'תשלום מאובטח';
     iframe.setAttribute('allow', 'payment');
     iframe.setAttribute('allowpaymentrequest', 'true'); // legacy Safari fallback
     iframe.style.cssText = 'width:100%;min-height:640px;border:0;display:block;background:var(--sand-100);';
     wrap.appendChild(iframe);
+
+    // POST the fields in rather than putting them in the iframe URL: Tranzila
+    // require POST for json_purchase_data (the itemized-invoice product list),
+    // because a browser can re-decode a query string and change the encoding on
+    // the way — which is what left תיאור מוצר blank on every invoice.
+    // The iframe has to be in the DOM with its name set before we submit.
+    if (data.iframe_fields) {
+      const form = document.createElement('form');
+      form.method = 'POST';
+      form.action = data.iframe_action;
+      form.target = iframe.name;
+      form.acceptCharset = 'UTF-8';
+      form.style.display = 'none';
+      Object.entries(data.iframe_fields).forEach(([k, v]) => {
+        const input = document.createElement('input');
+        input.type  = 'hidden';
+        input.name  = k;
+        input.value = v;
+        form.appendChild(input);
+      });
+      document.body.appendChild(form);
+      form.submit();
+      form.remove();
+    } else {
+      iframe.src = data.iframe_url; // older server response
+    }
     if (spinner) spinner.style.display = 'none';
     wrap.style.display = 'block';
     if (backBtn) backBtn.style.display = '';
