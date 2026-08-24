@@ -43,18 +43,26 @@ _ledger = None
 
 
 def set_ledger(fn):
-    """fn(event_name, event_id, channel, status) — called after each send."""
+    """fn(event_name, event_id, channel, status, value) — called after each send."""
     global _ledger
     _ledger = fn
 
 
-def _record(event_name, event_id, status):
+def _record(event_name, event_id, status, value=None):
     if not _ledger:
         return
     try:
-        _ledger(event_name, event_id, 'server', status)
+        _ledger(event_name, event_id, 'server', status, value)
     except Exception as e:
         print(f'  [Meta] ledger hook failed: {e}')
+
+
+def _value_of(custom_data):
+    """The event's value, as a number the ledger can store, or None."""
+    try:
+        return float((custom_data or {}).get('value'))
+    except (TypeError, ValueError):
+        return None
 
 
 def _hash(value):
@@ -151,8 +159,13 @@ def contents_from_items(items):
 
 
 def send_event(event_name, event_id, user_data, custom_data=None,
-               event_source_url=None, event_time=None):
+               event_source_url=None, event_time=None, internal=False):
     """Queue one event for the Conversions API. Returns immediately.
+
+    `internal` suppresses the send outright — internal test orders and devices
+    the admin flagged with "Ignore this device". They are still written to the
+    ledger, so suppression stays visible in the admin rather than becoming an
+    invisible hole. See is_internal_order() in server.py for what qualifies.
 
     server.py runs on a plain HTTPServer, which is single-threaded: a blocking
     POST to Meta would stall the customer's post-payment redirect and every
@@ -160,6 +173,16 @@ def send_event(event_name, event_id, user_data, custom_data=None,
     thread and the caller never waits, never sees an exception, and never
     depends on the result.
     """
+    value = _value_of(custom_data)
+
+    # Ahead of the `enabled` check: an internal event must not go out even when
+    # the credentials are present, and must be distinguishable in the ledger
+    # from one that was merely dropped for want of a token.
+    if internal:
+        print(f'  [Meta] {event_name} {event_id} — internal, not sent')
+        _record(event_name, event_id, 'skipped: internal', value)
+        return
+
     global _warned
     if not enabled:
         if not _warned:
@@ -172,7 +195,7 @@ def send_event(event_name, event_id, user_data, custom_data=None,
             _warned = True
         # Still recorded: the id the server *would* have used is what makes the
         # deduplication wiring testable on a dev machine with no credentials.
-        _record(event_name, event_id, 'skipped: CAPI disabled')
+        _record(event_name, event_id, 'skipped: CAPI disabled', value)
         return
 
     event = {
@@ -192,11 +215,11 @@ def send_event(event_name, event_id, user_data, custom_data=None,
 
     url = f'https://graph.facebook.com/{API_VERSION}/{PIXEL_ID}/events'
     threading.Thread(
-        target=_post, args=(url, payload, event_name, event_id), daemon=True
+        target=_post, args=(url, payload, event_name, event_id, value), daemon=True
     ).start()
 
 
-def _post(url, payload, event_name, event_id):
+def _post(url, payload, event_name, event_id, value=None):
     body = json.dumps(payload).encode('utf-8')
     req = urllib.request.Request(
         url, data=body, headers={'Content-Type': 'application/json'}, method='POST'
@@ -205,13 +228,13 @@ def _post(url, payload, event_name, event_id):
         with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
             received = json.loads(resp.read().decode()).get('events_received')
             print(f'  [Meta] {event_name} {event_id} → OK (received={received})')
-            _record(event_name, event_id, f'ok received={received}')
+            _record(event_name, event_id, f'ok received={received}', value)
     except urllib.error.HTTPError as e:
         # Meta puts the actual reason in the body, not the status line — an
         # expired token and a malformed payload are both plain 400s.
         detail = e.read().decode(errors='replace')[:400]
         print(f'  [Meta] {event_name} {event_id} → HTTP {e.code}: {detail}')
-        _record(event_name, event_id, f'HTTP {e.code}: {detail[:120]}')
+        _record(event_name, event_id, f'HTTP {e.code}: {detail[:120]}', value)
     except Exception as e:
         print(f'  [Meta] {event_name} {event_id} → failed: {e}')
-        _record(event_name, event_id, f'failed: {e}')
+        _record(event_name, event_id, f'failed: {e}', value)

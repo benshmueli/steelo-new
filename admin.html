@@ -1613,6 +1613,7 @@
           <table class="coupon-table">
             <thead><tr>
               <th>Event</th><th>Browser</th><th>Server</th><th>Matched</th><th>Deduplicated</th>
+              <th>Values</th><th>Range</th>
             </tr></thead>
             <tbody>${data.events.map(e => `
               <tr>
@@ -1623,6 +1624,16 @@
                 <td>${e.dedup_pct === null
                       ? '<span style="color:var(--ink-400)">browser only</span>'
                       : `<b>${e.dedup_pct}%</b>`}</td>
+                <!-- One distinct value across a whole range is exactly what
+                     Events Manager warns about ("prices in value parameter are
+                     the same for all web Purchase events"), so flag it here
+                     rather than waiting on their 7-28 day window. -->
+                <td>${e.distinct_values <= 1 && e.browser + e.server > 2
+                      ? `<b style="color:var(--red,#b00)">${nfmt(e.distinct_values)}</b>`
+                      : nfmt(e.distinct_values)}</td>
+                <td style="font-size:0.65rem;direction:ltr;">${e.min_value === null
+                      ? '<span style="color:var(--ink-400)">—</span>'
+                      : `₪${nfmt(e.min_value)} – ₪${nfmt(e.max_value)}`}</td>
               </tr>`).join('')}
             </tbody>
           </table>`;
@@ -1632,12 +1643,13 @@
               Last ${data.recent.length} raw events
             </summary>
             <table class="coupon-table" style="margin-top:0.75rem;">
-              <thead><tr><th>When</th><th>Event</th><th>Channel</th><th>Event ID</th><th>Status</th></tr></thead>
+              <thead><tr><th>When</th><th>Event</th><th>Channel</th><th>Value</th><th>Event ID</th><th>Status</th></tr></thead>
               <tbody>${data.recent.map(r => `
                 <tr>
                   <td>${new Date(r.ts * 1000).toLocaleString('he-IL')}</td>
                   <td>${esc(r.event_name)}</td>
                   <td>${esc(r.channel)}</td>
+                  <td style="direction:ltr;">${r.value === null ? '—' : '₪' + nfmt(r.value)}</td>
                   <td style="font-size:0.65rem;direction:ltr;">${esc(r.event_id)}</td>
                   <td style="font-size:0.65rem;">${esc(r.status || '')}</td>
                 </tr>`).join('')}

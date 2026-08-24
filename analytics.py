@@ -137,7 +137,8 @@ CREATE TABLE IF NOT EXISTS meta_events (
   event_name TEXT NOT NULL,
   event_id   TEXT NOT NULL,
   channel    TEXT NOT NULL,   -- 'browser' | 'server'
-  status     TEXT
+  status     TEXT,
+  value      REAL             -- the event's value parameter; NULL when it has none
 );
 CREATE INDEX IF NOT EXISTS ix_meta_day ON meta_events(il_day);
 CREATE INDEX IF NOT EXISTS ix_meta_eid ON meta_events(event_id);
@@ -152,6 +153,7 @@ def init(data_dir):
         try:
             with _connect() as db:
                 db.executescript(SCHEMA)
+                _migrate(db)
             return True
         except Exception as e:
             # Analytics must never stop the store from serving. If the DB can't
@@ -159,6 +161,24 @@ def init(data_dir):
             print(f'  [Analytics] Could not open {_db_path}: {e}')
             _db_path = None
             return False
+
+
+# Columns added after the table first shipped. CREATE TABLE IF NOT EXISTS will
+# not add them to the database already on the Railway volume, so each is applied
+# separately and a duplicate-column error is the expected no-op.
+_MIGRATIONS = (
+    ('meta_events', 'value', 'REAL'),
+)
+
+
+def _migrate(db):
+    for table, column, coltype in _MIGRATIONS:
+        try:
+            db.execute(f'ALTER TABLE {table} ADD COLUMN {column} {coltype}')
+            print(f'  [Analytics] migrated: {table}.{column} added')
+        except sqlite3.OperationalError as e:
+            if 'duplicate column' not in str(e).lower():
+                raise
 
 
 def _connect():
@@ -260,7 +280,7 @@ def is_excluded(visitor):
 META_CHANNELS = ('browser', 'server')
 
 
-def log_meta_event(event_name, event_id, channel, status=''):
+def log_meta_event(event_name, event_id, channel, status='', value=None):
     """Record one Pixel or CAPI send. Never raises."""
     if not ready():
         return False
@@ -268,14 +288,19 @@ def log_meta_event(event_name, event_id, channel, status=''):
     event_id   = _clean(event_id, 100)
     if not event_name or not event_id or channel not in META_CHANNELS:
         return False
+    try:
+        value = float(value) if value is not None else None
+    except (TypeError, ValueError):
+        value = None
     _, day = _buckets()
     try:
         with _lock, _connect() as db:
             db.execute(
-                'INSERT INTO meta_events (ts, il_day, event_name, event_id, channel, status)'
-                ' VALUES (?,?,?,?,?,?)',
+                'INSERT INTO meta_events'
+                ' (ts, il_day, event_name, event_id, channel, status, value)'
+                ' VALUES (?,?,?,?,?,?,?)',
                 (int(time.time()), day, event_name, event_id, channel,
-                 _clean(status, 200)),
+                 _clean(status, 200), value),
             )
         return True
     except Exception as e:
@@ -299,7 +324,14 @@ def meta_coverage(days=7):
             SELECT event_name,
                    SUM(channel='browser') AS browser,
                    SUM(channel='server')  AS server,
-                   COUNT(DISTINCT event_id) AS ids
+                   COUNT(DISTINCT event_id) AS ids,
+                   -- distinct_values is the local answer to Meta's "prices in
+                   -- value parameter are the same for all web Purchase events".
+                   -- 1 across a week of Purchases is that warning, visible
+                   -- immediately instead of after their 7-28 day window.
+                   COUNT(DISTINCT value) AS distinct_values,
+                   MIN(value) AS min_value,
+                   MAX(value) AS max_value
             FROM meta_events WHERE il_day >= ?
             GROUP BY event_name ORDER BY event_name
         """, (since,)).fetchall()
@@ -313,7 +345,7 @@ def meta_coverage(days=7):
         """, (since,)).fetchall()}
 
         recent = [dict(r) for r in db.execute("""
-            SELECT ts, event_name, event_id, channel, status
+            SELECT ts, event_name, event_id, channel, status, value
             FROM meta_events ORDER BY id DESC LIMIT 30
         """).fetchall()]
 
@@ -331,6 +363,9 @@ def meta_coverage(days=7):
             'ids':        r['ids'] or 0,
             'matched':    both,
             'dedup_pct':  round(both / pairable * 100, 1) if pairable else None,
+            'distinct_values': r['distinct_values'] or 0,
+            'min_value':  r['min_value'],
+            'max_value':  r['max_value'],
         })
     total = sum(e['browser'] + e['server'] for e in events)
     return {'ok': True, 'days': days, 'events': events, 'recent': recent,
