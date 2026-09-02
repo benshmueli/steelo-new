@@ -1613,6 +1613,7 @@
           <table class="coupon-table">
             <thead><tr>
               <th>Event</th><th>Browser</th><th>Server</th><th>Matched</th><th>Deduplicated</th>
+              <th>Values</th><th>Range</th>
             </tr></thead>
             <tbody>${data.events.map(e => `
               <tr>
@@ -1623,21 +1624,54 @@
                 <td>${e.dedup_pct === null
                       ? '<span style="color:var(--ink-400)">browser only</span>'
                       : `<b>${e.dedup_pct}%</b>`}</td>
+                <!-- One distinct value across a whole range is exactly what
+                     Events Manager warns about ("prices in value parameter are
+                     the same for all web Purchase events"), so flag it here
+                     rather than waiting on their 7-28 day window. -->
+                <td>${e.distinct_values <= 1 && e.browser + e.server > 2
+                      ? `<b style="color:#b00">${nfmt(e.distinct_values)}</b>`
+                      : nfmt(e.distinct_values)}</td>
+                <td style="font-size:0.65rem;direction:ltr;">${e.min_value === null
+                      ? '<span style="color:var(--ink-400)">—</span>'
+                      : `₪${nfmt(e.min_value)} – ₪${nfmt(e.max_value)}`}</td>
               </tr>`).join('')}
             </tbody>
           </table>`;
+        const testRows = data.test_events || [];
+        el.innerHTML += testRows.length ? `
+          <p style="margin:1.25rem 0 0.5rem;font-size:0.68rem;color:var(--ink-400);">
+            Test dataset — internal test products and devices you marked
+            &ldquo;Ignore this device&rdquo;. Counted apart; never part of the
+            figures above.
+          </p>
+          <table class="coupon-table">
+            <thead><tr><th>Event</th><th>Browser</th><th>Server</th></tr></thead>
+            <tbody>${testRows.map(t => `
+              <tr>
+                <td><span class="coupon-code">${esc(t.event_name)}</span></td>
+                <td>${nfmt(t.browser)}</td>
+                <td>${nfmt(t.server)}</td>
+              </tr>`).join('')}
+            </tbody>
+          </table>` : '';
+
         recent.innerHTML = `
           <details style="margin-top:1rem;">
             <summary style="cursor:pointer;font-size:0.68rem;color:var(--ink-400);">
               Last ${data.recent.length} raw events
             </summary>
             <table class="coupon-table" style="margin-top:0.75rem;">
-              <thead><tr><th>When</th><th>Event</th><th>Channel</th><th>Event ID</th><th>Status</th></tr></thead>
+              <thead><tr><th>When</th><th>Event</th><th>Channel</th><th>Dataset</th><th>Value</th><th>Event ID</th><th>Status</th></tr></thead>
               <tbody>${data.recent.map(r => `
                 <tr>
                   <td>${new Date(r.ts * 1000).toLocaleString('he-IL')}</td>
                   <td>${esc(r.event_name)}</td>
                   <td>${esc(r.channel)}</td>
+                  <td>${r.dataset === 'test'
+                        ? '<b style="color:#b00">test</b>'
+                        : `<span style="color:var(--ink-400)">${esc(r.dataset || 'production')}</span>`}</td>
+                  <td style="direction:ltr;">${r.value === null || r.value === undefined
+                        ? '—' : '₪' + nfmt(r.value)}</td>
                   <td style="font-size:0.65rem;direction:ltr;">${esc(r.event_id)}</td>
                   <td style="font-size:0.65rem;">${esc(r.status || '')}</td>
                 </tr>`).join('')}

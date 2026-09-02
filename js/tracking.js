@@ -33,6 +33,67 @@ function stlReady() {
   return stlConsentGranted() && typeof fbq === 'function';
 }
 
+/* ---- Dataset routing ----
+
+   Two Meta datasets. Production holds real customers; the test dataset holds
+   internal traffic, so a ₪1 test purchase can never teach the production ad
+   account what a Steelo customer is worth.
+
+   Every event is addressed to exactly one of them with fbq('trackSingle', …).
+   A bare fbq('track') goes to every initialised pixel, and since the test
+   dataset is initialised lazily — part-way through a page's life, only if
+   something needs it — the same call would mean different things at different
+   moments. Addressing each event explicitly is what keeps one event out of two
+   datasets. Never use fbq('track') in this file. */
+
+const STL_TEST_ID = 'test';
+
+/* Keys an item might carry its identifier under. Only `id` exists in the
+   catalogue today; the rest are checked so this keeps working if the product
+   schema grows a SKU or a slug. Mirrors _ID_KEYS in server.py. */
+const STL_ID_KEYS = ['id', 'sku', 'slug', 'handle', 'content_id'];
+
+/* One test line makes the whole cart a test — a mixed basket is never split
+   across datasets. */
+function stlIsTestItems(items) {
+  return (items || []).some(function (i) {
+    return i && STL_ID_KEYS.some(function (k) { return String(i[k]) === STL_TEST_ID; });
+  });
+}
+
+/* A device the admin flagged with "Ignore this device", or the admin page
+   itself. Same key the first-party analytics in analytics.js honour. Such a
+   device routes to the test dataset even when buying a REAL product, which is
+   the case that matters when exercising the live Tranzila flow. */
+function stlDeviceIsInternal() {
+  try {
+    if (localStorage.getItem('steelo_no_track')) return true;
+  } catch (e) {}
+  return /\/admin(\.html)?$/.test(location.pathname);
+}
+
+/* The dataset id this event belongs to, or '' when it cannot be sent.
+
+   '' happens when the relevant id is unconfigured. For a test event with no
+   META_TEST_PIXEL_ID that means the event is dropped — deliberately, rather
+   than falling back to production, which is the one outcome this whole change
+   exists to prevent. */
+function stlTargetDataset(items) {
+  var test = stlIsTestItems(items) || stlDeviceIsInternal();
+  var id   = test ? window.STEELO_TEST_PIXEL_ID : window.STEELO_PIXEL_ID;
+  return id || '';
+}
+
+/* fbq('init') for a dataset, at most once per page. Production is already
+   init'd by the base snippet; this is what brings the test dataset up the first
+   time something is actually routed to it. */
+var stlInitedDatasets = {};
+function stlEnsureDataset(id) {
+  if (!id || stlInitedDatasets[id]) return;
+  stlInitedDatasets[id] = true;
+  if (id !== window.STEELO_PIXEL_ID) fbq('init', id);
+}
+
 /* Meta's browser cookies. Passing these to the server is what lets a CAPI
    event be attributed to the same person and browser session as the Pixel
    event — without them the server event matches on hashed PII alone. */
@@ -70,6 +131,10 @@ function stlReportEvent(name, eventId, extra) {
       fbp:      fb.fbp,
       fbc:      fb.fbc,
       url:      location.href,
+      // Lets the server route its CAPI twin to the same dataset. It re-derives
+      // this from the item ids it can verify; this flag is what additionally
+      // carries the "Ignore this device" case, which is invisible server-side.
+      test:     stlDeviceIsInternal(),
     }, extra || {}));
     if (navigator.sendBeacon) {
       navigator.sendBeacon('/meta/event', new Blob([body], { type: 'application/json' }));
@@ -89,7 +154,10 @@ function stlTrackViewContent() {
   const p = window.STEELO_PRODUCT;
   if (!p) return;
   const eventId = stlEventId('vc');
-  fbq('track', 'ViewContent', {
+  const target  = stlTargetDataset([p]);
+  if (!target) return;
+  stlEnsureDataset(target);
+  fbq('trackSingle', target, 'ViewContent', {
     content_ids:  [p.id],
     content_name: p.name,
     content_type: 'product',
@@ -111,10 +179,12 @@ function stlTrackAddToCart(product) {
     ? salePrice(product.price, product.discount)
     : product.price;
   const eventId = stlEventId('atc');
-  const fired   = stlReady();
+  const target  = stlTargetDataset([product]);
+  const fired   = stlReady() && !!target;
 
   if (fired) {
-    fbq('track', 'AddToCart', {
+    stlEnsureDataset(target);
+    fbq('trackSingle', target, 'AddToCart', {
       content_ids:  [product.id],
       content_name: product.name,
       content_type: 'product',
@@ -143,11 +213,13 @@ function stlTrackInitiateCheckout(items, fee, eventId) {
   const contents = items.map(i => ({
     id: i.id, quantity: i.quantity, item_price: i.price,
   }));
-  const value = items.reduce((s, i) => s + i.price * i.quantity, 0) + (fee || 0);
-  const fired = stlReady();
+  const value  = items.reduce((s, i) => s + i.price * i.quantity, 0) + (fee || 0);
+  const target = stlTargetDataset(items);
+  const fired  = stlReady() && !!target;
 
   if (fired) {
-    fbq('track', 'InitiateCheckout', {
+    stlEnsureDataset(target);
+    fbq('trackSingle', target, 'InitiateCheckout', {
       content_ids:  items.map(i => i.id),
       content_type: 'product',
       contents:     contents,
@@ -178,9 +250,11 @@ function stlTrackInitiateCheckout(items, fee, eventId) {
    customer's details finally exist — so its CAPI twin, sent from /payment/init,
    carries a full set of hashed identifiers rather than just cookies. */
 function stlTrackAddPaymentInfo(items, total, eventId) {
-  const fired = stlReady();
+  const target = stlTargetDataset(items);
+  const fired  = stlReady() && !!target;
   if (fired) {
-    fbq('track', 'AddPaymentInfo', {
+    stlEnsureDataset(target);
+    fbq('trackSingle', target, 'AddPaymentInfo', {
       content_ids:  (items || []).map(i => i.id),
       content_type: 'product',
       contents:     (items || []).map(i => ({
@@ -209,7 +283,13 @@ function stlTrackAddPaymentInfo(items, total, eventId) {
 const STL_PENDING_PURCHASE = 'steelo_pending_purchase';
 
 function stlSavePendingPurchase(record) {
-  try { localStorage.setItem(STL_PENDING_PURCHASE, JSON.stringify(record)); } catch (e) {}
+  // The dataset decision is taken here, while the cart is still in hand, and
+  // carried on the record. On the way back only content_ids survive, which
+  // catches a test product but not a flagged device buying a real one.
+  try {
+    if (record && stlDeviceIsInternal()) record.test = true;
+    localStorage.setItem(STL_PENDING_PURCHASE, JSON.stringify(record));
+  } catch (e) {}
 }
 
 function stlClearPendingPurchase() {
@@ -225,17 +305,37 @@ function stlTrackPurchaseFromRedirect(orderId) {
   if (orderId && rec.order_id !== orderId) { stlClearPendingPurchase(); return; }
 
   stlClearPendingPurchase();          // consume first, then fire
-  if (!stlReady()) return;
 
-  fbq('track', 'Purchase', {
-    content_ids:  (rec.contents || []).map(c => c.id),
+  const contentIds = (rec.contents || []).map(c => c.id);
+
+  // A Purchase with no real amount is worse than no Purchase: it is the number
+  // Meta optimises on. Report the skip rather than staying silent, so a broken
+  // /payment/init shows up in the admin ledger instead of quietly
+  // under-counting sales.
+  const value = Number(rec.value);
+  if (!isFinite(value) || value <= 0) {
+    stlReportEvent('Purchase', rec.order_id,
+                   { value: rec.value, fired: false, note: 'bad value' });
+    return;
+  }
+
+  // Routed off the content_ids that came back with the order, exactly as they
+  // will be reported — plus the flag stashed at save time for the case where
+  // the device is internal but every product in the basket is real.
+  const isTest = contentIds.indexOf(STL_TEST_ID) !== -1 || !!rec.test;
+  const target = isTest ? window.STEELO_TEST_PIXEL_ID : window.STEELO_PIXEL_ID;
+  if (!stlReady() || !target) return;
+  stlEnsureDataset(target);
+
+  fbq('trackSingle', target, 'Purchase', {
+    content_ids:  contentIds,
     content_type: 'product',
     contents:     rec.contents || [],
     num_items:    (rec.contents || []).reduce((s, c) => s + c.quantity, 0),
-    value:        rec.value,
+    value:        value,
     currency:     rec.currency || STL_CURRENCY,
     order_id:     rec.order_id,
     // event_id = order_id, matching the server event for this same order.
   }, { eventID: rec.order_id });
-  stlReportEvent('Purchase', rec.order_id, { value: rec.value, fired: true });
+  stlReportEvent('Purchase', rec.order_id, { value: value, fired: true });
 }
