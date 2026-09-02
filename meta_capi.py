@@ -22,19 +22,33 @@ import urllib.request
 
 PIXEL_ID     = os.environ.get('META_PIXEL_ID', '').strip()
 ACCESS_TOKEN = os.environ.get('META_CAPI_ACCESS_TOKEN', '').strip()
+
+# The separate dataset internal test traffic is reported to, so the production
+# dataset only ever contains real customers. Access tokens are dataset-scoped —
+# the production token will NOT work here, a token must be generated for this
+# dataset in Events Manager.
+#
+# NOT the same thing as META_TEST_EVENT_CODE below. That routes events to the
+# Test Events *tab* of whichever dataset they were already going to; this picks
+# a different dataset outright. The names are confusingly close.
+TEST_PIXEL_ID     = os.environ.get('META_TEST_PIXEL_ID', '').strip()
+TEST_ACCESS_TOKEN = os.environ.get('META_TEST_CAPI_ACCESS_TOKEN', '').strip()
 # Graph API versions are supported for roughly two years. Check the current one
 # in Events Manager → Settings and override here if it has moved on.
 API_VERSION  = os.environ.get('META_API_VERSION', 'v21.0').strip()
 # Set only while testing. Events carrying it appear in Test Events and are
 # EXCLUDED from real reporting — it must be removed before running a campaign.
+# See the note on META_TEST_PIXEL_ID above: this is a different mechanism.
 TEST_EVENT_CODE = os.environ.get('META_TEST_EVENT_CODE', '').strip()
 
 CURRENCY = 'ILS'
 SITE     = 'https://www.steelo-design.com'
 TIMEOUT  = 10
 
-enabled = bool(PIXEL_ID and ACCESS_TOKEN)
-_warned = False
+enabled      = bool(PIXEL_ID and ACCESS_TOKEN)
+test_enabled = bool(TEST_PIXEL_ID and TEST_ACCESS_TOKEN)
+_warned      = False
+_warned_test = False
 
 # Optional sink for a local record of what was sent, set by server.py to
 # analytics.log_meta_event. Injected rather than imported so this module keeps
@@ -43,18 +57,27 @@ _ledger = None
 
 
 def set_ledger(fn):
-    """fn(event_name, event_id, channel, status) — called after each send."""
+    """fn(event_name, event_id, channel, status, value, dataset) — called after
+    each send."""
     global _ledger
     _ledger = fn
 
 
-def _record(event_name, event_id, status):
+def _record(event_name, event_id, status, value=None, dataset=''):
     if not _ledger:
         return
     try:
-        _ledger(event_name, event_id, 'server', status)
+        _ledger(event_name, event_id, 'server', status, value, dataset)
     except Exception as e:
         print(f'  [Meta] ledger hook failed: {e}')
+
+
+def _value_of(custom_data):
+    """The event's value, as a number the ledger can store, or None."""
+    try:
+        return float((custom_data or {}).get('value'))
+    except (TypeError, ValueError):
+        return None
 
 
 def _hash(value):
@@ -151,7 +174,7 @@ def contents_from_items(items):
 
 
 def send_event(event_name, event_id, user_data, custom_data=None,
-               event_source_url=None, event_time=None):
+               event_source_url=None, event_time=None, test=False):
     """Queue one event for the Conversions API. Returns immediately.
 
     server.py runs on a plain HTTPServer, which is single-threaded: a blocking
@@ -159,21 +182,51 @@ def send_event(event_name, event_id, user_data, custom_data=None,
     other request on the box behind it. So the request goes out on a daemon
     thread and the caller never waits, never sees an exception, and never
     depends on the result.
+
+    `test` picks the dataset: internal test orders and devices the admin flagged
+    with "Ignore this device" go to META_TEST_PIXEL_ID, everything else to the
+    production dataset. An event is only ever sent to ONE of them.
+
+    A test event with no test dataset configured is dropped rather than falling
+    back to production — the entire point is that a ₪1 test purchase must never
+    teach the production ad account anything.
     """
-    global _warned
-    if not enabled:
-        if not _warned:
-            missing = []
-            if not PIXEL_ID:
-                missing.append('META_PIXEL_ID')
-            if not ACCESS_TOKEN:
-                missing.append('META_CAPI_ACCESS_TOKEN')
-            print(f'  [Meta] CAPI disabled — {" and ".join(missing)} not set')
-            _warned = True
-        # Still recorded: the id the server *would* have used is what makes the
-        # deduplication wiring testable on a dev machine with no credentials.
-        _record(event_name, event_id, 'skipped: CAPI disabled')
-        return
+    global _warned, _warned_test
+    value = _value_of(custom_data)
+
+    if test:
+        if not test_enabled:
+            if not _warned_test:
+                missing = []
+                if not TEST_PIXEL_ID:
+                    missing.append('META_TEST_PIXEL_ID')
+                if not TEST_ACCESS_TOKEN:
+                    missing.append('META_TEST_CAPI_ACCESS_TOKEN')
+                print(f'  [Meta] test dataset not configured — '
+                      f'{" and ".join(missing)} not set; test events are dropped')
+                _warned_test = True
+            print(f'  [Meta] {event_name} {event_id} — test, no test dataset, not sent')
+            _record(event_name, event_id, 'skipped: test dataset not configured',
+                    value, 'test')
+            return
+        pixel_id, token, dataset = TEST_PIXEL_ID, TEST_ACCESS_TOKEN, 'test'
+    else:
+        if not enabled:
+            if not _warned:
+                missing = []
+                if not PIXEL_ID:
+                    missing.append('META_PIXEL_ID')
+                if not ACCESS_TOKEN:
+                    missing.append('META_CAPI_ACCESS_TOKEN')
+                print(f'  [Meta] CAPI disabled — {" and ".join(missing)} not set')
+                _warned = True
+            # Still recorded: the id the server *would* have used is what makes
+            # the deduplication wiring testable on a dev machine with no
+            # credentials.
+            _record(event_name, event_id, 'skipped: CAPI disabled', value,
+                    'production')
+            return
+        pixel_id, token, dataset = PIXEL_ID, ACCESS_TOKEN, 'production'
 
     event = {
         'event_name':       event_name,
@@ -186,17 +239,18 @@ def send_event(event_name, event_id, user_data, custom_data=None,
     if custom_data:
         event['custom_data'] = custom_data
 
-    payload = {'data': [event], 'access_token': ACCESS_TOKEN}
+    payload = {'data': [event], 'access_token': token}
     if TEST_EVENT_CODE:
         payload['test_event_code'] = TEST_EVENT_CODE
 
-    url = f'https://graph.facebook.com/{API_VERSION}/{PIXEL_ID}/events'
+    url = f'https://graph.facebook.com/{API_VERSION}/{pixel_id}/events'
     threading.Thread(
-        target=_post, args=(url, payload, event_name, event_id), daemon=True
+        target=_post, args=(url, payload, event_name, event_id, value, dataset),
+        daemon=True,
     ).start()
 
 
-def _post(url, payload, event_name, event_id):
+def _post(url, payload, event_name, event_id, value=None, dataset=''):
     body = json.dumps(payload).encode('utf-8')
     req = urllib.request.Request(
         url, data=body, headers={'Content-Type': 'application/json'}, method='POST'
@@ -204,14 +258,15 @@ def _post(url, payload, event_name, event_id):
     try:
         with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
             received = json.loads(resp.read().decode()).get('events_received')
-            print(f'  [Meta] {event_name} {event_id} → OK (received={received})')
-            _record(event_name, event_id, f'ok received={received}')
+            print(f'  [Meta] {event_name} {event_id} → OK '
+                  f'(received={received}, dataset={dataset})')
+            _record(event_name, event_id, f'ok received={received}', value, dataset)
     except urllib.error.HTTPError as e:
         # Meta puts the actual reason in the body, not the status line — an
         # expired token and a malformed payload are both plain 400s.
         detail = e.read().decode(errors='replace')[:400]
         print(f'  [Meta] {event_name} {event_id} → HTTP {e.code}: {detail}')
-        _record(event_name, event_id, f'HTTP {e.code}: {detail[:120]}')
+        _record(event_name, event_id, f'HTTP {e.code}: {detail[:120]}', value, dataset)
     except Exception as e:
         print(f'  [Meta] {event_name} {event_id} → failed: {e}')
-        _record(event_name, event_id, f'failed: {e}')
+        _record(event_name, event_id, f'failed: {e}', value, dataset)

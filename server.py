@@ -339,6 +339,49 @@ TRANZILA_IFRAME_BASE   = f'https://direct.tranzila.com/{TRANZILA_TERMINAL}/ifram
 _pending_orders: dict = {}
 
 
+# ── Internal orders ──────────────────────────────────────────────────────────
+# The hidden 'test' product is priced at ₪1 and its category carries no delivery
+# fee, so every internal test order totals exactly ₪1.00. Reporting those to the
+# production dataset is why Events Manager warned that every web Purchase
+# carried the same value, and why the ad account was optimising toward ₪1
+# conversions. They now go to a separate Meta dataset instead.
+
+TEST_PRODUCT_ID = 'test'
+
+# Keys an item might carry its identifier under. Only 'id' exists in the
+# catalogue today; the rest are checked so this keeps working if the product
+# schema grows a SKU or a slug.
+_ID_KEYS = ('id', 'sku', 'slug', 'handle', 'content_id')
+
+
+def is_test_item(item):
+    return any(str(item.get(k)) == TEST_PRODUCT_ID for k in _ID_KEYS)
+
+
+def is_test_order(order):
+    """An internal test order — the hidden 'test' product. Decides which Sheets
+    tab the order lands in. One test line makes the whole order a test."""
+    if not order:
+        return False
+    return any(is_test_item(it) for it in order.get('items', []))
+
+
+def is_internal_order(order):
+    """True when this order belongs in the Meta test dataset rather than
+    production.
+
+    Wider than is_test_order: it also covers a device the admin flagged with
+    "Ignore this device", which may well be buying a real product to exercise
+    the payment flow. That order is a genuine sale for the sheet and the
+    receipt — it just must not teach the production ad account anything.
+    """
+    if not order:
+        return False
+    if is_test_order(order):
+        return True
+    return analytics.is_excluded(order.get('visitor_id', ''))
+
+
 # ── Meta Purchase de-duplication ─────────────────────────────────────────────
 # A single payment can reach us down several different paths: Tranzila's GET
 # redirect to /payment-success, the Apple Pay bridge POSTing to the same URL,
@@ -1310,12 +1353,23 @@ class Handler(SimpleHTTPRequestHandler):
         return self.address_string()
 
     def _serve_meta_pixel(self):
-        """The Meta Pixel base snippet, with the ID injected from the env.
+        """The Meta Pixel base snippet, with the IDs injected from the env.
 
         Served rather than committed so META_PIXEL_ID lives in Railway instead
         of in the HTML — build.py runs on a laptop, so a build-time env var
         could never reach production. With the var unset this is an empty file
         and the site simply has no pixel.
+
+        Both dataset IDs are published to the page; tracking.js picks one per
+        event. Only production is init'd here — the test dataset is initialised
+        lazily, the first time an event actually needs it, so a real customer's
+        browser never registers it at all.
+
+        Every event uses trackSingle, PageView included. A bare fbq('track')
+        goes to every initialised pixel, and because the test dataset can be
+        init'd part-way through a page's life, the same call would mean
+        different things before and after. Addressing each event explicitly is
+        what guarantees one event never lands in both datasets.
         """
         if meta_capi.PIXEL_ID:
             body = (
@@ -1327,15 +1381,22 @@ class Handler(SimpleHTTPRequestHandler):
                 "t.src=v;s=b.getElementsByTagName(e)[0];\n"
                 "s.parentNode.insertBefore(t,s)}(window,document,'script',\n"
                 "'https://connect.facebook.net/en_US/fbevents.js');\n"
-                f"fbq('init', {json.dumps(meta_capi.PIXEL_ID)});\n"
+                f"window.STEELO_PIXEL_ID = {json.dumps(meta_capi.PIXEL_ID)};\n"
+                f"window.STEELO_TEST_PIXEL_ID = "
+                f"{json.dumps(meta_capi.TEST_PIXEL_ID)};\n"
+                "fbq('init', window.STEELO_PIXEL_ID);\n"
                 # PageView is the highest-volume event on the site, and without
                 # an eventID every one of them counts against Meta's "browser
                 # events with an Event ID" coverage. No server twin — CAPI
                 # PageView is noise — the id exists so the event is well-formed.
                 "window.STEELO_PV_ID = 'pv-' + Date.now().toString(36) + '-' +\n"
                 "  Math.random().toString(36).slice(2, 10);\n"
+                # Production always: a page view is a page view whoever made it,
+                # and the cart it might become is not known yet. Which dataset a
+                # *conversion* belongs to is decided per event in tracking.js.
                 "if (window.STEELO_CONSENT !== false)\n"
-                "  fbq('track', 'PageView', {}, { eventID: window.STEELO_PV_ID });\n"
+                "  fbq('trackSingle', window.STEELO_PIXEL_ID, 'PageView', {},\n"
+                "      { eventID: window.STEELO_PV_ID });\n"
             )
         else:
             body = '/* Meta Pixel disabled — META_PIXEL_ID not set */\n'
@@ -1477,12 +1538,37 @@ class Handler(SimpleHTTPRequestHandler):
             if not name or not event_id or name not in META_KNOWN_EVENTS:
                 return
 
+            # Item ids as the browser sent them, needed twice: to pick the
+            # dataset, and below to price the CAPI twin from the catalogue.
+            items = data.get('items')
+            if not items:
+                pid = str(data.get('content_id', ''))[:64]
+                items = [{'id': pid, 'qty': 1}] if pid else []
+            items = items[:50]
+
+            # Which dataset this event belongs to. The server decides from the
+            # item ids it can verify, and additionally honours the browser's own
+            # `test` flag — which is what carries the "Ignore this device" case,
+            # invisible from here. Trusting a client that asks to be routed TO
+            # the test dataset is safe: that direction can only take events away
+            # from production, never inject them. The reverse is never trusted.
+            is_test = any(is_test_item(it) for it in items) or bool(data.get('test'))
+            dataset = 'test' if is_test else 'production'
+
             # `fired` is false when the Pixel was blocked. The CAPI twin below
             # still goes out — that is the point — but the ledger must not claim
             # a browser event that never reached Meta, or the coverage figures
             # would flatter themselves.
             if data.get('fired'):
-                analytics.log_meta_event(name, event_id, 'browser', 'fired')
+                analytics.log_meta_event(name, event_id, 'browser', 'fired',
+                                         data.get('value'), dataset)
+            elif data.get('note'):
+                # A browser event that deliberately did not fire — today only
+                # the Purchase value guard in tracking.js. Recorded so a broken
+                # /payment/init shows up here instead of as a silent shortfall.
+                analytics.log_meta_event(name, event_id, 'browser',
+                                         f'not fired: {data["note"]}'[:200],
+                                         data.get('value'), dataset)
 
             if name not in META_SERVER_TWIN:
                 return
@@ -1492,11 +1578,7 @@ class Handler(SimpleHTTPRequestHandler):
             # otherwise this public endpoint would let anyone report a
             # million-shekel conversion into the ad account. order_lines() is the
             # same helper checkout prices real orders with.
-            items = data.get('items')
-            if not items:
-                pid = str(data.get('content_id', ''))[:64]
-                items = [{'id': pid, 'qty': 1}] if pid else []
-            lines = order_lines({'items': items[:50]})
+            lines = order_lines({'items': items})
             value = sum(l['unit'] * l['qty'] for l in lines) + float(data.get('fee') or 0)
 
             # No email or phone exists this early, so fbp/fbc plus IP and user
@@ -1522,6 +1604,7 @@ class Handler(SimpleHTTPRequestHandler):
                     'num_items':    sum(l['qty'] for l in lines),
                 },
                 event_source_url=str(data.get('url') or '')[:400] or None,
+                test=is_test,
             )
         except Exception as e:
             print(f'  [Meta] /meta/event rejected: {e}')
@@ -1810,6 +1893,15 @@ class Handler(SimpleHTTPRequestHandler):
                   f'leaving it to the browser pixel')
             return
 
+        # A Purchase with no real amount is what Meta optimises on, so it is
+        # worse than sending nothing. Record the skip rather than reporting ₪0.
+        total = float(order.get('total') or 0)
+        if total <= 0:
+            print(f'  [Meta] Purchase {order_id} — total is {total}, not sent')
+            analytics.log_meta_event('Purchase', order_id, 'server',
+                                     'skipped: bad value', total)
+            return
+
         contents, ids = meta_capi.contents_from_items(order.get('items'))
         user_data = meta_capi.build_user_data(
             order,
@@ -1827,7 +1919,7 @@ class Handler(SimpleHTTPRequestHandler):
             user_data=user_data,
             custom_data={
                 'currency':     meta_capi.CURRENCY,
-                'value':        float(order.get('total') or 0),
+                'value':        total,
                 'content_type': 'product',
                 'content_ids':  ids,
                 'contents':     contents,
@@ -1835,6 +1927,7 @@ class Handler(SimpleHTTPRequestHandler):
                 'order_id':     order_id,
             },
             event_source_url=f'{meta_capi.SITE}/?payment=success&order_id={order_id}',
+            test=is_internal_order(order),
         )
 
     def _redirect(self, location):
@@ -2122,11 +2215,15 @@ class Handler(SimpleHTTPRequestHandler):
                     'contents':     _contents,
                     'num_items':    sum(c['quantity'] for c in _contents),
                 },
+                test=is_internal_order(order),
             )
 
             # Internal test orders (the hidden 'test' product) go to separate
-            # tabs so the real orders/marketing data stays clean.
-            is_test = any(str(it.get('id')) == 'test' for it in order.get('items', []))
+            # tabs so the real orders/marketing data stays clean. Deliberately
+            # is_test_order and not is_internal_order: an excluded device buying
+            # a real product is a real sale for the sheet, just not for the
+            # production Meta dataset.
+            is_test = is_test_order(order)
             orders_tab = 'orders_test' if is_test else 'orders'
             mkt_tab    = 'marketing_test' if is_test else 'marketing'
 
