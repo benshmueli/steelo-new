@@ -360,6 +360,24 @@ MODALS = '''  <!-- CART -->
   </div>
 '''
 
+# Google Tag Manager. Kept as constants rather than inline in the page
+# templates below: those are f-strings, and GTM's snippet is full of braces
+# that would have to be doubled. One definition, both templates.
+GTM_HEAD = '''  <!-- Google Tag Manager -->
+  <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+  new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+  j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+  'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+  })(window,document,'script','dataLayer','GTM-MRV387WN');</script>
+  <!-- End Google Tag Manager -->
+'''
+
+GTM_BODY = '''<!-- Google Tag Manager (noscript) -->
+<noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-MRV387WN"
+height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+<!-- End Google Tag Manager (noscript) -->
+'''
+
 SCRIPTS = '''  <script src="/js/nav.js?v=1"></script>
   <script src="/js/i18n.js?v=1"></script>
   <script src="/js/data.js?v=17"></script>
@@ -532,7 +550,7 @@ def product_page(p):
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{esc(title)}</title>
+{GTM_HEAD}  <title>{esc(title)}</title>
   <meta name="description" content="{esc(mdesc)}">
   <link rel="canonical" href="{url}">
   <meta name="robots" content="{'noindex, nofollow' if pid == 'test' else 'index, follow'}">
@@ -554,7 +572,7 @@ def product_page(p):
   {META_PIXEL_TAG}
 </head>
 <body>
-{NAV}
+{GTM_BODY}{NAV}
   <div id="page-wrap">
     <main class="pdp-main">
 
@@ -691,7 +709,7 @@ def content_page(slug, title, mdesc, h1, body_html, crumb, ld_extra=None):
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{esc(title)}</title>
+{GTM_HEAD}  <title>{esc(title)}</title>
   <meta name="description" content="{esc(mdesc)}">
   <link rel="canonical" href="{url}">
   <meta name="robots" content="index, follow">
@@ -713,7 +731,7 @@ def content_page(slug, title, mdesc, h1, body_html, crumb, ld_extra=None):
   {META_PIXEL_TAG}
 </head>
 <body>
-{NAV}
+{GTM_BODY}{NAV}
   <div id="page-wrap">
     <main class="content-wrap">
 
