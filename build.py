@@ -360,6 +360,38 @@ MODALS = '''  <!-- CART -->
   </div>
 '''
 
+# Google Tag Manager. Everything Google goes through this container — no gtag.js
+# anywhere in the pages. Google's own guidance is to pick one method rather than
+# have gtag.js and GTM both firing tracking independently, and mixing them is how
+# conversions end up double-counted. Google Ads, Analytics and the rest are added
+# as tags inside the GTM dashboard, which needs no code change here.
+GTM_ID = "GTM-MRV387WN"
+
+# Kept as constants rather than inline in the page templates below: those are
+# f-strings, and GTM's snippet is full of braces that would have to be doubled.
+# One definition, both templates. Interpolated with % rather than an f-string for
+# the same reason — % ignores braces, and the snippet contains no % of its own.
+GTM_HEAD = '''  <!-- Google Tag Manager -->
+  <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+  new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+  j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+  'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+  })(window,document,'script','dataLayer','%s');</script>
+  <!-- End Google Tag Manager -->
+''' % GTM_ID
+
+GTM_BODY = '''<!-- Google Tag Manager (noscript) -->
+<noscript><iframe src="https://www.googletagmanager.com/ns.html?id=%s"
+height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+<!-- End Google Tag Manager (noscript) -->
+''' % GTM_ID
+
+# Pages that deliberately carry no analytics: admin.html is the internal panel
+# and would only pollute the numbers, and the payment-*.html pair is unreferenced
+# legacy — the live payment return is served by _handle_payment_success_redirect()
+# in server.py and lands the customer on the home page, which is covered.
+GTM_EXEMPT = {"admin.html", "payment-success.html", "payment-fail.html"}
+
 SCRIPTS = '''  <script src="/js/nav.js?v=1"></script>
   <script src="/js/i18n.js?v=1"></script>
   <script src="/js/data.js?v=17"></script>
@@ -532,7 +564,7 @@ def product_page(p):
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{esc(title)}</title>
+{GTM_HEAD}  <title>{esc(title)}</title>
   <meta name="description" content="{esc(mdesc)}">
   <link rel="canonical" href="{url}">
   <meta name="robots" content="{'noindex, nofollow' if pid == 'test' else 'index, follow'}">
@@ -554,7 +586,7 @@ def product_page(p):
   {META_PIXEL_TAG}
 </head>
 <body>
-{NAV}
+{GTM_BODY}{NAV}
   <div id="page-wrap">
     <main class="pdp-main">
 
@@ -691,7 +723,7 @@ def content_page(slug, title, mdesc, h1, body_html, crumb, ld_extra=None):
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{esc(title)}</title>
+{GTM_HEAD}  <title>{esc(title)}</title>
   <meta name="description" content="{esc(mdesc)}">
   <link rel="canonical" href="{url}">
   <meta name="robots" content="index, follow">
@@ -713,7 +745,7 @@ def content_page(slug, title, mdesc, h1, body_html, crumb, ld_extra=None):
   {META_PIXEL_TAG}
 </head>
 <body>
-{NAV}
+{GTM_BODY}{NAV}
   <div id="page-wrap">
     <main class="content-wrap">
 
@@ -848,6 +880,34 @@ def write_sitemap(products):
     robots = f"User-agent: *\nAllow: /\n\nSitemap: {SITE}/sitemap.xml\n"
     open(os.path.join(BASE_DIR, "robots.txt"), "w", encoding="utf-8").write(robots)
 
+
+def check_gtm_coverage():
+    """Warn about any public page missing the GTM container.
+
+    Generated pages inherit it from the templates, but a hand-written page (the
+    way returns.html was added) has to be remembered — and forgetting is silent:
+    nothing breaks, the page simply stops reporting, and it surfaces weeks later
+    as numbers that quietly don't add up. Warns rather than failing the build,
+    because blocking a deploy over a tracking gap is the wrong trade.
+    """
+    missing = []
+    for root, dirs, files in os.walk(BASE_DIR):
+        dirs[:] = [d for d in dirs if not d.startswith(".")]
+        for fn in files:
+            if not fn.endswith(".html") or fn in GTM_EXEMPT:
+                continue
+            path = os.path.join(root, fn)
+            if GTM_ID not in open(path, encoding="utf-8").read():
+                missing.append(os.path.relpath(path, BASE_DIR))
+    if missing:
+        print(f"\n  ⚠ {len(missing)} page(s) missing the GTM container ({GTM_ID}):")
+        for m in sorted(missing):
+            print(f"      {m}")
+        print("    Paste GTM_HEAD after the viewport meta and GTM_BODY after <body>,")
+        print("    or add the file to GTM_EXEMPT if it is meant to go untracked.")
+    else:
+        print("  ✓ GTM present on every public page")
+
 # ── Main ─────────────────────────────────────────────────────────────────────
 def main():
     products = load_products()
@@ -863,6 +923,7 @@ def main():
     inject_home_grid(products)
     write_sitemap(products)
     print(f"  ✓ sitemap.xml + robots.txt")
+    check_gtm_coverage()
     print(f"\nGenerated {len(products)} product pages.")
 
 if __name__ == "__main__":
