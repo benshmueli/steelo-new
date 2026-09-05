@@ -396,7 +396,7 @@ SCRIPTS = '''  <script src="/js/nav.js?v=1"></script>
   <script src="/js/i18n.js?v=1"></script>
   <script src="/js/data.js?v=17"></script>
   <!-- tracking before cart/checkout: they call into it on user actions -->
-  <script src="/js/tracking.js?v=3"></script>
+  <script src="/js/tracking.js?v=4"></script>
   <!-- first-party funnel analytics; independent of the Meta pixel above -->
   <script src="/js/analytics.js?v=1"></script>
   <script src="/js/cart.js?v=10"></script>

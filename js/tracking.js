@@ -225,6 +225,41 @@ function stlTrackPurchaseFromRedirect(orderId) {
   if (orderId && rec.order_id !== orderId) { stlClearPendingPurchase(); return; }
 
   stlClearPendingPurchase();          // consume first, then fire
+
+  // GTM's purchase event — what Google Ads conversion tracking triggers on.
+  // The order total only exists here: it is not in the page or the URL, so
+  // without this push a conversion could fire but never carry a value.
+  //
+  // Deliberately BEFORE the stlReady() gate below. That gate also requires
+  // fbq, so putting this after it would let an ad blocker that kills the Meta
+  // pixel silently take every Google Ads conversion down with it. Consent is
+  // still honoured; Google just no longer depends on Meta having loaded.
+  //
+  // Sitting after stlClearPendingPurchase() means this inherits the same
+  // refresh guard as the Meta event: the record is already consumed, so
+  // reloading the success URL pushes nothing.
+  if (stlConsentGranted()) {
+    window.dataLayer = window.dataLayer || [];
+    // Clearing first is Google's documented way to stop values from one
+    // ecommerce event leaking into the next one read off the dataLayer.
+    window.dataLayer.push({ ecommerce: null });
+    window.dataLayer.push({
+      event: 'purchase',
+      ecommerce: {
+        // Google Ads discards duplicates by transaction_id — the second half
+        // of the refresh guard, on their side.
+        transaction_id: rec.order_id,
+        value:          rec.value,
+        currency:       rec.currency || STL_CURRENCY,
+        items: (rec.contents || []).map(c => ({
+          item_id:  c.id,
+          quantity: c.quantity,
+          price:    c.item_price,
+        })),
+      },
+    });
+  }
+
   if (!stlReady()) return;
 
   fbq('track', 'Purchase', {
