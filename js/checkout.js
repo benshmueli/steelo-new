@@ -276,6 +276,51 @@ function buildOrderSummary() {
     fmt(Math.max(itemsTotal - discount, 0) + fee);
 }
 
+/* ── Abandoned-cart lead ──────────────────────────────────────
+   Sent the moment the details step is completed. That is the only point where
+   we know who this shopper is *and* still have their cart: /payment/init fires
+   too late, so until now anyone who left on the summary step was recorded
+   nowhere and could never be won back.
+
+   Fire-and-forget in every sense — it must not delay the summary screen, and a
+   failure here must never surface in checkout. */
+function sendLead() {
+  try {
+    // Respects the analytics opt-out, so the owner's own test runs stay out of
+    // the leads sheet just as they stay out of the funnel numbers.
+    if (typeof stlLeadAllowed === 'function' && !stlLeadAllowed()) return;
+
+    const f       = document.getElementById('checkout-form');
+    const val     = id => (f[id] ? f[id].value.trim() : '');
+    const checked = id => { const el = document.getElementById(id); return !!(el && el.checked); };
+
+    let src = { source: '', campaign: '' };
+    try {
+      if (typeof stlSource === 'function') src = stlSource() || src;
+      else src = JSON.parse(sessionStorage.getItem('steelo_src')) || src;
+    } catch (e) {}
+
+    fetch('/lead', {
+      method:    'POST',
+      keepalive: true,
+      headers:   { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name:        val('co-name'),
+        email:       val('co-email'),
+        phone:       val('co-phone'),
+        city:        val('co-city'),
+        optin_email: checked('co-optin-email'),
+        optin_wa:    checked('co-optin-wa'),
+        website:     val('co-website'),          // honeypot, must stay empty
+        coupon_code: appliedCoupon ? appliedCoupon.code : '',
+        source:      src.source   || '',
+        campaign:    src.campaign || '',
+        items: cart.map(i => ({ id: i.id, name: i.name, qty: i.quantity, price: i.price })),
+      }),
+    }).catch(() => {});
+  } catch (e) { /* a lead is never worth breaking checkout for */ }
+}
+
 /* ── Step 1 → Step 2 (details → summary) ─────────────────── */
 document.getElementById('checkout-next-btn').addEventListener('click', () => {
   const step1Fields = document.querySelectorAll('#checkout-step1 [required]');
@@ -288,6 +333,7 @@ document.getElementById('checkout-next-btn').addEventListener('click', () => {
   buildOrderSummary();
   showCheckoutStep(2);
   if (typeof stlTrack === 'function') stlTrack('summary');
+  sendLead();
 
   // A coupon's discount is an absolute figure computed for one particular cart,
   // so it has to be re-checked every time this summary is built — the customer

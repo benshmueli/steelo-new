@@ -398,11 +398,11 @@ SCRIPTS = '''  <script src="/js/nav.js?v=1"></script>
   <!-- tracking before cart/checkout: they call into it on user actions -->
   <script src="/js/tracking.js?v=4"></script>
   <!-- first-party funnel analytics; independent of the Meta pixel above -->
-  <script src="/js/analytics.js?v=1"></script>
+  <script src="/js/analytics.js?v=2"></script>
   <script src="/js/cart.js?v=10"></script>
   <!-- jQuery required by Tranzila's embedded payment iframe (Apple Pay / Google Pay) -->
   <script src="/js/jquery.min.js?v=1"></script>
-  <script src="/js/checkout.js?v=17"></script>
+  <script src="/js/checkout.js?v=18"></script>
   <!-- Tranzila Apple Pay bridge (must load on the page that hosts the payment iframe) -->
   <script type="text/javascript" src="https://direct.tranzila.com/Tranzila_files/jquery.js"></script>
   <script>document.write('<script src="https://direct.tranzila.com/js/tranzilanapple_v3.js?v=' + Date.now() + '"><\\/script>');</script>
