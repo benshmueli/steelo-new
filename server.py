@@ -44,6 +44,9 @@ META_KNOWN_EVENTS = {'PageView', 'ViewContent', 'AddToCart',
                      'InitiateCheckout', 'AddPaymentInfo', 'Purchase'}
 COUPON_LIMIT = 15         # coupon tries per window — enough for honest typos,
                           # not enough to enumerate codes
+LEAD_LIMIT   = 6          # lead beacons per window. Its own bucket, so a flood
+                          # of them cannot use up the payment allowance and lock
+                          # a real customer out of checking out.
 
 # ── Google Sheets config ──────────────────────────────────────────────────────
 # 1. Create a Google Sheet, share it with the service account email (Editor).
@@ -64,6 +67,36 @@ SHEET_COLUMNS = [
 MARKETING_COLUMNS = [
     'Date', 'Name', 'Email', 'Phone', 'Email Opt-in', 'WhatsApp Opt-in', 'Order ID',
 ]
+
+# Leads tab header — one row per person who completed the details step, whether
+# or not they ever paid. This is the abandoned-cart list: `marketing` above only
+# ever sees people who reached the payment screen, so everyone who typed their
+# details and left was previously invisible.
+LEAD_COLUMNS = [
+    'Date', 'Name', 'Email', 'Phone', 'City',
+    'Email Opt-in', 'WhatsApp Opt-in',
+    'Items', 'Cart Total (₪)', 'Coupon',
+    'Source', 'Campaign',
+    'Status', 'Last Updated', 'Order ID',
+]
+
+# Column letters within LEAD_COLUMNS, used by the row lookups below. Kept next
+# to the header so a column added in the middle is an obvious two-line edit
+# rather than a silent off-by-one in a range string.
+LEAD_COL_EMAIL    = 'C'
+LEAD_COL_STATUS   = 'M'
+LEAD_COL_UPDATED  = 'N'
+LEAD_COL_ORDER_ID = 'O'
+
+# A lead only ever moves forward along this list. Without it a late-arriving
+# beacon — a customer who reopens checkout after paying — would knock a row
+# back from Purchased to Abandoned and put a buyer into the win-back list.
+LEAD_STATUS_RANK = {'Abandoned': 0, 'Reached payment': 1, 'Purchased': 2}
+
+# Serialises the read-then-write in the lead helpers. They run on background
+# threads, so two customers finishing the details step together could otherwise
+# both read "no such row" and append the same person twice.
+_leads_lock = threading.Lock()
 
 # Delivery fee (₪) by lowercased product category — server-authoritative;
 # mirror of the map in build.py. Pickup is always free.
@@ -163,6 +196,149 @@ def append_marketing_row(service, order, tab='marketing'):
         return True
     except Exception as e:
         print(f'  [Sheets] Marketing append error: {e}')
+        return False
+
+
+def _lead_row(lead, status, updated):
+    """Build one leads row in LEAD_COLUMNS order."""
+    yes_no = lambda v: 'TRUE' if v else 'FALSE'
+    return [
+        lead.get('date', ''),
+        lead.get('name', ''),
+        lead.get('email', ''),
+        lead.get('phone', ''),
+        lead.get('city', ''),
+        yes_no(lead.get('optin_email')),
+        yes_no(lead.get('optin_wa')),
+        lead.get('items_summary', ''),
+        lead.get('cart_total', 0),
+        lead.get('coupon_code', ''),
+        lead.get('source', ''),
+        lead.get('campaign', ''),
+        status,
+        updated,
+        lead.get('order_id', ''),
+    ]
+
+
+def _lead_now():
+    return __import__('datetime').datetime.now().strftime('%d/%m/%Y %H:%M')
+
+
+def ensure_lead_tab(service, tab):
+    """Create the leads tab if missing and keep its header row in sync."""
+    ensure_sheet_tab(service, tab)
+    service.spreadsheets().values().update(
+        spreadsheetId=SHEET_ID, range=f'{tab}!A1',
+        valueInputOption='RAW', body={'values': [LEAD_COLUMNS]},
+    ).execute()
+
+
+def find_lead_row(service, tab, email='', order_id=''):
+    """Return the 1-indexed row for this lead, or None.
+
+    Email is the key: one row per person, so a shopper who abandons twice
+    updates their row instead of appearing twice in the win-back list. Order ID
+    is the fallback for the purchase callback, which often has only that — by
+    then _pending_orders has been popped and the email is gone.
+    """
+    if email:
+        col, needle = LEAD_COL_EMAIL, email.strip().lower()
+    elif order_id:
+        col, needle = LEAD_COL_ORDER_ID, order_id.strip().lower()
+    else:
+        return None
+    try:
+        result = service.spreadsheets().values().get(
+            spreadsheetId=SHEET_ID, range=f'{tab}!{col}:{col}'
+        ).execute()
+        rows = result.get('values', [])
+        for i, row in enumerate(rows):
+            if row and str(row[0]).strip().lower() == needle:
+                return i + 1  # 1-indexed, and row 1 is the header
+        return None
+    except Exception as e:
+        print(f'  [Sheets] find_lead_row error: {e}')
+        return None
+
+
+def upsert_lead_row(service, lead, tab='leads'):
+    """Record someone who finished the details step, keyed on their email.
+
+    Appends a new row, or refreshes the existing one with the newer cart. The
+    status only ever moves forward (see LEAD_STATUS_RANK), and an Order ID
+    already on the row is never blanked by a later beacon that has none.
+    """
+    email = str(lead.get('email', '')).strip()
+    if not email:
+        return False
+    try:
+        with _leads_lock:
+            ensure_lead_tab(service, tab)
+            row_num = find_lead_row(service, tab, email=email)
+            status  = 'Abandoned'
+            if row_num:
+                existing = service.spreadsheets().values().get(
+                    spreadsheetId=SHEET_ID, range=f'{tab}!A{row_num}:O{row_num}'
+                ).execute().get('values', [[]])
+                existing = existing[0] if existing else []
+                cell = lambda i: existing[i] if len(existing) > i else ''
+                prev_status = cell(12)
+                if LEAD_STATUS_RANK.get(prev_status, -1) > LEAD_STATUS_RANK[status]:
+                    status = prev_status
+                if not lead.get('order_id'):
+                    lead = dict(lead, order_id=cell(14))
+                service.spreadsheets().values().update(
+                    spreadsheetId=SHEET_ID, range=f'{tab}!A{row_num}:O{row_num}',
+                    valueInputOption='RAW',
+                    body={'values': [_lead_row(lead, status, _lead_now())]},
+                ).execute()
+                print(f'  [Sheets] Lead {email} updated (row {row_num}) → {tab} ✓')
+            else:
+                service.spreadsheets().values().append(
+                    spreadsheetId=SHEET_ID, range=f'{tab}!A1',
+                    valueInputOption='RAW', insertDataOption='INSERT_ROWS',
+                    body={'values': [_lead_row(lead, status, _lead_now())]},
+                ).execute()
+                print(f'  [Sheets] Lead {email} added → {tab} ✓')
+        return True
+    except Exception as e:
+        print(f'  [Sheets] Lead upsert error: {e}')
+        return False
+
+
+def mark_lead_status(service, status, email='', order_id='', tab='leads'):
+    """Move a lead forward to `status`, stamping the Order ID if one is known.
+
+    Silent when there is no matching row: a lead is best-effort, and a customer
+    whose beacon was blocked must not turn a payment into an error.
+    """
+    try:
+        with _leads_lock:
+            row_num = find_lead_row(service, tab, email=email, order_id=order_id)
+            if not row_num:
+                return False
+            prev = service.spreadsheets().values().get(
+                spreadsheetId=SHEET_ID, range=f'{tab}!{LEAD_COL_STATUS}{row_num}'
+            ).execute().get('values', [['']])
+            prev = prev[0][0] if prev and prev[0] else ''
+            if LEAD_STATUS_RANK.get(prev, -1) >= LEAD_STATUS_RANK.get(status, 0):
+                return True
+            service.spreadsheets().values().update(
+                spreadsheetId=SHEET_ID,
+                range=f'{tab}!{LEAD_COL_STATUS}{row_num}:{LEAD_COL_UPDATED}{row_num}',
+                valueInputOption='RAW', body={'values': [[status, _lead_now()]]},
+            ).execute()
+            if order_id:
+                service.spreadsheets().values().update(
+                    spreadsheetId=SHEET_ID,
+                    range=f'{tab}!{LEAD_COL_ORDER_ID}{row_num}',
+                    valueInputOption='RAW', body={'values': [[order_id]]},
+                ).execute()
+            print(f'  [Sheets] Lead row {row_num} → {status} ✓')
+        return True
+    except Exception as e:
+        print(f'  [Sheets] mark_lead_status error: {e}')
         return False
 
 
@@ -393,6 +569,12 @@ def rate_check(ip, bucket='payment', limit=RATE_LIMIT):
 # ── Validation helpers ────────────────────────────────────────────────────────
 import re as _re
 
+# Shared by validate_order and build_lead, so a lead is held to exactly the same
+# standard as an order: a contact detail that could not have been checked out
+# with is not worth writing to the leads list either.
+EMAIL_RE = r'^[^@\s]+@[^@\s]+\.[^@\s]+$'
+PHONE_RE = r'^[\d\s\+\-\(\)]{7,20}$'
+
 def validate_order(order):
     """
     Validate required order fields server-side.
@@ -410,11 +592,11 @@ def validate_order(order):
             return False, f'Field too long: {field}'
 
     email = str(order.get('email', '')).strip()
-    if not _re.match(r'^[^@\s]+@[^@\s]+\.[^@\s]+$', email):
+    if not _re.match(EMAIL_RE, email):
         return False, 'Invalid email address'
 
     phone = str(order.get('phone', '')).strip()
-    if not _re.match(r'^[\d\s\+\-\(\)]{7,20}$', phone):
+    if not _re.match(PHONE_RE, phone):
         return False, 'Invalid phone number'
 
     items = order.get('items', [])
@@ -422,6 +604,60 @@ def validate_order(order):
         return False, 'Order must have at least one item'
 
     return True, ''
+
+
+def _is_test_order(order):
+    """True for an order containing the hidden 'test' product."""
+    if not order:
+        return False
+    return any(str(i.get('id')) == 'test'
+               for i in (order.get('items') or []) if isinstance(i, dict))
+
+
+def build_lead(data):
+    """Normalise a /lead beacon into a leads row dict, or None if unusable.
+
+    The cart total is recomputed from the item list rather than taken from the
+    browser. Nothing is charged from it, but a figure in a sheet the owner makes
+    win-back decisions on should still be one the server stands behind. It is
+    the item subtotal only — delivery is not settled until the summary step.
+    """
+    clip  = lambda v, n=200: str(v if v is not None else '').strip()[:n]
+    email = clip(data.get('email')).lower()
+    phone = clip(data.get('phone'), 40)
+    name  = clip(data.get('name'))
+    if not name or not _re.match(EMAIL_RE, email) or not _re.match(PHONE_RE, phone):
+        return None
+
+    items = data.get('items')
+    items = items[:50] if isinstance(items, list) else []
+    parts, total = [], 0.0
+    for it in items:
+        if not isinstance(it, dict):
+            continue
+        try:
+            qty   = max(0, min(int(it.get('qty', 0)), 999))
+            price = max(0.0, min(float(it.get('price', 0)), 1_000_000.0))
+        except (TypeError, ValueError):
+            continue
+        total += qty * price
+        parts.append(f"{clip(it.get('name'), 80)} ×{qty} (₪{price:g})")
+
+    source = clip(data.get('source'), 40)
+    return {
+        'date':        _lead_now(),
+        'name':        name,
+        'email':       email,
+        'phone':       phone,
+        'city':        clip(data.get('city'), 80),
+        'optin_email': bool(data.get('optin_email')),
+        'optin_wa':    bool(data.get('optin_wa')),
+        'items_summary': '; '.join(parts)[:2000],
+        'cart_total':  round(total, 2),
+        'coupon_code': clip(data.get('coupon_code'), 40).upper(),
+        'source':      source if source in analytics.SOURCES else 'direct',
+        'campaign':    clip(data.get('campaign'), 120),
+    }
 
 # ── Persistent store ──────────────────────────────────────────────────────────
 # Railway's container filesystem is ephemeral: anything written next to
@@ -1574,6 +1810,59 @@ class Handler(SimpleHTTPRequestHandler):
         except Exception as e:
             print(f'  [Analytics] beacon rejected: {e}')
 
+    def _handle_lead(self, raw, ip):
+        """POST /lead — someone finished the checkout details step.
+
+        This is the abandoned-cart capture. It fires when the customer clicks
+        through from details to the order summary, which is the first moment
+        their name, email and phone exist and have been validated — and, unlike
+        /payment/init, it fires whether or not they ever go on to pay.
+
+        Public, so it trusts nothing: the honeypot and the bot filter come
+        first, contact details must pass the same regexes an order does, and
+        every field is length-capped in build_lead.
+
+        Answers 204 before touching Sheets, and does the write on a background
+        thread. The server is a single-threaded HTTPServer, so a synchronous
+        round-trip here would stall every other visitor for the second or so it
+        takes — and stall this customer on their way to the summary screen.
+        """
+        self.send_response(204)
+        self.send_header('Content-Length', '0')
+        self._cors()
+        self.end_headers()
+
+        if not rate_check(ip, 'lead', LEAD_LIMIT):
+            return
+        if analytics.is_bot(self.headers.get('User-Agent', '')):
+            return
+        try:
+            data = json.loads(raw or b'{}')
+            # Honeypot: a real customer never sees this field, so anything in it
+            # came from a bot filling every input on the form.
+            if str(data.get('website', '')).strip():
+                return
+            lead = build_lead(data)
+            if not lead:
+                return
+            # The hidden 'test' product goes to its own tab, mirroring the
+            # orders_test / marketing_test split, so the owner's own test runs
+            # never land in the real win-back list.
+            tab = 'leads_test' if _is_test_order(data) else 'leads'
+
+            def _save():
+                # get_sheets_service() can itself go out to the network, so it
+                # belongs on this side of the thread boundary too.
+                service = get_sheets_service()
+                if not service:
+                    print(f'  [Sheets] Not configured — lead {lead["email"]} logged to console only.')
+                    return
+                upsert_lead_row(service, lead, tab=tab)
+
+            threading.Thread(target=_save, daemon=True).start()
+        except Exception as e:
+            print(f'  [Lead] beacon rejected: {e}')
+
     def _handle_analytics_report(self):
         if not check_admin_token(self):
             self._json(401, {'ok': False, 'error': 'Unauthorised'})
@@ -1768,6 +2057,22 @@ class Handler(SimpleHTTPRequestHandler):
             marked = mark_order_paid(service, order_id)
             if not marked:
                 print(f'  [Sheets] Could not find row to mark Paid — row was already saved at init')
+            # Close the loop on their lead so a customer who came back and paid
+            # drops out of the win-back list. Found by Order ID, stamped on the
+            # row at /payment/init: `order` is often None here, popped by an
+            # earlier callback, so the email cannot be relied on. Which tab it
+            # lives in is unknowable without the order, hence trying both — the
+            # miss is one cheap read against a tab that usually has few rows.
+            _tabs = (['leads_test'] if _is_test_order(order) else
+                     ['leads'] if order else ['leads', 'leads_test'])
+
+            def _close_lead():
+                for _tab in _tabs:
+                    if mark_lead_status(service, 'Purchased',
+                                        order_id=order_id, tab=_tab):
+                        return
+
+            threading.Thread(target=_close_lead, daemon=True).start()
         # Counted here, not at /payment/init: an abandoned checkout must not burn
         # one of a "first 10 orders" coupon. Idempotent on order_id, because a
         # single payment reaches us down several of these callback paths.
@@ -1932,6 +2237,9 @@ class Handler(SimpleHTTPRequestHandler):
         # ── Funnel analytics ─────────────────────────────────────────────────
         elif self.path == '/a':
             self._handle_analytics_beacon(raw, ip)
+
+        elif self.path == '/lead':
+            self._handle_lead(raw, ip)
 
         elif self.path == '/admin/analytics/exclude':
             self._handle_analytics_exclude(raw)
@@ -2126,9 +2434,10 @@ class Handler(SimpleHTTPRequestHandler):
 
             # Internal test orders (the hidden 'test' product) go to separate
             # tabs so the real orders/marketing data stays clean.
-            is_test = any(str(it.get('id')) == 'test' for it in order.get('items', []))
+            is_test = _is_test_order(order)
             orders_tab = 'orders_test' if is_test else 'orders'
             mkt_tab    = 'marketing_test' if is_test else 'marketing'
+            leads_tab  = 'leads_test' if is_test else 'leads'
 
             # Save immediately to Sheets as "Pending Payment" so we never lose order data
             # (Railway may run multiple instances; _pending_orders is not shared across them)
@@ -2144,6 +2453,19 @@ class Handler(SimpleHTTPRequestHandler):
                         append_marketing_row(service, order, tab=mkt_tab)
                     except Exception as _me:
                         print(f'  [Sheets] Marketing save failed: {_me}')
+                    # Move their lead on from Abandoned and stamp the Order ID,
+                    # which is what lets the purchase callback find this row
+                    # later — by then the email is usually gone with the popped
+                    # _pending_orders entry. Backgrounded: this path already
+                    # holds the customer at a spinner waiting for Tranzila, and
+                    # a lead is never worth adding to that wait.
+                    threading.Thread(
+                        target=mark_lead_status,
+                        args=(service, 'Reached payment'),
+                        kwargs={'email': order.get('email', ''),
+                                'order_id': order_id, 'tab': leads_tab},
+                        daemon=True,
+                    ).start()
             except Exception as _se:
                 print(f'  [Sheets] Pre-save failed: {_se}')
 

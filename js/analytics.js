@@ -116,6 +116,11 @@
   /* Exposed for cart.js / checkout.js, and for the admin's opt-out button. */
   window.stlTrack        = send;
   window.stlVisitorId    = visitorId;
+  /* checkout.js gates its lead beacon on this, so the owner's own test
+     checkouts stay out of the leads sheet — the same opt-out that already
+     keeps them out of the funnel numbers. */
+  window.stlLeadAllowed  = function () { return !disabled(); };
+  window.stlSource       = classify;
   window.stlAnalyticsOff = function (off) {
     try {
       if (off) localStorage.setItem(OPT_OUT_KEY, '1');
