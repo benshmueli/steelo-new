@@ -408,7 +408,7 @@
     .checkbox-label input { width: auto; margin: 0; cursor: pointer; accent-color: var(--ink); }
     .hint strong { color: var(--ink-400); font-weight: 600; }
 
-    #coupon-save {
+    #coupon-save, #popup-save {
       margin-top: 1.5rem;
       background: var(--ink); color: var(--sand); border: none;
       padding: 0.75rem 2rem;
@@ -416,8 +416,8 @@
       font-size: 0.65rem; letter-spacing: 0.2em; text-transform: uppercase;
       cursor: pointer; transition: opacity 0.2s;
     }
-    #coupon-save:hover { opacity: 0.85; }
-    #coupon-save:disabled { opacity: 0.4; cursor: default; }
+    #coupon-save:hover, #popup-save:hover { opacity: 0.85; }
+    #coupon-save:disabled, #popup-save:disabled { opacity: 0.4; cursor: default; }
     #coupon-form-error { color: var(--red); font-size: 0.72rem; margin: 0.75rem 0 0; }
 
     .coupon-table { width: 100%; border-collapse: collapse; }
@@ -658,6 +658,7 @@
       <div class="tabs">
         <button class="tab active" data-view="products">Products</button>
         <button class="tab" data-view="coupons">Coupons</button>
+        <button class="tab" data-view="popup">Popup</button>
         <button class="tab" data-view="analytics">Analytics</button>
       </div>
     </div>
@@ -798,6 +799,111 @@
       </div>
 
       <div id="coupons-table-wrap"></div>
+    </div>
+  </div>
+
+  <!-- Home-page popup view -->
+  <div id="view-popup" style="display:none;">
+    <div class="an-wrap">
+      <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap;margin-bottom:1.5rem;">
+        <label class="checkbox-label">
+          <input id="pp-enabled" type="checkbox"> Show the popup on the home page
+        </label>
+        <span style="font-size:0.7rem;color:var(--ink-400);">— off hides it completely; nothing is loaded at all</span>
+      </div>
+
+      <div class="form-grid">
+        <div class="form-group">
+          <label for="pp-intro">Title</label>
+          <input id="pp-intro" type="text" maxlength="300" placeholder="Steelo Pop-Up at KIXBOX">
+        </div>
+        <div class="form-group">
+          <label for="pp-when">Dates</label>
+          <input id="pp-when" type="text" maxlength="300" placeholder="13.8–14.9">
+        </div>
+        <div class="form-group">
+          <label for="pp-venue">Invitation line</label>
+          <input id="pp-venue" type="text" maxlength="300" placeholder="Come visit us in store!">
+        </div>
+        <div class="form-group">
+          <label for="pp-where">Address line</label>
+          <input id="pp-where" type="text" maxlength="300" placeholder="📍 Shenkin 57, Tel Aviv">
+        </div>
+      </div>
+
+      <hr class="divider">
+
+      <h3 style="font-size:0.7rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--ink-400);margin:0 0 0.9rem;">Image (right-hand panel)</h3>
+      <div style="display:flex;align-items:flex-start;gap:1.25rem;flex-wrap:wrap;">
+        <img id="pp-image-preview" alt="Popup panel"
+             style="width:180px;height:180px;object-fit:cover;background:var(--sand-200);border:1px solid var(--sand-300);"
+             onerror="this.style.opacity='0.2'">
+        <div style="display:flex;flex-direction:column;gap:0.6rem;">
+          <input id="pp-image-file" type="file" accept="image/jpeg,image/png,image/webp" style="font-size:0.7rem;width:22rem;max-width:100%;">
+          <span style="font-size:0.7rem;color:var(--ink-400);max-width:32ch;">JPG, PNG or WEBP, up to 2 MB. Uploads as soon as you pick it; press Save popup to keep it.</span>
+          <input id="pp-image" type="text" placeholder="images/launch-invite-panel.jpg" style="font-size:0.7rem;width:22rem;max-width:100%;">
+          <span id="pp-image-status" style="font-size:0.7rem;color:var(--ink-400);"></span>
+        </div>
+      </div>
+
+      <hr class="divider">
+
+      <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap;margin-bottom:1rem;">
+        <label class="checkbox-label">
+          <input id="pp-sale-enabled" type="checkbox"> Show the sale block
+        </label>
+        <span style="font-size:0.7rem;color:var(--ink-400);">— switch this off when the discount ends, or the card promises what the cart will not give</span>
+      </div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label for="pp-sale-intro">Sale intro</label>
+          <input id="pp-sale-intro" type="text" maxlength="300" placeholder="Special discount for launch week">
+        </div>
+        <div class="form-group">
+          <label for="pp-sale-title">Sale headline</label>
+          <input id="pp-sale-title" type="text" maxlength="300" placeholder="10% off everything!">
+        </div>
+        <div class="form-group full">
+          <label for="pp-sale-note">Sale note</label>
+          <input id="pp-sale-note" type="text" maxlength="300" placeholder="Valid until 22.8">
+        </div>
+      </div>
+
+      <hr class="divider">
+
+      <div class="form-grid">
+        <div class="form-group">
+          <label for="pp-cta-text">Button text</label>
+          <input id="pp-cta-text" type="text" maxlength="300" placeholder="Shop the Collection">
+        </div>
+        <div class="form-group">
+          <label for="pp-cta-url">Button link</label>
+          <input id="pp-cta-url" type="text" placeholder="#collection">
+        </div>
+        <div class="form-group">
+          <label for="pp-frequency">How often a visitor sees it</label>
+          <select id="pp-frequency">
+            <option value="always">Every page load</option>
+            <option value="daily">Once a day</option>
+            <option value="once">Once ever</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="pp-delay">Delay before it appears (seconds)</label>
+          <input id="pp-delay" type="number" min="0" max="120" step="1" placeholder="7">
+        </div>
+        <div class="form-group">
+          <label for="pp-hide-after">Hide after <span style="color:var(--ink-300);font-size:0.55em;">(optional)</span></label>
+          <input id="pp-hide-after" type="date">
+        </div>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:1rem;margin-top:1.5rem;flex-wrap:wrap;">
+        <button id="popup-save">Save popup</button>
+        <a id="popup-preview" href="/?popup_preview=1" target="_blank" rel="noopener"
+           style="font-family:Montserrat,sans-serif;font-size:0.6rem;letter-spacing:0.15em;text-transform:uppercase;color:var(--ink-400);">Preview on the site →</a>
+        <span id="popup-status" style="font-size:0.7rem;"></span>
+      </div>
     </div>
   </div>
 
@@ -1365,6 +1471,133 @@
     /* ============================================================
        Tabs
        ============================================================ */
+    /* ============================================================
+       Home-page popup
+       ============================================================ */
+    /* Every field, paired with the property it maps to. One list, so loading
+       and saving cannot drift apart the way two hand-written blocks would. */
+    const POPUP_TEXT = {
+      'pp-intro': 'intro', 'pp-when': 'when', 'pp-venue': 'venue',
+      'pp-where': 'where', 'pp-image': 'image',
+      'pp-sale-intro': 'sale_intro', 'pp-sale-title': 'sale_title',
+      'pp-sale-note': 'sale_note', 'pp-cta-text': 'cta_text',
+      'pp-cta-url': 'cta_url', 'pp-hide-after': 'hide_after',
+    };
+
+    function setPopupStatus(msg, ok = true) {
+      const el = document.getElementById('popup-status');
+      el.textContent = msg;
+      el.style.color = ok ? '#4A7C59' : '#8B3A3A';
+    }
+
+    /* Read from /js/popup.js rather than kept in a variable here: it is the
+       same file the storefront loads, so the panel cannot show one thing while
+       visitors get another. Cache-busted because the server sends it with no
+       no-store header and a stale copy would show the previous save. */
+    async function loadPopup() {
+      try {
+        const res = await fetch('/js/popup.js?t=' + Date.now());
+        const src = await res.text();
+        const cfg = JSON.parse(src.slice(src.indexOf('{'), src.lastIndexOf('}') + 1));
+        fillPopupForm(cfg);
+      } catch (e) {
+        setPopupStatus('Could not read the current popup settings.', false);
+      }
+    }
+
+    function fillPopupForm(cfg) {
+      Object.entries(POPUP_TEXT).forEach(([id, key]) => {
+        document.getElementById(id).value = cfg[key] == null ? '' : cfg[key];
+      });
+      document.getElementById('pp-enabled').checked      = !!cfg.enabled;
+      document.getElementById('pp-sale-enabled').checked = !!cfg.sale_enabled;
+      document.getElementById('pp-frequency').value      = cfg.frequency || 'always';
+      document.getElementById('pp-delay').value = Math.round((cfg.delay_ms || 0) / 1000);
+      refreshPopupPreviewImg();
+    }
+
+    function refreshPopupPreviewImg() {
+      const img = document.getElementById('pp-image-preview');
+      const src = document.getElementById('pp-image').value.trim();
+      img.style.opacity = '1';
+      img.src = src || 'images/launch-invite-panel.jpg';
+    }
+    document.getElementById('pp-image').addEventListener('input', refreshPopupPreviewImg);
+
+    /* Sent as a base64 data URL, so there is no multipart form for the server
+       to parse. The file is read here and the server re-checks the type against
+       the bytes before writing anything. */
+    document.getElementById('pp-image-file').addEventListener('change', async e => {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+      const note = document.getElementById('pp-image-status');
+      note.style.color = 'var(--ink-400)';
+      note.textContent = 'Uploading…';
+      try {
+        const dataUrl = await new Promise((resolve, reject) => {
+          const fr = new FileReader();
+          fr.onload  = () => resolve(fr.result);
+          fr.onerror = () => reject(new Error('read failed'));
+          fr.readAsDataURL(file);
+        });
+        const res = await fetch('/admin/popup/image', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${getToken()}` },
+          body: JSON.stringify({ filename: file.name, data_url: dataUrl }),
+        });
+        const data = await res.json();
+        if (!data.ok) {
+          note.style.color = '#8B3A3A';
+          note.textContent = data.error || 'Upload failed';
+          return;
+        }
+        document.getElementById('pp-image').value = data.url;
+        refreshPopupPreviewImg();
+        note.textContent = 'Uploaded — press Save popup to keep it.';
+      } catch (err) {
+        note.style.color = '#8B3A3A';
+        note.textContent = 'Could not reach the server.';
+      } finally {
+        e.target.value = '';   // so picking the same file again re-fires
+      }
+    });
+
+    document.getElementById('popup-save').addEventListener('click', async () => {
+      const btn = document.getElementById('popup-save');
+      btn.disabled = true;
+      setPopupStatus('');
+      const cfg = {
+        enabled:      document.getElementById('pp-enabled').checked,
+        sale_enabled: document.getElementById('pp-sale-enabled').checked,
+        frequency:    document.getElementById('pp-frequency').value,
+        delay_ms:     Math.max(0, Math.min(120, parseInt(document.getElementById('pp-delay').value) || 0)) * 1000,
+      };
+      Object.entries(POPUP_TEXT).forEach(([id, key]) => {
+        cfg[key] = document.getElementById(id).value.trim();
+      });
+      try {
+        const res = await fetch('/admin/popup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${getToken()}` },
+          body: JSON.stringify(cfg),
+        });
+        const data = await res.json();
+        if (!data.ok) {
+          setPopupStatus(data.error || 'Could not save', false);
+          return;
+        }
+        // Re-filled from the server's answer: it drops anything equal to its
+        // defaults and refuses values it will not store, so this is where the
+        // owner finds out a link was rejected.
+        fillPopupForm(data.popup);
+        setPopupStatus('Popup saved ✓');
+      } catch (e) {
+        setPopupStatus('Could not reach the server.', false);
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
     document.querySelectorAll('.tab').forEach(tab => {
       tab.addEventListener('click', () => {
         const view = tab.dataset.view;
@@ -1374,10 +1607,12 @@
         // Follows the products view, but stays collapsed until asked for.
         if (view !== 'products') document.getElementById('delivery-bar').hidden = true;
         document.getElementById('view-coupons').style.display = view === 'coupons'   ? 'block' : 'none';
+        document.getElementById('view-popup').style.display   = view === 'popup'     ? 'block' : 'none';
         document.getElementById('view-analytics').style.display = view === 'analytics' ? 'block' : 'none';
         // "Save Changes" only ever meant products; coupons save on their own.
         document.getElementById('save-all').style.display = view === 'products' ? '' : 'none';
         if (view === 'coupons')   loadCoupons();
+        if (view === 'popup')     loadPopup();
         if (view === 'analytics') loadAnalytics();
       });
     });

@@ -12,41 +12,73 @@
 
    Was the launch-night invitation; now runs the KIXBOX pop-up and the sale.
 
-   The two dates below expire themselves, because they expire on different days:
-   the sale ends 22.8 but the pop-up runs to 14.9. Left to a human to remember,
-   that gap is a fortnight in which the popup keeps promising 10% off after the
-   discount has been switched off in /admin.html — and the cart charges full
-   price. Extending either one means changing the date here AND the discount in
-   the admin; they have to move together.
+   Every value below comes from the admin panel, served as window.STEELO_POPUP
+   by /js/popup.js. The literals here are only the fallback for a page served
+   without the server. The dates that used to retire the card on their own are
+   gone: `enabled` is resolved server-side from the owner's switch and an
+   optional end date, so the sale line can no longer outlive the discount that
+   backs it — the two are now set in the same panel.
    ────────────────────────────────────────────────────────────────────────── */
 (function () {
-  var SHOP_URL  = '#collection';
-  var PANEL_IMG = 'images/launch-invite-panel.jpg';
+  var FALLBACK = {
+    enabled:      true,
+    intro:        'Steelo Pop-Up at KIXBOX',
+    when:         '13.8–14.9',
+    venue:        'Come visit us in store!',
+    where:        '📍 Shenkin 57, Tel Aviv',
+    image:        'images/launch-invite-panel.jpg',
+    sale_enabled: false,
+    sale_intro:   '',
+    sale_title:   '',
+    sale_note:    '',
+    cta_text:     'Shop the Collection',
+    cta_url:      '#collection',
+    frequency:    'always',
+    delay_ms:     7000
+  };
 
-  var SALE_ENDS  = '2026-08-22';   // after this day the sale line disappears
-  var POPUP_ENDS = '2026-09-14';   // after this day nothing shows at all
-
-  /* Inclusive to the end of the visitor's own day: "until 22.8" has to still be
-     true at 22:00 on the 22nd. No timezone suffix, so the string parses as
-     local time rather than UTC. */
-  function past(date) {
-    return Date.now() > new Date(date + 'T23:59:59').getTime();
+  var CFG = {};
+  var live = window.STEELO_POPUP;
+  for (var k in FALLBACK) CFG[k] = FALLBACK[k];
+  if (live && typeof live === 'object') {
+    for (var j in live) if (live[j] !== undefined) CFG[j] = live[j];
   }
 
-  if (past(POPUP_ENDS)) return;    // nothing injected — no styles, no markup
+  /* Forces the card open regardless of the switch, the frequency rule and the
+     delay. This is what the admin panel's Preview button opens, so what the
+     owner checks is the real popup rather than an imitation of it. */
+  var PREVIEW = false;
+  try {
+    PREVIEW = new URLSearchParams(location.search).get('popup_preview') === '1';
+  } catch (e) {}
 
-  var showSale = !past(SALE_ENDS);
+  if (!PREVIEW && !CFG.enabled) return;   // nothing injected — no styles, no markup
 
-  // Event details — edit here.
-  var EVENT = {
-    intro:     'Steelo Pop-Up at KIXBOX',
-    when:      '13.8–14.9',
-    venue:     'Come visit us in store!',
-    where:     '📍 Shenkin 57, Tel Aviv',
-    saleIntro: 'Special discount for launch week',
-    saleTitle: '10% off everything!',
-    saleNote:  'Valid until 22.8 — don’t miss out'
-  };
+  var showSale = !!CFG.sale_enabled &&
+                 !!(CFG.sale_intro || CFG.sale_title || CFG.sale_note);
+
+  /* One key, holding either 'once' or the day it was last shown. Storage can
+     throw outright in a locked-down browser, and a visitor who cannot be
+     remembered should still see the popup rather than nothing. */
+  var SEEN_KEY = 'steelo_popup_seen';
+  function alreadySeen() {
+    if (PREVIEW || CFG.frequency === 'always') return false;
+    try {
+      var mark = localStorage.getItem(SEEN_KEY);
+      if (!mark) return false;
+      return CFG.frequency === 'once' ? mark === 'once'
+                                      : mark === new Date().toDateString();
+    } catch (e) { return false; }
+  }
+  function markSeen() {
+    if (PREVIEW || CFG.frequency === 'always') return;
+    try {
+      localStorage.setItem(SEEN_KEY,
+        CFG.frequency === 'once' ? 'once' : new Date().toDateString());
+    } catch (e) {}
+  }
+
+  if (alreadySeen()) return;
 
   // ── Styles ────────────────────────────────────────────────────────────────
   var css = `
@@ -161,26 +193,58 @@
 
       <div class="evt-copy">
         <img class="evt-logo" src="images/logo.png" alt="STEELO">
-        <p class="evt-intro">${EVENT.intro}</p>
+        <p class="evt-intro"></p>
         <p class="evt-night">
-          <span class="evt-when">${EVENT.when}</span>
+          <span class="evt-when"></span>
         </p>
-        <p class="evt-venue">${EVENT.venue}</p>
-        <p class="evt-where">${EVENT.where}</p>
+        <p class="evt-venue"></p>
+        <p class="evt-where"></p>
         ${showSale ? `<p class="evt-sale">
-          <span class="evt-sale-intro">${EVENT.saleIntro}</span>
-          <span class="evt-sale-title">${EVENT.saleTitle}</span>
-          <span class="evt-sale-note">${EVENT.saleNote}</span>
+          <span class="evt-sale-intro"></span>
+          <span class="evt-sale-title"></span>
+          <span class="evt-sale-note"></span>
         </p>` : ''}
-        <a class="evt-cal" id="evt-shop" href="${SHOP_URL}">
+        <a class="evt-cal" id="evt-shop">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
-          Shop the Collection
+          <span class="evt-cal-text"></span>
         </a>
       </div>
 
-      <img class="evt-panel" src="${PANEL_IMG}" alt="Four STEELO stainless steel pieces">
+      <img class="evt-panel" alt="STEELO stainless steel pieces">
     </div>
   `;
+
+  /* The copy is filled in as text, never interpolated into the markup above.
+     These strings used to be constants in this file; now the owner types them
+     into the admin panel, and an ampersand or a stray angle bracket must land
+     on the card as itself rather than as HTML. Same reason src and href are
+     assigned as properties. */
+  function setText(sel, value) {
+    var el = overlay.querySelector(sel);
+    if (el) el.textContent = value || '';
+  }
+  setText('.evt-intro',      CFG.intro);
+  setText('.evt-when',       CFG.when);
+  setText('.evt-venue',      CFG.venue);
+  setText('.evt-where',      CFG.where);
+  setText('.evt-cal-text',   CFG.cta_text || FALLBACK.cta_text);
+  if (showSale) {
+    setText('.evt-sale-intro', CFG.sale_intro);
+    setText('.evt-sale-title', CFG.sale_title);
+    setText('.evt-sale-note',  CFG.sale_note);
+  }
+  overlay.querySelector('#evt-shop').href  = CFG.cta_url || FALLBACK.cta_url;
+  overlay.querySelector('.evt-panel').src  = CFG.image   || FALLBACK.image;
+
+  /* An empty line would otherwise leave its margin behind and push the card
+     out of shape — the owner clearing a field should remove the line, not
+     leave a gap where it was. */
+  ['.evt-intro', '.evt-when', '.evt-venue', '.evt-where'].forEach(function (sel) {
+    var el = overlay.querySelector(sel);
+    if (el && !el.textContent) {
+      (sel === '.evt-when' ? el.parentNode : el).style.display = 'none';
+    }
+  });
 
   // ── Behaviour ─────────────────────────────────────────────────────────────
   function close() {
@@ -193,6 +257,9 @@
   function open() {
     document.body.appendChild(overlay);
     document.body.style.overflow = 'hidden';
+    // Recorded on display, not on load: a visitor who left before the delay
+    // elapsed has not seen it, and should get it next time.
+    markSeen();
     overlay.querySelector('#event-popup-close').addEventListener('click', close);
     // The CTA is an in-page anchor now, not an external link. Without this the
     // overlay would stay up and body overflow:hidden would block the very
@@ -204,8 +271,9 @@
     document.addEventListener('keydown', onKey);
   }
 
-  // Show the popup 7 seconds after the page loads, on every hard load.
-  var DELAY_MS = 7000;
+  // How long after load the card appears, and how often a visitor sees it, are
+  // both set in the admin panel. A preview skips the wait entirely.
+  var DELAY_MS = PREVIEW ? 0 : Math.max(0, Number(CFG.delay_ms) || 0);
   function schedule() { setTimeout(open, DELAY_MS); }
 
   if (document.readyState === 'loading') {
