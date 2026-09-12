@@ -822,6 +822,16 @@ TRANZILA_PASSWORD    = os.environ.get('TRANZILA_PASSWORD', '')
 TRANZILA_HANDSHAKE_URL = 'https://api.tranzila.com/v1/handshake/create'
 TRANZILA_IFRAME_BASE   = f'https://direct.tranzila.com/{TRANZILA_TERMINAL}/iframenew.php'
 
+# Instalments (תשלומים) offered on the Tranzila page. Every transaction was
+# single-payment until now because cred_type was pinned to '1' and no maxpay was
+# ever sent — for a shop selling ₪450–₪5,500 tables, that made a ₪5,500 dining
+# table one payment or nothing.
+#
+# Set to 1 to withdraw the option entirely: cred_type goes back to '1' and no
+# maxpay is sent, which is exactly the behaviour that shipped before this. That
+# is the kill switch if the acquirer ever pulls the authorisation.
+MAX_PAYMENTS = 3
+
 # In-memory pending orders (order_id → order dict).
 # Tranzila redirects back to us after payment; we look up the order then save it.
 _pending_orders: dict = {}
@@ -1520,6 +1530,27 @@ def _invoice_line_name(line):
     label = f'{name} - {dims}' if dims else name
     label = ''.join(ch for ch in label if ch.isprintable())
     return ' '.join(label.split())[:118]
+
+
+def credit_fields(is_test=False, max_payments=None):
+    """The cred_type / maxpay pair for one Tranzila transaction.
+
+    cred_type '8' is תשלומים and '1' is a single payment. maxpay is the ceiling
+    the customer chooses within, and Tranzila divides the sum itself — so
+    npay/fpay/spay must NOT be sent alongside it, which their documentation is
+    explicit about. Returned as a dict rather than set inline precisely so that
+    rule is expressed in one place and can be asserted in a test.
+
+    The ₪1 test product stays on a single payment: splitting it three ways is
+    ₪0.33 a month, which the acquirer refuses, and that would break the cheap
+    transaction the owner uses to check that payments work at all. No real
+    product is affected — the least expensive is ₪450, which divides to ₪150.
+    """
+    payments = 1 if is_test else max(1, int(
+        MAX_PAYMENTS if max_payments is None else max_payments))
+    if payments <= 1:
+        return {'cred_type': '1'}
+    return {'cred_type': '8', 'maxpay': str(payments)}
 
 
 def build_purchase_data(order, pricing=None):
@@ -3154,11 +3185,11 @@ class Handler(SimpleHTTPRequestHandler):
             # require POST for json_purchase_data because a browser will happily
             # re-decode a URL and change the encoding on the way.
             base_site = 'https://www.steelo-design.com'
+
             iframe_fields = {
                 'sum':         f"{order['total']:.2f}",
                 'thtk':        thtk,
                 'new_process': '1',
-                'cred_type':   '1',
                 'currency':    '1',
                 'contact':     order.get('name', ''),
                 'email':       order.get('email', ''),
@@ -3166,6 +3197,11 @@ class Handler(SimpleHTTPRequestHandler):
                 'Order_ID':    order_id,
                 'success_url': f'{base_site}/payment-success?order_id={order_id}',
                 'fail_url':    f'{base_site}/payment-fail?order_id={order_id}',
+                # Instalments belong here, in the iframe fields — the opposite of
+                # the json_purchase_data lesson above, which had to move *into*
+                # the handshake to be read at all. The handshake exists only to
+                # fix the amount and prove the transaction is ours.
+                **credit_fields(is_test=is_test),
             }
             if purchase_data:
                 iframe_fields['u71'] = '1'                       # enable itemized invoice
