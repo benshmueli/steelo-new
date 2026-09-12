@@ -679,6 +679,16 @@
     <button id="discount-apply-all" style="background:var(--ink);color:var(--sand);border:none;padding:0.45rem 1rem;font-family:Montserrat,sans-serif;font-size:0.6rem;letter-spacing:0.15em;text-transform:uppercase;cursor:pointer;transition:opacity 0.2s;" onmouseover="this.style.opacity='.75'" onmouseout="this.style.opacity='1'">Apply to All</button>
     <button id="discount-clear-all" style="background:none;color:var(--ink-400);border:1px solid var(--sand-300);padding:0.45rem 1rem;font-family:Montserrat,sans-serif;font-size:0.6rem;letter-spacing:0.15em;text-transform:uppercase;cursor:pointer;transition:opacity 0.2s;" onmouseover="this.style.opacity='.6'" onmouseout="this.style.opacity='1'">Clear All</button>
     <span style="font-size:0.7rem;color:var(--ink-400);">— or set per-product below</span>
+    <button id="delivery-toggle" style="margin-left:auto;background:none;color:var(--ink);border:1px solid var(--ink-500);padding:0.45rem 1rem;font-family:Montserrat,sans-serif;font-size:0.6rem;letter-spacing:0.15em;text-transform:uppercase;cursor:pointer;transition:opacity 0.2s;" onmouseover="this.style.opacity='.7'" onmouseout="this.style.opacity='1'">Delivery Prices</button>
+  </div>
+
+  <!-- Delivery prices by category (products view only) -->
+  <div id="delivery-bar" hidden style="background:var(--sand-200);border-bottom:1px solid var(--sand-300);padding:0.9rem 2rem;">
+    <div style="display:flex;align-items:baseline;gap:0.75rem;margin-bottom:0.6rem;">
+      <span style="font-size:0.6rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--ink-400);">Delivery Price per Category</span>
+      <span style="font-size:0.7rem;color:var(--ink-400);">— charged per item; a product can override its own above</span>
+    </div>
+    <div id="delivery-rows" style="display:flex;flex-wrap:wrap;gap:1.25rem;"></div>
   </div>
 
   <!-- Workspace -->
@@ -955,6 +965,10 @@
     let products   = JSON.parse(JSON.stringify(PRODUCTS));
     let selectedId = null;
     let dirty      = false;
+    /* Category delivery prices, seeded from the map server.py appends to
+       data.js. Edited in the Delivery Prices panel and saved with the products,
+       behind the same Save Changes button. */
+    let deliveryFees = Object.assign({}, window.STEELO_DELIVERY_FEES || {});
 
     const fmt = n => '₪' + Number(n).toLocaleString('he-IL');
 
@@ -962,6 +976,35 @@
     function genId(name) {
       return name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
     }
+    /* A product's own delivery amount, or null when it inherits its category's.
+       0 is a real amount — free delivery for this product — so it must not be
+       folded in with absent. */
+    function ownDelivery(p) {
+      const v = p.delivery_fee;
+      return (v === undefined || v === null || v === '' || isNaN(v)) ? null : Number(v);
+    }
+
+    /* The price a product inherits when it has no amount of its own. */
+    function categoryFee(cat) {
+      return Number(deliveryFees[(cat || '').toLowerCase()] || 0);
+    }
+    /* Categories as one list, folded by lowercase — the catalogue holds both
+       'Stool' and 'STOOL', and they are one category everywhere else. */
+    function deliveryCategories() {
+      const seen = new Map();
+      products.forEach(p => {
+        const raw = p.category || '';
+        const key = raw.toLowerCase();
+        if (!key) return;
+        if (!seen.has(key)) seen.set(key, { key, label: raw, count: 0 });
+        seen.get(key).count++;
+      });
+      Object.keys(deliveryFees).forEach(key => {
+        if (!seen.has(key)) seen.set(key, { key, label: key, count: 0 });
+      });
+      return [...seen.values()].sort((a, b) => a.label.localeCompare(b.label));
+    }
+
     function markDirty() {
       dirty = true;
       document.getElementById('save-status').textContent = '';
@@ -1045,6 +1088,18 @@
             <label for="f-id">URL ID <span style="color:var(--ink-300);font-size:0.55em;">(auto-generated)</span></label>
             <input id="f-id" type="text" value="${esc(p.id)}" placeholder="loop">
           </div>
+          <div class="form-group">
+            <label for="f-delivery">Delivery (₪)
+              <span style="color:var(--ink-300);font-size:0.55em;">per item</span></label>
+            <input id="f-delivery" type="number" min="0" max="5000" step="10"
+                   value="${ownDelivery(p) === null ? categoryFee(p.category) : ownDelivery(p)}"
+                   ${ownDelivery(p) === null ? 'disabled' : ''}
+                   style="${ownDelivery(p) === null ? 'color:var(--ink-300);' : 'border-color:#B85C38;color:#B85C38;font-weight:500;'}">
+            <label style="display:flex;align-items:center;gap:0.4rem;margin-top:0.4rem;font-size:0.65rem;letter-spacing:0.05em;text-transform:none;color:var(--ink-400);cursor:pointer;">
+              <input id="f-delivery-inherit" type="checkbox" ${ownDelivery(p) === null ? 'checked' : ''}>
+              Use ${esc(p.category || 'category')} price (${fmt(categoryFee(p.category))})
+            </label>
+          </div>
           <div class="form-group full">
             <label for="f-dimensions">Dimensions <span style="color:var(--ink-300);font-size:0.55em;">(W × D × H cm)</span></label>
             <input id="f-dimensions" type="text" value="${esc(p.dimensions || '')}" placeholder="e.g. 60 × 45 × 75 cm">
@@ -1094,6 +1149,32 @@
         e.target.style.color       = val > 0 ? '#B85C38' : '';
         e.target.style.fontWeight  = val > 0 ? '500' : '';
         renderSidebar();
+        markDirty();
+      });
+      /* Delivery: the checkbox decides whether this product carries an amount at
+         all. Unticked writes a number; ticked deletes the field, which is what
+         the server reads as "use my category's price". */
+      const dInput   = document.getElementById('f-delivery');
+      const dInherit = document.getElementById('f-delivery-inherit');
+      function paintDelivery() {
+        const inherits = dInherit.checked;
+        dInput.disabled          = inherits;
+        dInput.style.borderColor = inherits ? '' : '#B85C38';
+        dInput.style.color       = inherits ? 'var(--ink-300)' : '#B85C38';
+        dInput.style.fontWeight  = inherits ? '' : '500';
+      }
+      dInherit.addEventListener('change', () => {
+        if (dInherit.checked) {
+          delete p.delivery_fee;
+          dInput.value = categoryFee(p.category);
+        } else {
+          p.delivery_fee = Math.max(0, Math.min(5000, parseInt(dInput.value) || 0));
+        }
+        paintDelivery();
+        markDirty();
+      });
+      dInput.addEventListener('input', e => {
+        p.delivery_fee = Math.max(0, Math.min(5000, parseInt(e.target.value) || 0));
         markDirty();
       });
       document.getElementById('f-desc').addEventListener('input', e => {
@@ -1168,6 +1249,35 @@
       markDirty();
     }
 
+    /* ---- Delivery prices by category ---- */
+    function renderDeliveryRows() {
+      const box = document.getElementById('delivery-rows');
+      box.innerHTML = deliveryCategories().map(c => `
+        <label style="display:flex;align-items:center;gap:0.5rem;font-size:0.7rem;color:var(--ink-500);">
+          <span style="min-width:7rem;">${esc(c.label)}
+            <span style="color:var(--ink-300);">(${c.count})</span></span>
+          <input type="number" class="delivery-fee-input" data-cat="${esc(c.key)}"
+                 min="0" max="5000" step="10" value="${categoryFee(c.key)}"
+                 style="width:5.5rem;margin:0;">
+        </label>`).join('');
+      box.querySelectorAll('.delivery-fee-input').forEach(inp => {
+        inp.addEventListener('input', e => {
+          const cat = e.target.dataset.cat;
+          deliveryFees[cat] = Math.max(0, Math.min(5000, parseInt(e.target.value) || 0));
+          // A product inheriting this category shows the figure in its label,
+          // so the open editor has to be redrawn to stay truthful.
+          if (selectedId) renderEditPanel();
+          markDirty();
+        });
+      });
+    }
+
+    document.getElementById('delivery-toggle').addEventListener('click', () => {
+      const bar = document.getElementById('delivery-bar');
+      bar.hidden = !bar.hidden;
+      if (!bar.hidden) renderDeliveryRows();
+    });
+
     /* ---- Save to server ---- */
     document.getElementById('save-all').addEventListener('click', async () => {
       const btn = document.getElementById('save-all');
@@ -1178,13 +1288,20 @@
         const res   = await fetch('/admin/save', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${getToken()}` },
-          body: JSON.stringify(clean),
+          body: JSON.stringify({ products: clean, delivery_fees: deliveryFees }),
         });
         const data = await res.json();
         if (data.ok) {
           dirty = false;
           setStatus(`Saved ${data.count} products ✓`);
           PRODUCTS.splice(0, PRODUCTS.length, ...clean);
+          // The server drops category prices equal to its own defaults, so read
+          // its answer back rather than assuming what we posted was stored.
+          if (data.delivery_fees) {
+            deliveryFees = Object.assign({}, data.delivery_fees);
+            window.STEELO_DELIVERY_FEES = data.delivery_fees;
+            if (!document.getElementById('delivery-bar').hidden) renderDeliveryRows();
+          }
         } else {
           setStatus('Save failed: ' + data.error, false);
         }
@@ -1254,6 +1371,8 @@
         document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t === tab));
         document.querySelector('.workspace').style.display    = view === 'products'  ? 'flex'  : 'none';
         document.getElementById('discount-bar').style.display = view === 'products'  ? 'flex'  : 'none';
+        // Follows the products view, but stays collapsed until asked for.
+        if (view !== 'products') document.getElementById('delivery-bar').hidden = true;
         document.getElementById('view-coupons').style.display = view === 'coupons'   ? 'block' : 'none';
         document.getElementById('view-analytics').style.display = view === 'analytics' ? 'block' : 'none';
         // "Save Changes" only ever meant products; coupons save on their own.

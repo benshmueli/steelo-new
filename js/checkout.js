@@ -10,18 +10,32 @@ function generateOrderId() {
   return `STL-${date}-${time}${rand}`;
 }
 
-/* ── Delivery method + fee (mirror of DELIVERY_FEE in build.py/server.py) ── */
+/* ── Delivery method + fee ───────────────────────────────────────────────────
+   The live prices arrive as window.STEELO_DELIVERY_FEES, appended to data.js by
+   the server from the same map price_order charges from. The literal below is
+   only the fallback for a data.js served straight off disk. */
 const DELIVERY_FEE = {
   'dining table': 300, 'coffee table': 100, 'living room table': 100,
   'side table': 70, 'nesting tables': 70, 'stool': 50,
 };
+function deliveryFees() {
+  const live = window.STEELO_DELIVERY_FEES;
+  return (live && typeof live === 'object') ? live : DELIVERY_FEE;
+}
+/* A product's own amount wins over its category's. 0 is free delivery for that
+   product, so the test is for a number, not for truthiness. */
+function itemDeliveryFee(item) {
+  const own = item && item.delivery_fee;
+  if (own !== undefined && own !== null && own !== '' && !isNaN(own)) return Number(own);
+  return deliveryFees()[((item && item.category) || '').toLowerCase()] || 0;
+}
 function getDeliveryMethod() {
   const el = document.getElementById('co-delivery-method');
   return el && el.value ? el.value : 'ship';
 }
 function deliveryFee() {
   if (getDeliveryMethod() === 'pickup') return 0;
-  return cart.reduce((s, i) => s + (DELIVERY_FEE[(i.category || '').toLowerCase()] || 0) * i.quantity, 0);
+  return cart.reduce((s, i) => s + itemDeliveryFee(i) * i.quantity, 0);
 }
 function selectDelivery(method) {
   const hidden = document.getElementById('co-delivery-method');
