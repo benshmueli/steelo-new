@@ -64,7 +64,10 @@ def is_public(p):
     so the count can't drift away from the cards again."""
     return p.get("id") != "test"
 
-# Delivery fee (₪) by raw product category — informational, shown on the page.
+# Delivery fee (₪) by raw product category — the build-time default, mirroring
+# DELIVERY_FEE_DEFAULT in server.py. The amounts baked in here are refreshed on
+# the way out by rewrite_delivery_fees(), so a price the owner changes in the
+# admin panel reaches these pages without a rebuild.
 DELIVERY_FEE = {
     "dining table": 300,
     "coffee table": 100,
@@ -74,22 +77,50 @@ DELIVERY_FEE = {
     "stool": 50,
 }
 
-def delivery_section(name, cat, raw_category):
+def delivery_fee_text(keys, fees=None, stocked=None):
+    """The amount shown for one accordion row.
+
+    A row can cover several categories — "שידת צד" is both `side table` and
+    `nesting tables`. Normally they share a price and it reads as one figure; if
+    the owner ever prices them apart, every distinct amount is listed rather
+    than quietly showing one of them, because the page must not undercut what
+    checkout charges.
+
+    `stocked` narrows this to categories something is actually sold in, so an
+    empty category left at its default price cannot add a second figure to a row
+    nobody can buy from. Mirrored by _fee_text() in server.py.
+    """
+    fees = DELIVERY_FEE if fees is None else fees
+    live = [k for k in keys if k in stocked] if stocked else list(keys)
+    seen = []
+    for k in (live or keys):
+        amt = int(fees.get(k, 0) or 0)
+        if amt not in seen:
+            seen.append(amt)
+    return " / ".join(f"₪{a}" for a in seen)
+
+
+def delivery_section(name, cat, raw_category, stocked=None):
     """Build the per-product 'מדיניות משלוחים' accordion (SEO content, no JS)."""
+    # Each row is one line of editorial copy covering one or more catalogue
+    # categories — "שידת צד" is both `side table` and `nesting tables`. The keys
+    # ride along in data-stl-cat so server.py can refresh the amount from the
+    # live prices without having to reproduce any of this Hebrew.
     rows = [
-        ("שולחן אוכל מנירוסטה", 300, "שולחן אוכל"),
-        ("שולחן סלון מנירוסטה", 100, "שולחן סלון"),
-        ("שידת צד מנירוסטה", 70, "שידת צד"),
-        ("שרפרף / מעמד מגזינים מנירוסטה", 50, "מגזינים"),
+        ("שולחן אוכל מנירוסטה",           ("dining table",),                  "שולחן אוכל"),
+        ("שולחן סלון מנירוסטה",           ("living room table", "coffee table"), "שולחן סלון"),
+        ("שידת צד מנירוסטה",              ("side table", "nesting tables"),   "שידת צד"),
+        ("שרפרף / מעמד מגזינים מנירוסטה", ("stool",),                         "מגזינים"),
     ]
     items = ""
-    for label, amt, key in rows:
+    for label, keys, key in rows:
         active = (key == cat)
         style = ("font-weight:600;color:var(--ink);" if active
                  else "color:var(--ink-500);")
         mark = ' <span style="color:var(--ink-400);">✓</span>' if active else ""
-        items += (f'<li style="{style}padding:0.3rem 0;">{esc(label)} — '
-                  f'<span dir="ltr">₪{amt}</span>{mark}</li>')
+        items += (f'<li data-stl-cat="{esc(",".join(keys))}" '
+                  f'style="{style}padding:0.3rem 0;">{esc(label)} — '
+                  f'<span dir="ltr" data-stl-fee>{delivery_fee_text(keys, stocked=stocked)}</span>{mark}</li>')
     n = esc(name)
     c = esc(cat)
     return f'''
@@ -98,7 +129,7 @@ def delivery_section(name, cat, raw_category):
         <div class="pdp-delivery-body">
           <p>המשלוח של {n} — {c} מנירוסטה — יוצא אליכם ארוז בקפידה, באותה תשומת לב שהושקעה בייצור הפריט. כאן מרוכזים דמי המשלוח, אפשרות האיסוף העצמי וזמני האספקה.</p>
           <h3>דמי משלוח</h3>
-          <ul>{items}</ul>
+          <ul data-stl-delivery>{items}</ul>
           <p class="pdp-delivery-note">דמי המשלוח מתווספים ומחושבים בעת השלמת ההזמנה.</p>
           <h3>איסוף עצמי</h3>
           <p>אפשר לאסוף את הפריט ללא עלות ממחסני Steelo, בתיאום מראש.</p>
@@ -402,7 +433,7 @@ SCRIPTS = '''  <script src="/js/nav.js?v=1"></script>
   <script src="/js/cart.js?v=10"></script>
   <!-- jQuery required by Tranzila's embedded payment iframe (Apple Pay / Google Pay) -->
   <script src="/js/jquery.min.js?v=1"></script>
-  <script src="/js/checkout.js?v=18"></script>
+  <script src="/js/checkout.js?v=19"></script>
   <!-- Tranzila Apple Pay bridge (must load on the page that hosts the payment iframe) -->
   <script type="text/javascript" src="https://direct.tranzila.com/Tranzila_files/jquery.js"></script>
   <script>document.write('<script src="https://direct.tranzila.com/js/tranzilanapple_v3.js?v=' + Date.now() + '"><\\/script>');</script>
@@ -497,7 +528,7 @@ FONTS = ('<link rel="preconnect" href="https://fonts.googleapis.com">\n'
 WA = "https://wa.me/message/NAHJW2Z4TZE5B1"
 
 # ── Per-product page ─────────────────────────────────────────────────────────
-def product_page(p):
+def product_page(p, stocked=None):
     pid   = p["id"]
     name  = p["name"]
     cat   = category_label(p["category"])
@@ -632,7 +663,7 @@ def product_page(p):
           <a href="/#collection" style="display:inline-block;margin-top:2rem;font-family:Montserrat,Heebo;font-size:0.7rem;letter-spacing:0.15em;color:var(--ink-400);text-decoration:none;">→ חזרה לקולקציה</a>
         </div>
       </div>
-{delivery_section(name, cat, p["category"])}
+{delivery_section(name, cat, p["category"], stocked)}
     </main>
 {FOOTER}
   </div><!-- end page-wrap -->
@@ -911,10 +942,14 @@ def check_gtm_coverage():
 # ── Main ─────────────────────────────────────────────────────────────────────
 def main():
     products = load_products()
+    # Categories something is actually sold in. The delivery accordion prices
+    # only these, so an unused category sitting at its default cannot add a
+    # second figure to a row no one can buy from.
+    stocked  = {(p.get("category") or "").lower() for p in products if is_public(p)}
     for p in products:
         d = os.path.join(OUT_ROOT, p["id"])
         os.makedirs(d, exist_ok=True)
-        open(os.path.join(d, "index.html"), "w", encoding="utf-8").write(product_page(p))
+        open(os.path.join(d, "index.html"), "w", encoding="utf-8").write(product_page(p, stocked))
         print(f"  ✓ /products/{p['id']}/")
     pro_dir = os.path.join(BASE_DIR, "professionals")
     os.makedirs(pro_dir, exist_ok=True)

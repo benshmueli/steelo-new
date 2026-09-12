@@ -98,9 +98,11 @@ LEAD_STATUS_RANK = {'Abandoned': 0, 'Reached payment': 1, 'Purchased': 2}
 # both read "no such row" and append the same person twice.
 _leads_lock = threading.Lock()
 
-# Delivery fee (₪) by lowercased product category — server-authoritative;
-# mirror of the map in build.py. Pickup is always free.
-DELIVERY_FEE = {
+# Delivery fee (₪) by lowercased product category — the seed and the fallback,
+# not the live figure: the owner edits these in the admin panel and the result
+# lives in the store (see delivery_fees below). Mirrored in build.py, which runs
+# at build time with no store to read. Pickup is always free.
+DELIVERY_FEE_DEFAULT = {
     'dining table': 300,
     'coffee table': 100,
     'living room table': 100,
@@ -108,6 +110,18 @@ DELIVERY_FEE = {
     'nesting tables': 70,
     'stool': 50,
 }
+
+# A category fee nobody would type on purpose. Stops a fat-fingered admin entry
+# from turning into a four-figure delivery charge on a real order.
+DELIVERY_FEE_CEILING = 5000
+
+
+def delivery_fees():
+    """The live category → fee map: the defaults above with the admin's edits on
+    top. The one reader of either dict, so the storefront, the charged total and
+    the product pages cannot drift apart."""
+    saved = load_store().get('delivery_fees') or {}
+    return {**DELIVERY_FEE_DEFAULT, **saved}
 
 def get_sheets_service():
     """Return an authenticated Google Sheets service, or None if not configured.
@@ -689,7 +703,7 @@ _store_rev  = 0        # bumped on every write; keys the rendered-page caches
 
 def _empty_store():
     return {'version': 1, 'overrides': {}, 'extra_products': [],
-            'coupons': [], 'redemptions': []}
+            'delivery_fees': {}, 'coupons': [], 'redemptions': []}
 
 
 def load_store():
@@ -738,7 +752,35 @@ def store_rev():
 # Fields the admin may override. `material`, and anything else added to data.js
 # later, is deliberately not here: it stays whatever git says.
 OVERRIDABLE = ('name', 'category', 'price', 'discount', 'dimensions',
-               'description', 'images')
+               'description', 'images', 'delivery_fee')
+
+# Overridable fields that are whole numbers. `delivery_fee` is deliberately not
+# in here: absent means "use my category's fee" and 0 means free delivery, so
+# unlike price and discount it must survive as None rather than becoming 0.
+INT_FIELDS = ('price', 'discount')
+
+
+def _clean_fee(value):
+    """One delivery amount: a whole number in 0..DELIVERY_FEE_CEILING, or None
+    meaning "use my category's fee". Empty string and junk both read as None, so
+    clearing the box in the admin panel puts the product back on its category."""
+    if value is None or value == '':
+        return None
+    try:
+        return max(0, min(int(value), DELIVERY_FEE_CEILING))
+    except (TypeError, ValueError):
+        return None
+
+
+def _coerce_override(key, value):
+    """Normalise one overridable field, on the way into the store and on the way
+    out into the catalogue. Both directions must agree or a saved value would
+    read back as a change and never settle."""
+    if key in INT_FIELDS:
+        return int(value or 0)
+    if key == 'delivery_fee':
+        return _clean_fee(value)
+    return value
 
 
 def _js_str(block, field):
@@ -818,6 +860,7 @@ def products_by_id():
                 'dimensions': extra.get('dimensions', ''),
                 'price': int(extra.get('price', 0) or 0),
                 'discount': int(extra.get('discount', 0) or 0),
+                'delivery_fee': _clean_fee(extra.get('delivery_fee')),
             }
     for pid, fields in override.items():
         if pid not in catalog:
@@ -828,7 +871,7 @@ def products_by_id():
         for key, value in fields.items():
             if key not in OVERRIDABLE:
                 continue
-            catalog[pid][key] = int(value or 0) if key in ('price', 'discount') else value
+            catalog[pid][key] = _coerce_override(key, value)
     return catalog
 
 
@@ -857,7 +900,11 @@ def save_product_overrides(products):
             for key in OVERRIDABLE:
                 if key not in p:
                     continue
-                value = int(p[key] or 0) if key in ('price', 'discount') else p[key]
+                value = _coerce_override(key, p[key])
+                # None means "use my category's fee", which is the default for a
+                # product git says nothing about — so it is not a change to store.
+                if key == 'delivery_fee' and value is None:
+                    continue
                 if value != base.get(key):
                     diff[key] = value
             if diff:
@@ -870,6 +917,33 @@ def save_product_overrides(products):
         save_store()
     _page_cache.clear()
     return len(overrides) + len(extra)
+
+
+def save_delivery_fees(fees):
+    """Persist the admin's per-category delivery prices.
+
+    Stores only the categories that actually differ from DELIVERY_FEE_DEFAULT,
+    for the same reason product edits are stored as a diff: a later deploy that
+    changes a default should show up, instead of being shadowed forever by
+    whatever the panel last had on screen.
+    """
+    if not isinstance(fees, dict):
+        return 0
+    cleaned = {}
+    for raw_key, raw_value in fees.items():
+        key = str(raw_key or '').strip().lower()
+        if not key:
+            continue
+        fee = _clean_fee(raw_value)
+        if fee is None or fee == DELIVERY_FEE_DEFAULT.get(key):
+            continue
+        cleaned[key] = fee
+    with _store_lock:
+        store = load_store()
+        store['delivery_fees'] = cleaned
+        save_store()
+    _page_cache.clear()
+    return len(cleaned)
 
 
 def sale_price(price, discount):
@@ -896,10 +970,12 @@ def render_data_js():
              for pid, f in store.get('overrides', {}).items()}
     over  = {pid: f for pid, f in over.items() if f}
     extra = store.get('extra_products', [])
-    if not over and not extra:
-        return src
     patch = json.dumps(over, ensure_ascii=False)
     added = json.dumps(extra, ensure_ascii=False)
+    # Always emitted, even with no product overrides at all: checkout.js prices
+    # delivery from this, and a storefront quoting a different figure from the
+    # one price_order charges is the one outcome worth extra bytes to avoid.
+    fees  = json.dumps(delivery_fees(), ensure_ascii=False)
     return src + f'''
 /* ── Admin overrides ──────────────────────────────────────────────────────────
    Applied by server.py from the persistent store (see STORE_PATH). Edited in
@@ -915,6 +991,10 @@ def render_data_js():
   }}
   for (var j = 0; j < EXTRA.length; j++) PRODUCTS.push(EXTRA[j]);
 }})();
+
+/* Delivery price per category, live from the store. checkout.js reads this in
+   preference to its own built-in copy; the server charges from the same map. */
+window.STEELO_DELIVERY_FEES = {fees};
 '''
 
 
@@ -939,24 +1019,103 @@ def rewrite_product_prices(html, product):
     return html
 
 
+_LI_FEE_RE = _re.compile(
+    r'(<li\b[^>]*\bdata-stl-cat="([^"]*)"[^>]*>)(.*?)(</li>)', _re.S)
+_FEE_SPAN_RE = _re.compile(r'(<span\b[^>]*\bdata-stl-fee[^>]*>)(.*?)(</span>)', _re.S)
+
+
+def stocked_categories():
+    """Lowercased categories something is actually sold in. The internal test
+    product is excluded, the same way build.py's is_public() excludes it."""
+    return {(p.get('category') or '').lower()
+            for pid, p in products_by_id().items() if pid != 'test'}
+
+
+def _fee_text(keys, fees, stocked=None):
+    """Mirror of delivery_fee_text() in build.py — the two must render the same
+    string, or a rewritten page would differ from a freshly built one.
+
+    Several categories can share one accordion row; `stocked` keeps an unused
+    category left at its default from adding a second figure to a row nobody can
+    buy from.
+    """
+    live = [k for k in keys if k in stocked] if stocked else list(keys)
+    seen = []
+    for key in (live or keys):
+        amt = int(fees.get(key, 0) or 0)
+        if amt not in seen:
+            seen.append(amt)
+    return ' / '.join(f'₪{a}' for a in seen)
+
+
+def rewrite_delivery_fees(html, product):
+    """Refresh the delivery amounts build.py baked into the product page.
+
+    Same problem as rewrite_product_prices: the accordion is written on a laptop
+    at build time, so a price the owner changes in the admin panel would leave
+    the page Google indexes quoting a figure checkout contradicts. Only the
+    amounts inside data-stl-fee are touched — the Hebrew copy and the grouping
+    stay where they belong, in build.py.
+
+    A product with its own delivery amount also gets a line of its own, since
+    that, not its category's price, is what this visitor will be charged.
+    """
+    fees    = delivery_fees()
+    stocked = stocked_categories()
+
+    def one_row(m):
+        open_tag, cat_attr, body, close = m.groups()
+        keys = [k.strip().lower() for k in cat_attr.split(',') if k.strip()]
+        if not keys:
+            return m.group(0)
+        text = _fee_text(keys, fees, stocked)
+        body = _FEE_SPAN_RE.sub(lambda f: f.group(1) + text + f.group(3), body, count=1)
+        return open_tag + body + close
+
+    html = _LI_FEE_RE.sub(one_row, html)
+
+    own = _clean_fee((product or {}).get('delivery_fee'))
+    if own is not None:
+        row = ('<li style="font-weight:600;color:var(--ink);padding:0.3rem 0;">'
+               'משלוח לפריט זה — <span dir="ltr">₪' + str(own) + '</span>'
+               ' <span style="color:var(--ink-400);">✓</span></li>')
+        html = html.replace('<ul data-stl-delivery>',
+                            '<ul data-stl-delivery>' + row, 1)
+    return html
+
+
 # ── Order pricing ─────────────────────────────────────────────────────────────
+def product_delivery_fee(product, fees=None):
+    """Per-unit delivery for one product: its own amount when the admin set one,
+    otherwise its category's. The single place this is decided, so the summary
+    screen, the charged total and the product page cannot disagree.
+
+    `delivery_fee` of 0 is free delivery for that product and must win over the
+    category — hence the explicit None check rather than a falsy one.
+    """
+    if fees is None:
+        fees = delivery_fees()
+    own = _clean_fee((product or {}).get('delivery_fee'))
+    if own is not None:
+        return own
+    return fees.get(((product or {}).get('category') or '').lower(), 0)
+
+
 def compute_delivery_fee(order, lines=None):
     """Server-authoritative delivery fee. Pickup is free; shipping sums each
-    item's category fee × quantity. Never trusts the client's number."""
+    item's own-or-category fee × quantity. Never trusts the client's number."""
     if order.get('delivery_method') == 'pickup':
         return 0
     if lines is None:
         lines = order_lines(order)
-    fee = 0
-    for line in lines:
-        fee += DELIVERY_FEE.get((line['category'] or '').lower(), 0) * line['qty']
-    return fee
+    return sum(line['delivery'] * line['qty'] for line in lines)
 
 
 def order_lines(order):
     """The cart resolved against the catalogue: unit prices are the current sale
     prices from the store, not whatever the browser put in localStorage."""
     catalog = products_by_id()
+    fees    = delivery_fees()
     lines   = []
     for item in order.get('items', []):
         pid = str(item.get('id') or '')
@@ -969,13 +1128,18 @@ def order_lines(order):
             list_unit = int(p['price'])
             unit      = sale_price(list_unit, p['discount'])
             name, cat, dims = p['name'], p['category'], p['dimensions']
+            ship      = product_delivery_fee(p, fees)
         else:
             # Unknown id (a product deleted mid-checkout): fall back to what the
             # browser sent rather than dropping a paid-for line from the order.
             unit = list_unit = int(item.get('price', 0) or 0)
             name, cat, dims = item.get('name', ''), item.get('category', ''), ''
+            # No catalogue entry to read a per-product amount from, so this falls
+            # back to the category the browser claimed — as the price above does.
+            ship = fees.get((cat or '').lower(), 0)
         lines.append({'id': pid, 'qty': qty, 'unit': unit, 'list_unit': list_unit,
-                      'name': name, 'category': cat, 'dimensions': dims})
+                      'name': name, 'category': cat, 'dimensions': dims,
+                      'delivery': ship})
     return lines
 
 
@@ -1613,6 +1777,7 @@ class Handler(SimpleHTTPRequestHandler):
         else:
             with open(path, encoding='utf-8') as f:
                 html = rewrite_product_prices(f.read(), prod)
+            html = rewrite_delivery_fees(html, prod)
             _page_cache[pid] = (key, html)
         self._send_body(html.encode('utf-8'), 'text/html; charset=utf-8')
 
@@ -2213,13 +2378,21 @@ class Handler(SimpleHTTPRequestHandler):
                 return
             try:
                 payload  = json.loads(raw)
-                products = payload if isinstance(payload, list) else payload.get('products', [])
+                is_dict  = isinstance(payload, dict)
+                products = payload.get('products', []) if is_dict else payload
                 if not products:
                     self._json(400, {'ok': False,
                                      'error': 'Refusing to save an empty catalogue'})
                     return
                 count = save_product_overrides(products)
-                self._json(200, {'ok': True, 'count': len(products), 'changed': count})
+                # Category delivery prices ride along with the products save,
+                # because the panel edits both behind one Save Changes button.
+                # Absent (the old bare-array payload) leaves them untouched.
+                fees = save_delivery_fees(payload['delivery_fees']) \
+                    if is_dict and isinstance(payload.get('delivery_fees'), dict) else None
+                self._json(200, {'ok': True, 'count': len(products),
+                                 'changed': count, 'fees': fees,
+                                 'delivery_fees': delivery_fees()})
             except Exception as e:
                 self._json(500, {'ok': False, 'error': str(e)})
 
