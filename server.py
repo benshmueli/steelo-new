@@ -69,7 +69,27 @@ SHEET_COLUMNS = [
     'Notes', 'Items', 'Total (₪)', 'Status',
     'Floor', 'Delivery', 'Delivery Fee (₪)',
     'Coupon', 'Coupon Discount (₪)',
+    # Tranzila's own reference: the confirmation code on an approval, the
+    # Response code on a decline. Appended at the end on purpose — Status is
+    # addressed as column N by row number, and inserting anywhere earlier would
+    # move it. Without this there was no way to hold a row up against Tranzila's
+    # report and say whether the money actually arrived.
+    'Payment Ref',
 ]
+
+# Column letters addressed directly by the row updates below.
+ORDER_COL_STATUS      = 'N'
+ORDER_COL_PAYMENT_REF = 'T'
+
+# The statuses a row can hold, and what each one means:
+#   Pending Payment — reached the card form; nothing has come back yet
+#   Paid            — Tranzila approved it (Response 000)
+#   Payment Failed  — Tranzila declined it, or the customer cancelled
+#   New             — saved from a path that never had a payment result
+#   TEST            — the hidden test product
+ORDER_STATUS_PENDING = 'Pending Payment'
+ORDER_STATUS_PAID    = 'Paid'
+ORDER_STATUS_FAILED  = 'Payment Failed'
 
 # Marketing-list tab header (one row per customer who reaches payment).
 MARKETING_COLUMNS = [
@@ -609,11 +629,23 @@ def mark_lead_status(service, status, email='', order_id='', tab='leads'):
         return False
 
 
-def mark_order_paid(service, order_id):
-    """Find the row with this order_id and set its Status column to Paid."""
+def mark_order_status(service, order_id, status, payment_ref='', tab='orders'):
+    """Set one order's Status, and Tranzila's reference for it.
+
+    Every outcome of a payment attempt comes through here, which is the point:
+    a row left at 'Pending Payment' used to mean three different things at once
+    — still at the card form, declined, or paid with the callback lost — and the
+    owner could not tell them apart.
+    """
+    if not order_id:
+        # Refusing beats searching for '': the lookup below would find nothing,
+        # log 'not found', and hide the fact that a payment result arrived with
+        # no order attached to it.
+        print(f'  [Sheets] Cannot mark status {status!r} — no order_id given')
+        return False
     try:
         result = service.spreadsheets().values().get(
-            spreadsheetId=SHEET_ID, range='orders!A:A'
+            spreadsheetId=SHEET_ID, range=f'{tab}!A:A'
         ).execute()
         rows = result.get('values', [])
         for i, row in enumerate(rows):
@@ -621,17 +653,29 @@ def mark_order_paid(service, order_id):
                 row_num = i + 1  # 1-indexed
                 service.spreadsheets().values().update(
                     spreadsheetId=SHEET_ID,
-                    range=f'orders!N{row_num}',
+                    range=f'{tab}!{ORDER_COL_STATUS}{row_num}',
                     valueInputOption='RAW',
-                    body={'values': [['Paid']]},
+                    body={'values': [[status]]},
                 ).execute()
-                print(f'  [Sheets] Order {order_id} marked Paid (row {row_num}) ✓')
+                if payment_ref:
+                    service.spreadsheets().values().update(
+                        spreadsheetId=SHEET_ID,
+                        range=f'{tab}!{ORDER_COL_PAYMENT_REF}{row_num}',
+                        valueInputOption='RAW',
+                        body={'values': [[payment_ref]]},
+                    ).execute()
+                print(f'  [Sheets] Order {order_id} → {status} (row {row_num}) ✓')
                 return True
-        print(f'  [Sheets] Order {order_id} not found in sheet to mark Paid')
+        print(f'  [Sheets] Order {order_id} not found in {tab} to mark {status}')
         return False
     except Exception as e:
-        print(f'  [Sheets] mark_order_paid error: {e}')
+        print(f'  [Sheets] mark_order_status error: {e}')
         return False
+
+
+def mark_order_paid(service, order_id, payment_ref=''):
+    """Kept as the name the payment paths read best at their call sites."""
+    return mark_order_status(service, order_id, ORDER_STATUS_PAID, payment_ref)
 
 
 def append_order_to_sheet(service, order, tab='orders'):
@@ -660,6 +704,7 @@ def append_order_to_sheet(service, order, tab='orders'):
         order.get('delivery_fee', 0),
         order.get('coupon_code', ''),
         order.get('coupon_discount', 0),
+        order.get('payment_ref', ''),
     ]
     try:
         ensure_sheet_tab(service, tab)
@@ -2416,13 +2461,12 @@ class Handler(SimpleHTTPRequestHandler):
         parsed = urllib.parse.urlparse(self.path)
         params = urllib.parse.parse_qs(parsed.query)
         order_id = (params.get('order_id', ['']) or params.get('Order_ID', ['']))[0]
-        # If Tranzila didn't include order_id in the redirect URL, use the pending order
-        if not order_id and _pending_orders:
-            order_id = list(_pending_orders.keys())[-1]
-            print(f'  [PaymentQuery] No order_id in URL — using pending: {order_id}')
-        print(f'  [PaymentQuery] order_id={order_id} path={self.path}')
-        if order_id:
-            self._save_order_from_params(params, order_id)
+        print(f'  [PaymentQuery] order_id={order_id or "(none)"} path={self.path}')
+        # The fallback for a missing id lives in _save_order_from_params now, so
+        # every approved-payment path guesses the same way — and refuses to
+        # guess when more than one order is in flight. This one used to take the
+        # last pending order unconditionally, which could mark the wrong one.
+        self._save_order_from_params(params, order_id)
 
     def _debug_sheets(self):
         try:
@@ -2461,7 +2505,19 @@ class Handler(SimpleHTTPRequestHandler):
             order['payment_ref'] = conf_code
             service = get_sheets_service()
             if service:
-                append_order_to_sheet(service, order)
+                # Marks the row /payment/init already wrote, rather than
+                # appending a second one. This path fires from the browser on
+                # the thank-you page, normally after Tranzila's own redirect has
+                # popped the order — so it usually 404s above and never gets
+                # here. When it does (a second Railway instance still holding
+                # the order), appending put the same order in the sheet twice,
+                # once 'Pending Payment' and once 'New'.
+                if not mark_order_paid(service, order_id, payment_ref=conf_code):
+                    # No row to mark means /payment/init never managed to write
+                    # one, so the order would otherwise be lost entirely.
+                    order['status_override'] = ORDER_STATUS_PAID
+                    append_order_to_sheet(service, order)
+                    del order['status_override']
             else:
                 print(f'  [Sheets] Not configured — order {order_id} logged to console only.')
                 print(f'  [Order] {json.dumps(order, ensure_ascii=False, indent=2)}')
@@ -2536,18 +2592,75 @@ class Handler(SimpleHTTPRequestHandler):
         self._frame_bust(f'/?payment=success&order_id={urllib.parse.quote(order_id)}')
 
     def _handle_payment_fail_redirect(self):
-        """Tranzila GET-redirects here on failed/cancelled payment."""
-        print(f'  [PaymentFail] path={self.path}')
+        """Tranzila GET-redirects here on a failed or cancelled payment.
+
+        Records the decline against the order. This used to do nothing but log,
+        and fail_url carried no order_id to record it against — so a declined
+        card was indistinguishable in the sheet from a customer who wandered
+        off, and both sat at 'Pending Payment' for ever. Since the storefront
+        does not take Amex or Diners, declines are a routine outcome here, not
+        an edge case.
+
+        The order stays in _pending_orders: a decline is not the end of the
+        attempt, and the customer may put in another card.
+        """
+        import urllib.parse
+        params   = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+        order_id = (params.get('order_id') or params.get('Order_ID') or [''])[0]
+        response = (params.get('Response') or [''])[0].strip()
+        print(f'  [PaymentFail] order={order_id or "(none)"} '
+              f'Response={response or "(none)"} path={self.path}')
+        if order_id:
+            service = get_sheets_service()
+            if service:
+                # Tranzila's code goes in Payment Ref, so a decline can be held
+                # up against their report the same way an approval can.
+                mark_order_status(service, order_id, ORDER_STATUS_FAILED,
+                                  payment_ref=f'Response {response}' if response else '')
         self._frame_bust('/?payment=fail')
 
+    def _resolve_order_id(self, order_id):
+        """The order a payment result belongs to, when the callback did not say.
+
+        The legacy /payment-result route reads Order_ID out of a payload
+        Tranzila nests inside a query parameter, and the terminal's dashboard
+        uses that route in preference to the success_url we pass per
+        transaction. When that id is missing, marking Paid used to search the
+        sheet for '' — finding nothing, logging 'not found', and leaving a row
+        that was genuinely paid sitting at 'Pending Payment' for ever. Money in,
+        no record.
+
+        Falling back to the one order waiting on this instance is the same
+        guess /?payment=success has always made. It is only a guess, so say so
+        loudly in the log; and only take it when exactly one order is pending,
+        because with two in flight a guess could mark the wrong one paid.
+        """
+        if order_id:
+            return order_id
+        pending = list(_pending_orders.keys())
+        if len(pending) == 1:
+            print(f'  [Payment] ⚠ Result carried no Order_ID — falling back to '
+                  f'the single pending order {pending[0]}')
+            return pending[0]
+        print(f'  [Payment] ⚠ APPROVED PAYMENT WITH NO ORDER_ID and '
+              f'{len(pending)} pending — cannot mark any row Paid. '
+              f'Reconcile this one against Tranzila by hand.')
+        return ''
+
     def _save_order_from_params(self, params, order_id):
+        order_id = self._resolve_order_id(order_id)
         order = _pending_orders.pop(order_id, None)
-        print(f'  [Sheets] Payment confirmed for {order_id} — marking Paid')
+        # Tranzila's own reference, so the row can be held up against their
+        # report — the sheet used to carry no trace of it.
+        conf = ((params.get('ConfirmationCode') or params.get('confirmationcode')
+                 or [''])[0] or '').strip()
+        print(f'  [Sheets] Payment confirmed for {order_id or "(unknown)"} — marking Paid')
         service = get_sheets_service()
         if service:
-            marked = mark_order_paid(service, order_id)
+            marked = mark_order_paid(service, order_id, payment_ref=conf)
             if not marked:
-                print(f'  [Sheets] Could not find row to mark Paid — row was already saved at init')
+                print(f'  [Sheets] ⚠ Could not mark {order_id or "(unknown)"} Paid — '
+                      f'the row is still showing as unpaid. Check it by hand.')
             # Close the loop on their lead so a customer who came back and paid
             # drops out of the win-back list. Found by Order ID, stamped on the
             # row at /payment/init: `order` is often None here, popped by an
@@ -2968,7 +3081,7 @@ class Handler(SimpleHTTPRequestHandler):
             try:
                 service = get_sheets_service()
                 if service:
-                    order['status_override'] = 'TEST' if is_test else 'Pending Payment'
+                    order['status_override'] = 'TEST' if is_test else ORDER_STATUS_PENDING
                     append_order_to_sheet(service, order, tab=orders_tab)
                     del order['status_override']
                     print(f'  [Sheets] Order {order_id} saved → {orders_tab}')
@@ -3052,7 +3165,7 @@ class Handler(SimpleHTTPRequestHandler):
                 'phone':       order.get('phone', ''),
                 'Order_ID':    order_id,
                 'success_url': f'{base_site}/payment-success?order_id={order_id}',
-                'fail_url':    f'{base_site}/payment-fail',
+                'fail_url':    f'{base_site}/payment-fail?order_id={order_id}',
             }
             if purchase_data:
                 iframe_fields['u71'] = '1'                       # enable itemized invoice
