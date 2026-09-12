@@ -44,6 +44,14 @@ META_KNOWN_EVENTS = {'PageView', 'ViewContent', 'AddToCart',
                      'InitiateCheckout', 'AddPaymentInfo', 'Purchase'}
 COUPON_LIMIT = 15         # coupon tries per window — enough for honest typos,
                           # not enough to enumerate codes
+# Largest POST body each endpoint will read. Until the image upload there was no
+# cap at all: the server would read whatever Content-Length claimed, and it is a
+# single-threaded HTTPServer, so one client declaring a gigabyte could hold up
+# the whole site. The general limit is generous — the biggest real payload is
+# /admin/save at roughly 10 KB — and only the upload needs room for a 2 MB image
+# carried as base64.
+MAX_BODY        = 256 * 1024
+MAX_BODY_UPLOAD = 4 * 1024 * 1024
 LEAD_LIMIT   = 6          # lead beacons per window. Its own bucket, so a flood
                           # of them cannot use up the payment allowance and lock
                           # a real customer out of checking out.
@@ -122,6 +130,251 @@ def delivery_fees():
     the product pages cannot drift apart."""
     saved = load_store().get('delivery_fees') or {}
     return {**DELIVERY_FEE_DEFAULT, **saved}
+
+# ── Home-page popup ───────────────────────────────────────────────────────────
+# Every value the card shows, and whether it shows at all. The defaults are the
+# copy that was hardcoded in js/event-popup.js; the owner's edits live in the
+# store and are merged over the top by popup_config().
+#
+# `sale_enabled` replaces the old SALE_ENDS date. The popup used to expire its
+# own sale line on a date written in the script, which had to be moved in step
+# with the discount in /admin.html by hand — a gap in which the card promised
+# 10% off that the cart no longer gave. An explicit switch the owner controls is
+# one fewer thing to remember.
+#
+# `hide_after` is empty by default for the same reason: POPUP_ENDS used to
+# silently retire the whole popup on a fixed date. `enabled` is the switch now,
+# and the date is an optional extra for a run that really does end.
+POPUP_DEFAULT = {
+    'enabled':      True,
+    'intro':        'Steelo Pop-Up at KIXBOX',
+    'when':         '13.8–14.9',
+    'venue':        'Come visit us in store!',
+    'where':        '📍 Shenkin 57, Tel Aviv',
+    'image':        'images/launch-invite-panel.jpg',
+    'sale_enabled': False,
+    'sale_intro':   'Special discount for launch week',
+    'sale_title':   '10% off everything!',
+    'sale_note':    'Valid until 22.8 — don’t miss out',
+    'cta_text':     'Shop the Collection',
+    'cta_url':      '#collection',
+    'hide_after':   '',          # '' = runs until switched off
+    'frequency':    'always',    # always | once | daily
+    'delay_ms':     7000,
+}
+
+POPUP_TEXT_FIELDS = ('intro', 'when', 'venue', 'where', 'sale_intro',
+                     'sale_title', 'sale_note', 'cta_text')
+POPUP_FREQUENCIES = ('always', 'once', 'daily')
+POPUP_TEXT_MAX    = 300
+# `re`, not the `_re` alias: that import is further down the file and this
+# runs at module load.
+_DATE_RE = re.compile(r'^\d{4}-\d{2}-\d{2}$')
+
+
+# ── Admin image uploads ───────────────────────────────────────────────────────
+# Types the popup panel may be. Each maps to the bytes a real file of that type
+# starts with, checked against the upload rather than trusting what the browser
+# declared — a .txt renamed .png must not be written and then served as an image.
+MEDIA_TYPES = {
+    'image/jpeg': ('.jpg',  (b'\xff\xd8\xff',)),
+    'image/png':  ('.png',  (b'\x89PNG\r\n\x1a\n',)),
+    'image/webp': ('.webp', (b'RIFF',)),
+}
+MEDIA_MAX_BYTES = 2 * 1024 * 1024   # 2 MB — a popup panel is ~56 KB today
+MEDIA_KEEP      = 10                # uploads retained; older ones are pruned
+_MEDIA_NAME_RE  = re.compile(r'^[A-Za-z0-9._-]+$')
+
+
+def _slug(value, limit=40):
+    """A filename-safe stem from whatever the browser called the file."""
+    stem = os.path.splitext(str(value or ''))[0]
+    slug = re.sub(r'[^A-Za-z0-9]+', '-', stem).strip('-').lower()
+    return (slug or 'upload')[:limit]
+
+
+def save_media(filename, data_url):
+    """Write one admin-uploaded image to the volume and return its URL.
+
+    Raises ValueError with a message fit to show the admin — this is reached
+    from a panel where somebody just picked the wrong file, so "that is not a
+    JPG" is more use than a 500.
+
+    The stored name carries a hash of the bytes, so a different picture is
+    always a different URL and no cache anywhere can keep serving the old one.
+    Re-picking the same file is a no-op — same name, no second copy. The same
+    image renamed does write a second copy, which prune_media sweeps up; that
+    is the cost of keeping the original filename in the URL, where it makes the
+    volume readable.
+    """
+    head, _, encoded = str(data_url or '').partition(',')
+    if not encoded or not head.startswith('data:') or ';base64' not in head:
+        raise ValueError('Expected a base64 data URL')
+    declared = head[5:].split(';', 1)[0].strip().lower()
+    if declared not in MEDIA_TYPES:
+        raise ValueError('Use a JPG, PNG or WEBP image')
+    try:
+        raw = __import__('base64').b64decode(encoded, validate=True)
+    except Exception:
+        raise ValueError('Could not read that file')
+    if not raw:
+        raise ValueError('That file is empty')
+    if len(raw) > MEDIA_MAX_BYTES:
+        raise ValueError(f'Keep it under {MEDIA_MAX_BYTES // (1024 * 1024)} MB')
+    ext, magic = MEDIA_TYPES[declared]
+    if not any(raw.startswith(m) for m in magic):
+        raise ValueError('That file is not really a ' + declared.split('/')[1].upper())
+
+    os.makedirs(MEDIA_DIR, exist_ok=True)
+    digest = hashlib.sha256(raw).hexdigest()[:12]
+    name   = f'{_slug(filename)}-{digest}{ext}'
+    path   = os.path.join(MEDIA_DIR, name)
+    if not os.path.exists(path):
+        tmp = path + '.tmp'
+        with open(tmp, 'wb') as f:
+            f.write(raw)
+        os.replace(tmp, path)
+    prune_media(keep=name)
+    return '/media/' + name
+
+
+def prune_media(keep=''):
+    """Keep the newest MEDIA_KEEP uploads and the one just written.
+
+    Old artwork is never referenced again once the popup points elsewhere, and
+    the volume is small. Deliberately does not try to work out what is still in
+    use — the newest handful always covers the current image and a few undos.
+    """
+    try:
+        names = [n for n in os.listdir(MEDIA_DIR) if _MEDIA_NAME_RE.match(n)]
+        names.sort(key=lambda n: os.path.getmtime(os.path.join(MEDIA_DIR, n)),
+                   reverse=True)
+        for name in names[MEDIA_KEEP:]:
+            if name != keep:
+                os.remove(os.path.join(MEDIA_DIR, name))
+    except Exception as e:
+        print(f'  [Media] prune failed: {e}')
+
+
+def media_path(name):
+    """The on-disk path for a /media/ request, or None if the name is not one we
+    would ever have written. Rejects traversal outright rather than relying on
+    the realpath check alone."""
+    if not name or not _MEDIA_NAME_RE.match(name) or name.startswith('.'):
+        return None
+    path = os.path.realpath(os.path.join(MEDIA_DIR, name))
+    if os.path.dirname(path) != os.path.realpath(MEDIA_DIR):
+        return None
+    return path if os.path.isfile(path) else None
+
+
+def popup_config():
+    """The live popup settings: the defaults above with the admin's edits on
+    top. The one reader of either dict."""
+    saved = load_store().get('popup') or {}
+    return {**POPUP_DEFAULT, **saved}
+
+
+def _clean_popup_url(value, fallback):
+    """A link the card may point at. Relative paths and in-page anchors are the
+    normal case; an absolute URL has to be https. Anything else — javascript:
+    above all — falls back rather than being stored."""
+    url = str(value or '').strip()[:500]
+    if not url:
+        return fallback
+    low = url.lower()
+    if low.startswith(('#', '/')) or low.startswith('https://'):
+        return url
+    return fallback
+
+
+def save_popup_config(cfg):
+    """Persist the popup settings the admin panel posted.
+
+    Stores only what differs from POPUP_DEFAULT, as save_delivery_fees does, so
+    a later deploy that changes the default copy still shows up instead of being
+    shadowed forever by whatever the panel last had on screen.
+
+    Everything is validated here rather than trusted: this is the only writer,
+    and the values end up in a page served to every visitor.
+    """
+    if not isinstance(cfg, dict):
+        return {}
+    clean = {}
+    for key in POPUP_TEXT_FIELDS:
+        if key in cfg:
+            clean[key] = str(cfg[key] if cfg[key] is not None else '').strip()[:POPUP_TEXT_MAX]
+    for key in ('enabled', 'sale_enabled'):
+        if key in cfg:
+            clean[key] = bool(cfg[key])
+    if 'image' in cfg:
+        clean['image'] = _clean_popup_url(cfg['image'], POPUP_DEFAULT['image'])
+    if 'cta_url' in cfg:
+        clean['cta_url'] = _clean_popup_url(cfg['cta_url'], POPUP_DEFAULT['cta_url'])
+    if 'frequency' in cfg:
+        freq = str(cfg['frequency'] or '').strip().lower()
+        clean['frequency'] = freq if freq in POPUP_FREQUENCIES else POPUP_DEFAULT['frequency']
+    if 'delay_ms' in cfg:
+        try:
+            clean['delay_ms'] = max(0, min(int(cfg['delay_ms']), 120000))
+        except (TypeError, ValueError):
+            clean['delay_ms'] = POPUP_DEFAULT['delay_ms']
+    if 'hide_after' in cfg:
+        raw = str(cfg['hide_after'] or '').strip()
+        clean['hide_after'] = raw if _DATE_RE.match(raw) else ''
+    # Merged over what is already stored, key by key, rather than replacing the
+    # lot: a caller that sends three fields means to change three fields, and
+    # replacing would silently reset everything it left out.
+    #
+    # Only differences are kept, so the defaults above stay the source of truth
+    # — which also makes posting a default the way to reset one field, since the
+    # value is then dropped from the diff rather than written over it.
+    with _store_lock:
+        store  = load_store()
+        merged = dict(store.get('popup') or {})
+        for key, value in clean.items():
+            if value == POPUP_DEFAULT.get(key):
+                merged.pop(key, None)
+            else:
+                merged[key] = value
+        store['popup'] = merged
+        save_store()
+    return popup_config()
+
+
+def popup_is_live(cfg=None):
+    """Whether the card should be injected at all. The optional hide_after date
+    is inclusive of the whole day, the way the script's own date check was."""
+    cfg = cfg or popup_config()
+    if not cfg.get('enabled'):
+        return False
+    ends = str(cfg.get('hide_after') or '').strip()
+    if _DATE_RE.match(ends):
+        try:
+            cutoff = __import__('datetime').datetime.strptime(
+                ends + ' 23:59:59', '%Y-%m-%d %H:%M:%S')
+            if __import__('datetime').datetime.now() > cutoff:
+                return False
+        except ValueError:
+            pass
+    return True
+
+
+def render_popup_js():
+    """window.STEELO_POPUP for the home page.
+
+    Its own file rather than an addition to data.js: data.js is fetched by every
+    product page, and the popup only ever runs on the home page.
+
+    `enabled` here is the resolved answer — the switch and the optional end date
+    folded into one boolean — so the browser has no date arithmetic to get wrong.
+    """
+    cfg = dict(popup_config())
+    cfg['enabled'] = popup_is_live(cfg)
+    return ('/* Generated by server.py from the admin panel — do not edit. */\n'
+            'window.STEELO_POPUP = '
+            + json.dumps(cfg, ensure_ascii=False) + ';\n')
+
 
 def get_sheets_service():
     """Return an authenticated Google Sheets service, or None if not configured.
@@ -695,6 +948,10 @@ STORE_DIR  = (os.environ.get('STEELO_DATA_DIR')
               or os.environ.get('RAILWAY_VOLUME_MOUNT_PATH')
               or BASE_DIR)
 STORE_PATH = os.path.join(STORE_DIR, 'store.json')
+# Admin-uploaded images. On the volume, not in the repo: anything written next
+# to server.py is gone on the next deploy, which is the whole reason the store
+# lives out here. Served by /media/<name>.
+MEDIA_DIR  = os.path.join(STORE_DIR, 'media')
 
 _store_lock = threading.RLock()
 _store: dict = {}
@@ -703,7 +960,7 @@ _store_rev  = 0        # bumped on every write; keys the rendered-page caches
 
 def _empty_store():
     return {'version': 1, 'overrides': {}, 'extra_products': [],
-            'delivery_fees': {}, 'coupons': [], 'redemptions': []}
+            'delivery_fees': {}, 'popup': {}, 'coupons': [], 'redemptions': []}
 
 
 def load_store():
@@ -1663,11 +1920,18 @@ class Handler(SimpleHTTPRequestHandler):
         # without ever becoming immutable the way a ?v= asset would.
         if route == '/meta/pixel.js':
             return 'public, max-age=300'
-        # Rendered from the store, so its contents change whenever the admin
-        # sets a discount — it must never be treated as an immutable ?v= asset.
-        # 11 KB, so revalidating on every page load costs a 304 and nothing else.
-        if route == '/js/data.js':
+        # Rendered from the store, so their contents change whenever the admin
+        # sets a discount or edits the popup — they must never be treated as
+        # immutable ?v= assets, and popup.js is loaded with a ?v= that would
+        # otherwise match the year-long rule below and freeze it. Both are small
+        # enough that revalidating on every page load costs a 304 and nothing
+        # else.
+        if route in ('/js/data.js', '/js/popup.js'):
             return 'no-cache, must-revalidate'
+        # Uploaded images. The filename carries a hash of the bytes, so a new
+        # picture is a new URL and there is never anything stale to revalidate.
+        if route.startswith('/media/'):
+            return 'public, max-age=31536000, immutable'
         if route.endswith('/') or last.endswith('.html') or '.' not in last:
             return 'no-cache, must-revalidate'
         if re.search(r'(^|&)v=', query):
@@ -1755,6 +2019,64 @@ class Handler(SimpleHTTPRequestHandler):
         discounts the owner set in the admin."""
         raw = render_data_js().encode('utf-8')
         self._send_body(raw, 'application/javascript; charset=utf-8')
+
+    def _serve_popup_js(self):
+        """window.STEELO_POPUP — the home-page popup, as the admin left it."""
+        self._send_body(render_popup_js().encode('utf-8'),
+                        'application/javascript; charset=utf-8')
+
+    def _serve_media(self, route):
+        """An admin-uploaded image off the volume.
+
+        Cached hard and for a long time on purpose: the filename carries a hash
+        of the bytes, so a different picture is a different URL and there is
+        nothing stale to revalidate.
+        """
+        path = media_path(route[len('/media/'):])
+        if not path:
+            self.send_error(404, 'Not found')
+            return
+        ext = os.path.splitext(path)[1].lower()
+        ctype = {'.jpg': 'image/jpeg', '.png': 'image/png',
+                 '.webp': 'image/webp'}.get(ext, 'application/octet-stream')
+        try:
+            with open(path, 'rb') as f:
+                raw = f.read()
+        except OSError:
+            self.send_error(404, 'Not found')
+            return
+        # Cache-Control comes from _cache_control_for, the one place that policy
+        # lives — setting it here too produced two conflicting headers.
+        self._send_body(raw, ctype)
+
+    def _handle_admin_popup(self, raw):
+        """POST /admin/popup — save the popup settings.
+
+        Answers with the stored config rather than an acknowledgement, so the
+        panel shows what was actually kept: save_popup_config drops anything
+        equal to the defaults and rejects values it will not store.
+        """
+        try:
+            cfg = json.loads(raw or b'{}')
+            self._json(200, {'ok': True, 'popup': save_popup_config(cfg)})
+        except Exception as e:
+            self._json(500, {'ok': False, 'error': str(e)})
+
+    def _handle_admin_popup_image(self, raw):
+        """POST /admin/popup/image — one uploaded image, as a base64 data URL.
+
+        A data URL rather than a multipart form so there is no multipart parser
+        to write and get wrong; the panel reads the file with FileReader.
+        """
+        try:
+            data = json.loads(raw or b'{}')
+            url  = save_media(data.get('filename'), data.get('data_url'))
+            self._json(200, {'ok': True, 'url': url})
+        except ValueError as e:
+            # Somebody picked the wrong file — their message, not a stack trace.
+            self._json(400, {'ok': False, 'error': str(e)})
+        except Exception as e:
+            self._json(500, {'ok': False, 'error': str(e)})
 
     def _serve_product_page(self, route):
         """A generated product page with its machine-readable prices refreshed.
@@ -2061,6 +2383,10 @@ class Handler(SimpleHTTPRequestHandler):
             self._serve_meta_pixel()
         elif route == '/js/data.js':
             self._serve_data_js()
+        elif route == '/js/popup.js':
+            self._serve_popup_js()
+        elif route.startswith('/media/'):
+            self._serve_media(route)
         elif route == '/admin/coupons':
             self._handle_admin_coupons_get()
         elif route == '/admin/analytics':
@@ -2347,7 +2673,17 @@ class Handler(SimpleHTTPRequestHandler):
         self.end_headers()
 
     def do_POST(self):
-        length = int(self.headers.get('Content-Length', 0))
+        try:
+            length = int(self.headers.get('Content-Length', 0))
+        except ValueError:
+            length = 0
+        limit = MAX_BODY_UPLOAD if self.path == '/admin/popup/image' else MAX_BODY
+        if length > limit:
+            # Answered without reading the body, so the unread bytes would
+            # desync a keep-alive connection — hang up instead.
+            self.close_connection = True
+            self._json(413, {'ok': False, 'error': 'Request too large'})
+            return
         raw    = self.rfile.read(length)
         ip     = self.address_string()
 
@@ -2402,6 +2738,21 @@ class Handler(SimpleHTTPRequestHandler):
                 self._json(401, {'ok': False, 'error': 'Unauthorised'})
                 return
             self._handle_admin_coupons_post(raw)
+
+        # ── Home-page popup (requires token) ────────────────────────────────
+        # Saves on its own, not behind the products "Save Changes" button:
+        # switching the popup off should not mean re-posting the catalogue.
+        elif self.path == '/admin/popup':
+            if not check_admin_token(self):
+                self._json(401, {'ok': False, 'error': 'Unauthorised'})
+                return
+            self._handle_admin_popup(raw)
+
+        elif self.path == '/admin/popup/image':
+            if not check_admin_token(self):
+                self._json(401, {'ok': False, 'error': 'Unauthorised'})
+                return
+            self._handle_admin_popup_image(raw)
 
         # ── Coupon validation (public, for the checkout UI) ──────────────────
         elif self.path == '/coupon/validate':
