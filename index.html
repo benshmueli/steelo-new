@@ -647,6 +647,17 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
               <span>סה״כ</span>
               <span id="checkout-order-total"></span>
             </div>
+
+            <!-- Instalments. The choice is made here rather than on Tranzila's
+                 page, whose template renders no payments selector however it is
+                 parameterised. The split shown is the split charged: checkout.js
+                 and server.py compute it the same way, in whole agorot. Hidden
+                 entirely when only one payment is available. -->
+            <div id="checkout-payments" style="display:none;margin-top:1.25rem;">
+              <p class="checkout-section-label">מספר תשלומים</p>
+              <div class="checkout-delivery-toggle" id="checkout-payments-toggle"></div>
+              <p class="checkout-optin-note" id="checkout-payments-note"></p>
+            </div>
             <p class="checkout-note">כל הפריטים מיוצרים בהזמנה — זמן אספקה 5-10 ימי עסקים. נאשר את ההזמנה במייל ובוואטסאפ.</p>
             <!-- TEMPORARY: the acquirer does not currently take Amex/Diners, and a
                  customer only found out when the card was declined inside Tranzila's
@@ -704,7 +715,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
   <script src="js/modal.js?v=7"></script>
   <!-- jQuery required by Tranzila's embedded payment iframe (Apple Pay / Google Pay) -->
   <script src="js/jquery.min.js?v=1"></script>
-  <script src="js/checkout.js?v=19"></script>
+  <script src="js/checkout.js?v=20"></script>
   <!-- Tranzila Apple Pay bridge (must load on the page that hosts the payment iframe) -->
   <script type="text/javascript" src="https://direct.tranzila.com/Tranzila_files/jquery.js"></script>
   <script>document.write('<script src="https://direct.tranzila.com/js/tranzilanapple_v3.js?v=' + Date.now() + '"><\/script>');</script>

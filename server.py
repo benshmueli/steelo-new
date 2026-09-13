@@ -75,6 +75,10 @@ SHEET_COLUMNS = [
     # move it. Without this there was no way to hold a row up against Tranzila's
     # report and say whether the money actually arrived.
     'Payment Ref',
+    # How the customer chose to split it, taken from our own summary step. We
+    # know this before Tranzila does, and without it a ₪5,500 table arriving
+    # over three months looks identical to one paid in full.
+    'Payments',
 ]
 
 # Column letters addressed directly by the row updates below.
@@ -705,6 +709,7 @@ def append_order_to_sheet(service, order, tab='orders'):
         order.get('coupon_code', ''),
         order.get('coupon_discount', 0),
         order.get('payment_ref', ''),
+        order.get('payments', 1),
     ]
     try:
         ensure_sheet_tab(service, tab)
@@ -1288,6 +1293,7 @@ def render_data_js():
     # delivery from this, and a storefront quoting a different figure from the
     # one price_order charges is the one outcome worth extra bytes to avoid.
     fees  = json.dumps(delivery_fees(), ensure_ascii=False)
+    max_payments = int(MAX_PAYMENTS)
     return src + f'''
 /* ── Admin overrides ──────────────────────────────────────────────────────────
    Applied by server.py from the persistent store (see STORE_PATH). Edited in
@@ -1307,6 +1313,10 @@ def render_data_js():
 /* Delivery price per category, live from the store. checkout.js reads this in
    preference to its own built-in copy; the server charges from the same map. */
 window.STEELO_DELIVERY_FEES = {fees};
+/* How many instalments the summary step may offer. Sent from here so the
+   ceiling lives in one place — server.py decides, and a tampered choice is
+   clamped there anyway. */
+window.STEELO_MAX_PAYMENTS = {max_payments};
 '''
 
 
@@ -1532,25 +1542,77 @@ def _invoice_line_name(line):
     return ' '.join(label.split())[:118]
 
 
-def credit_fields(is_test=False, max_payments=None):
-    """The cred_type / maxpay pair for one Tranzila transaction.
+def resolve_payments(payments, is_test=False, max_payments=None):
+    """How many payments this transaction is actually split into.
 
-    cred_type '8' is תשלומים and '1' is a single payment. maxpay is the ceiling
-    the customer chooses within, and Tranzila divides the sum itself — so
-    npay/fpay/spay must NOT be sent alongside it, which their documentation is
-    explicit about. Returned as a dict rather than set inline precisely so that
-    rule is expressed in one place and can be asserted in a test.
-
-    The ₪1 test product stays on a single payment: splitting it three ways is
-    ₪0.33 a month, which the acquirer refuses, and that would break the cheap
-    transaction the owner uses to check that payments work at all. No real
-    product is affected — the least expensive is ₪450, which divides to ₪150.
+    The browser asks; this decides. Anything unusable — 0, negative, a word, a
+    request for 99 — lands inside 1..MAX_PAYMENTS, so a tampered payload cannot
+    define the schedule. The ₪1 test product is always a single payment:
+    splitting it three ways is ₪0.33 a month, which the acquirer refuses, and
+    that would break the cheap transaction the owner uses to check that payments
+    work at all. No real product is affected — the least expensive is ₪450,
+    which divides to ₪150.
     """
-    payments = 1 if is_test else max(1, int(
-        MAX_PAYMENTS if max_payments is None else max_payments))
-    if payments <= 1:
+    ceiling = MAX_PAYMENTS if max_payments is None else max_payments
+    try:
+        ceiling = max(1, int(ceiling))
+    except (TypeError, ValueError):
+        ceiling = 1
+    if is_test:
+        return 1
+    try:
+        wanted = int(payments)
+    except (TypeError, ValueError):
+        wanted = 1
+    return max(1, min(wanted, ceiling))
+
+
+def split_payments(total, count):
+    """The exact instalment amounts for `total` over `count` payments.
+
+    Returns (first, subsequent) in agorot. Tranzila requires
+    sum == fpay + spay × npay and blocks the transaction with 912791 if it does
+    not hold, so the remainder is put on the first payment rather than left to
+    rounding: ₪2,800 over 3 is 933.34 + 933.33 + 933.33, not three of 933.33.
+
+    Done in whole agorot because this decides what a customer is charged, and
+    float arithmetic on money eventually gets it wrong by a hundredth.
+    """
+    agorot = int(round(float(total) * 100))
+    if count <= 1:
+        return agorot, 0
+    subsequent = agorot // count
+    return agorot - subsequent * (count - 1), subsequent
+
+
+def credit_fields(total, payments=1, is_test=False, max_payments=None):
+    """What we tell Tranzila about how this transaction is paid.
+
+    cred_type '8' is תשלומים and '1' is a single payment. The split is spelled
+    out — npay is the number of payments *after* the first, fpay the first
+    amount, spay each of the rest — because this terminal's iframe renders no
+    payments selector of its own whatever maxpay says. We ask the customer on
+    our own summary step instead and send the schedule we promised them.
+
+    maxpay is deliberately absent: Tranzila's documentation is explicit that it
+    is either maxpay or npay/fpay/spay, never both. Returned as a dict so that
+    rule lives in one place and can be asserted in a test.
+    """
+    count = resolve_payments(payments, is_test=is_test, max_payments=max_payments)
+    if count <= 1:
         return {'cred_type': '1'}
-    return {'cred_type': '8', 'maxpay': str(payments)}
+    first, subsequent = split_payments(total, count)
+    # A schedule whose later payments round to nothing is not a schedule. Only
+    # reachable below a shekel or so, which no real product is, but sending
+    # spay=0.00 would be asking Tranzila to charge nothing twice.
+    if subsequent <= 0:
+        return {'cred_type': '1'}
+    return {
+        'cred_type': '8',
+        'npay':      str(count - 1),          # payments after the first
+        'fpay':      f'{first / 100:.2f}',
+        'spay':      f'{subsequent / 100:.2f}',
+    }
 
 
 def build_purchase_data(order, pricing=None):
@@ -3025,6 +3087,12 @@ class Handler(SimpleHTTPRequestHandler):
             order['coupon_code']     = pricing['coupon']
             order['coupon_discount'] = pricing['coupon_discount']
             order['total']           = pricing['total']
+            # How many payments, decided here rather than taken as posted. The
+            # browser asks on the summary step; resolve_payments clamps it to
+            # 1..MAX_PAYMENTS and forces the test product to one, so a tampered
+            # payload cannot define the schedule.
+            order['payments'] = resolve_payments(
+                order.get('payments'), is_test=_is_test_order(order))
 
             # The coupon passed in the summary but not here — it was paused, or
             # someone else just took the last of a limited run. Send the customer
@@ -3201,7 +3269,10 @@ class Handler(SimpleHTTPRequestHandler):
                 # the json_purchase_data lesson above, which had to move *into*
                 # the handshake to be read at all. The handshake exists only to
                 # fix the amount and prove the transaction is ours.
-                **credit_fields(is_test=is_test),
+                # The split is computed from the server's own total above, not
+                # from anything the browser said the price was.
+                **credit_fields(order['total'], payments=order['payments'],
+                                is_test=is_test),
             }
             if purchase_data:
                 iframe_fields['u71'] = '1'                       # enable itemized invoice

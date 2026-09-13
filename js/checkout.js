@@ -58,6 +58,7 @@ function selectDelivery(method) {
    — /payment/init re-validates the code and recomputes the total from scratch,
    and its answer is the one that gets charged. */
 let appliedCoupon = null;   // { code, discount, free_shipping }
+let chosenPayments = 1;     // instalments the customer picked on the summary
 
 const COUPON_PENDING_KEY = 'steelo_coupon';
 
@@ -207,6 +208,7 @@ function closeCheckout() {
   document.getElementById('checkout-step3').style.display = 'none';
   document.getElementById('checkout-confirmation').style.display = 'none';
   document.getElementById('checkout-form').reset();
+  chosenPayments = 1;          // a fresh checkout starts at a single payment
   const err = document.getElementById('checkout-error');
   if (err) err.style.display = 'none';
 }
@@ -225,6 +227,86 @@ function showCheckoutStep(n) {
 }
 
 /* ── Order summary (step 2) ───────────────────────────────── */
+/* ── Instalments (תשלומים) ───────────────────────────────────
+   The choice is made here, not on Tranzila's page: that terminal's template
+   renders no payments selector however it is parameterised, so we ask on our
+   own summary and send the schedule we promised.
+
+   splitPayments mirrors split_payments() in server.py exactly — whole agorot,
+   remainder on the first payment — because the figures shown here are the
+   figures charged. If the two ever disagree the customer sees it before we do.
+
+   The ceiling comes from the server (window.STEELO_MAX_PAYMENTS); the literal
+   below is only the fallback for a page served without it.
+
+   `chosenPayments` is declared with appliedCoupon above, because closeCheckout
+   resets it and is defined before this block. */
+function maxPayments() {
+  const n = parseInt(window.STEELO_MAX_PAYMENTS, 10);
+  return (isNaN(n) || n < 1) ? 3 : n;
+}
+
+function splitPayments(total, count) {
+  const agorot = Math.round(Number(total) * 100);
+  if (count <= 1) return { first: agorot, rest: 0 };
+  const rest = Math.floor(agorot / count);
+  return { first: agorot - rest * (count - 1), rest: rest };
+}
+
+/* Only worth offering when every payment is a real amount — the same guard the
+   server applies before it will send a schedule at all. */
+function paymentsAvailable(total) {
+  const cap = maxPayments();
+  if (cap <= 1) return 1;
+  const { rest } = splitPayments(total, cap);
+  return rest > 0 ? cap : 1;
+}
+
+function renderPaymentsPicker(total) {
+  const box    = document.getElementById('checkout-payments');
+  const toggle = document.getElementById('checkout-payments-toggle');
+  const note   = document.getElementById('checkout-payments-note');
+  if (!box || !toggle) return;
+
+  const cap = paymentsAvailable(total);
+  if (cap <= 1) {                      // nothing to choose — stay out of the way
+    box.style.display = 'none';
+    chosenPayments = 1;
+    return;
+  }
+  if (chosenPayments > cap) chosenPayments = 1;
+  box.style.display = '';
+
+  toggle.innerHTML = '';
+  for (let n = 1; n <= cap; n++) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'cdt-btn' + (n === chosenPayments ? ' active' : '');
+    btn.textContent = n === 1 ? 'תשלום אחד' : n + ' תשלומים';
+    btn.addEventListener('click', () => {
+      chosenPayments = n;
+      renderPaymentsPicker(total);
+    });
+    toggle.appendChild(btn);
+  }
+
+  if (!note) return;
+  if (chosenPayments === 1) {
+    note.innerHTML = '';
+    return;
+  }
+  const { first, rest } = splitPayments(total, chosenPayments);
+  // Spelled out rather than averaged: an indivisible total puts the odd agora
+  // on the first payment, and the customer should see the number they will
+  // actually be charged.
+  // innerHTML, not textContent: fmt() returns markup — it wraps the ₪ sign in a
+  // styled span — and the rest of the summary renders it the same way. Every
+  // part of this string is our own; nothing here comes from the customer.
+  note.innerHTML = first === rest
+    ? `${chosenPayments} תשלומים של ${fmt(rest / 100)}`
+    : `תשלום ראשון ${fmt(first / 100)}, ולאחריו ${chosenPayments - 1} תשלומים של ${fmt(rest / 100)}`;
+}
+
 function buildOrderSummary() {
   const el = document.getElementById('checkout-order-items');
   el.innerHTML = '';
@@ -286,8 +368,11 @@ function buildOrderSummary() {
   else if (freeShip) sumRow('משלוח', 'חינם', 'is-discount');
   else               sumRow('משלוח', fmt(fee));
 
-  document.getElementById('checkout-order-total').innerHTML =
-    fmt(Math.max(itemsTotal - discount, 0) + fee);
+  const orderTotal = Math.max(itemsTotal - discount, 0) + fee;
+  document.getElementById('checkout-order-total').innerHTML = fmt(orderTotal);
+  // Rebuilt from the same figure the total shows, so changing the cart, the
+  // delivery method or the coupon re-splits the instalments with it.
+  renderPaymentsPicker(orderTotal);
 }
 
 /* ── Abandoned-cart lead ──────────────────────────────────────
@@ -434,6 +519,9 @@ document.getElementById('checkout-to-payment-btn').addEventListener('click', asy
     website:     f['co-website'].value.trim(),
     items:       cart.map(i => ({ id: i.id, name: i.name, category: i.category, qty: i.quantity, price: i.price })),
     coupon_code: appliedCoupon ? appliedCoupon.code : '',
+    // The server clamps this and recomputes the split from its own total; it is
+    // the customer's request, not the final word.
+    payments:    chosenPayments,
     total,
   };
 
