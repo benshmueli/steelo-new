@@ -1618,7 +1618,9 @@ def build_purchase_data(order, pricing=None):
 # Every message here is customer-facing Hebrew and deliberately specific: a
 # shopper who is told "code expired" stops retyping, a shopper told "invalid"
 # tries four more times and then leaves.
-COUPON_TYPES = ('percent', 'fixed', 'free_shipping')
+# 'second_item' is "X% off every second item": units are ranked dearest first
+# and every second one is discounted, so each pair gives up its cheaper half.
+COUPON_TYPES = ('percent', 'fixed', 'free_shipping', 'second_item')
 
 # Hebrew category labels for the customer-facing scope note. Mirror of
 # CATEGORY_HE in build.py — kept in step by hand, the same way DELIVERY_FEE is
@@ -1645,6 +1647,7 @@ _MSG = {
     'items':     'הקופון לא תקף למוצרים שבעגלה',
     'zero':      'לא ניתן להשלים הזמנה בסכום 0 — צרו קשר',
     'worse':     'המבצע הקיים משתלם יותר מהקופון',
+    'pair':      'הקופון חל בקנייה של 2 פריטים לפחות',
 }
 
 
@@ -1721,8 +1724,13 @@ def coupon_scope_note(coupon):
     discount smaller than the headline percentage and no reason why."""
     ids  = coupon.get('applies_to') or []
     cats = coupon.get('applies_to_categories') or []
+    # The second-item mechanic always needs saying: a shopper expecting 20% off
+    # the whole cart would otherwise read the smaller discount as a mistake.
+    mechanic = ''
+    if coupon.get('type') == 'second_item':
+        mechanic = f"{float(coupon.get('value') or 0):g}% הנחה על כל פריט שני (הזול מבין כל זוג)"
     if not ids and not cats:
-        return ''
+        return mechanic
     if cats:
         # dict.fromkeys keeps declaration order while removing the duplicates
         # that arise because several categories share one Hebrew label.
@@ -1732,8 +1740,9 @@ def coupon_scope_note(coupon):
         catalog = products_by_id()
         labels = [catalog[i]['name'] for i in ids if i in catalog]
     if not labels:
-        return ''
-    return 'ההנחה חלה על ' + ', '.join(labels) + ' בלבד'
+        return mechanic
+    scope = 'ההנחה חלה על ' + ', '.join(labels) + ' בלבד'
+    return f'{mechanic} · {scope}' if mechanic else scope
 
 
 def coupon_status(coupon):
@@ -1756,7 +1765,7 @@ def coupon_status(coupon):
 def evaluate_coupon(code, lines, subtotal, delivery, order):
     """Validate a coupon against this cart and customer.
 
-    Returns (ok, discount_amount, free_shipping, message). On failure the
+    Returns (ok, discount_amount, free_shipping, message, list_price_ids). On failure the
     message is the reason to show the shopper; on success it is the label for
     the summary row.
     """
@@ -1821,9 +1830,25 @@ def evaluate_coupon(code, lines, subtotal, delivery, order):
     #   no stacking → the coupon *replaces* the sale. 25% means they pay 75% of
     #                 the ticket price, full stop; the sale they were already
     #                 getting is netted out of the discount.
-    base   = eligible if stackable else eligible_list
-    target = base - round(value) if ctype == 'fixed' else base * (1 - value / 100)
-    discount = int(round(eligible - target))
+    if ctype == 'second_item':
+        # Rank single units, not cart rows, by what the shopper actually pays,
+        # so two identical chairs make a pair just as a chair and a table do.
+        units = sorted(((l['unit'], l['list_unit']) for l in in_scope
+                        for _ in range(l['qty'])), reverse=True)
+        if len(units) < 2:
+            return False, 0, False, _MSG['pair'], []
+        # Same stacking rule as below, applied to each discounted unit alone.
+        # A unit whose sale already beats the coupon contributes nothing rather
+        # than a negative amount that would eat into the other pairs.
+        discount = 0
+        for unit, list_unit in units[1::2]:
+            target    = (unit if stackable else list_unit) * (1 - value / 100)
+            discount += max(0, unit - target)
+        discount = int(round(discount))
+    else:
+        base   = eligible if stackable else eligible_list
+        target = base - round(value) if ctype == 'fixed' else base * (1 - value / 100)
+        discount = int(round(eligible - target))
 
     # A non-stacking coupon weaker than the running sale would otherwise *raise*
     # the price. Nobody may end up worse off for entering a code.
@@ -1836,8 +1861,10 @@ def evaluate_coupon(code, lines, subtotal, delivery, order):
         return False, 0, False, _MSG['zero'], []
 
     # Which rows the summary should price at the ticket rate — empty when the
-    # coupon stacks, since then the sale prices still stand.
-    list_ids = [] if stackable else [l['id'] for l in in_scope]
+    # coupon stacks, since then the sale prices still stand. Also empty for a
+    # second-item coupon: it reprices single units, and showing a whole row at
+    # the ticket price would misstate the units it leaves alone.
+    list_ids = [] if stackable or ctype == 'second_item' else [l['id'] for l in in_scope]
     return True, discount, False, norm_code(coupon['code']), list_ids
 
 
@@ -1902,7 +1929,7 @@ def upsert_coupon(payload):
         return False, f'Unknown coupon type: {ctype}'
 
     value = float(payload.get('value') or 0)
-    if ctype == 'percent' and not (0 < value <= 100):
+    if ctype in ('percent', 'second_item') and not (0 < value <= 100):
         return False, 'Percentage must be between 1 and 100'
     if ctype == 'fixed' and value <= 0:
         return False, 'Fixed amount must be above 0'

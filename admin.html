@@ -742,6 +742,7 @@
               <option value="percent">% off</option>
               <option value="fixed">₪ off</option>
               <option value="free_shipping">Free shipping</option>
+              <option value="second_item">% off every 2nd item (cheaper)</option>
             </select>
           </div>
           <div class="form-group" id="c-value-group">
@@ -1655,6 +1656,7 @@
     function couponValueLabel(c) {
       if (c.type === 'free_shipping') return 'Free shipping';
       if (c.type === 'fixed')         return `₪${Number(c.value).toLocaleString()} off`;
+      if (c.type === 'second_item')   return `${Number(c.value)}% off every 2nd item`;
       return `${Number(c.value)}% off`;
     }
 
