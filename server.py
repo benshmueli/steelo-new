@@ -1352,8 +1352,8 @@ def stocked_categories():
 SITE_URL = 'https://www.steelo-design.com'
 
 CATALOG_FIELDS = ('id', 'title', 'description', 'availability', 'condition',
-                  'price', 'sale_price', 'link', 'image_link', 'brand',
-                  'product_type')
+                  'price', 'sale_price', 'link', 'image_link',
+                  'additional_image_link', 'brand', 'product_type')
 
 
 def _feed_image(path):
@@ -1384,6 +1384,7 @@ def render_catalog_csv():
         sale  = sale_price(price, p.get('discount'))
         page  = os.path.join(BASE_DIR, 'products', pid, 'index.html')
         cat   = (p.get('category') or '').lower()
+        imgs  = [_feed_image(i) for i in (p.get('images') or []) if i] or ['']
         out.writerow({
             'id':           pid,
             'title':        p.get('name') or pid,
@@ -1394,7 +1395,9 @@ def render_catalog_csv():
             'price':        f'{price:.2f} ILS',
             'sale_price':   f'{sale:.2f} ILS' if sale < price else '',
             'link':         f'{SITE_URL}/products/{pid}/' if os.path.exists(page) else SITE_URL + '/',
-            'image_link':   _feed_image((p.get('images') or [''])[0]),
+            'image_link':   imgs[0],
+            # Meta takes up to 20 extras as one comma-separated field.
+            'additional_image_link': ','.join(imgs[1:21]),
             'brand':        'Steelo',
             'product_type': CATEGORY_HE.get(cat, p.get('category') or ''),
         })
