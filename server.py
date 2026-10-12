@@ -1343,6 +1343,67 @@ def stocked_categories():
             for pid, p in products_by_id().items() if pid != 'test'}
 
 
+# ── Meta catalogue feed ───────────────────────────────────────────────────────
+# /catalog.csv is the product feed Commerce Manager fetches on a schedule. It is
+# rendered from products_by_id() on every request, so a price, sale or product
+# changed in the admin reaches the catalogue on Meta's next fetch with nobody
+# re-uploading a file. `id` must stay the product id: it is what the Pixel and
+# CAPI send as content_ids, and Meta joins the two on it for dynamic ads.
+SITE_URL = 'https://www.steelo-design.com'
+
+CATALOG_FIELDS = ('id', 'title', 'description', 'availability', 'condition',
+                  'price', 'sale_price', 'link', 'image_link',
+                  'additional_image_link', 'brand', 'product_type')
+
+
+def _feed_image(path):
+    """Absolute URL for a product image, preferring a JPG twin of a WebP file.
+    The storefront serves WebP; Meta's catalogue is only dependable with JPG or
+    PNG, so main images have a .jpg committed beside them. An admin upload under
+    /media/ has no twin and goes through as-is."""
+    if not path:
+        return ''
+    if path.lower().endswith('.webp') and not path.startswith('/media/'):
+        jpg = path[:-len('.webp')] + '.jpg'
+        if os.path.exists(os.path.join(BASE_DIR, jpg.lstrip('/'))):
+            path = jpg
+    return SITE_URL + path if path.startswith('/') else path
+
+
+def render_catalog_csv():
+    """The Meta product feed as CSV text. No BOM — it would end up glued to the
+    first header and Commerce Manager would no longer find an `id` column."""
+    import csv, io
+    buf = io.StringIO()
+    out = csv.DictWriter(buf, fieldnames=CATALOG_FIELDS, lineterminator='\n')
+    out.writeheader()
+    for pid, p in products_by_id().items():
+        if pid == 'test':
+            continue
+        price = int(p.get('price') or 0)
+        sale  = sale_price(price, p.get('discount'))
+        page  = os.path.join(BASE_DIR, 'products', pid, 'index.html')
+        cat   = (p.get('category') or '').lower()
+        imgs  = [_feed_image(i) for i in (p.get('images') or []) if i] or ['']
+        out.writerow({
+            'id':           pid,
+            'title':        p.get('name') or pid,
+            'description':  p.get('description') or p.get('name') or pid,
+            # No stock is tracked — everything is made to order.
+            'availability': 'in stock',
+            'condition':    'new',
+            'price':        f'{price:.2f} ILS',
+            'sale_price':   f'{sale:.2f} ILS' if sale < price else '',
+            'link':         f'{SITE_URL}/products/{pid}/' if os.path.exists(page) else SITE_URL + '/',
+            'image_link':   imgs[0],
+            # Meta takes up to 20 extras as one comma-separated field.
+            'additional_image_link': ','.join(imgs[1:21]),
+            'brand':        'Steelo',
+            'product_type': CATEGORY_HE.get(cat, p.get('category') or ''),
+        })
+    return buf.getvalue()
+
+
 def _fee_text(keys, fees, stocked=None):
     """Mirror of delivery_fee_text() in build.py — the two must render the same
     string, or a rewritten page would differ from a freshly built one.
@@ -2026,10 +2087,10 @@ class Handler(SimpleHTTPRequestHandler):
         # Rendered from the store, so their contents change whenever the admin
         # sets a discount or edits the popup — they must never be treated as
         # immutable ?v= assets, and popup.js is loaded with a ?v= that would
-        # otherwise match the year-long rule below and freeze it. Both are small
-        # enough that revalidating on every page load costs a 304 and nothing
-        # else.
-        if route in ('/js/data.js', '/js/popup.js'):
+        # otherwise match the year-long rule below and freeze it. All are small
+        # enough that revalidating on every fetch costs a 304 and nothing else.
+        # The catalogue feed is in here so Meta never fetches a stale price.
+        if route in ('/js/data.js', '/js/popup.js', '/catalog.csv'):
             return 'no-cache, must-revalidate'
         # Uploaded images. The filename carries a hash of the bytes, so a new
         # picture is a new URL and there is never anything stale to revalidate.
@@ -2488,6 +2549,8 @@ class Handler(SimpleHTTPRequestHandler):
             self._serve_data_js()
         elif route == '/js/popup.js':
             self._serve_popup_js()
+        elif route == '/catalog.csv':
+            self._send_body(render_catalog_csv().encode('utf-8'), 'text/csv; charset=utf-8')
         elif route.startswith('/media/'):
             self._serve_media(route)
         elif route == '/admin/coupons':
