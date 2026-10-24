@@ -806,6 +806,30 @@
   <!-- Home-page popup view -->
   <div id="view-popup" style="display:none;">
     <div class="an-wrap">
+      <!-- The home page's running strip. Part of the popup settings (same store,
+           same Save button) but not of the card: it runs either way. -->
+      <h3 style="font-size:0.7rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--ink-400);margin:0 0 0.5rem;">Running banner (homepage strip)</h3>
+      <p style="font-size:0.7rem;color:var(--ink-400);line-height:1.7;margin:0 0 1rem;">
+        The three lines that run in the black strip under the hero, whether or not the popup is on.
+        Leave a line empty to drop it; all three empty hides the strip. Saved with <strong>Save popup</strong> below.
+      </p>
+      <div class="form-grid">
+        <div class="form-group">
+          <label for="pp-marquee-1">Headline 1</label>
+          <input id="pp-marquee-1" type="text" maxlength="80" placeholder="WELCOME TO STEELO">
+        </div>
+        <div class="form-group">
+          <label for="pp-marquee-2">Headline 2</label>
+          <input id="pp-marquee-2" type="text" maxlength="80" placeholder="POP UP 📍 KIXBOX SHEINKIN 57 13.8-14.9">
+        </div>
+        <div class="form-group">
+          <label for="pp-marquee-3">Headline 3</label>
+          <input id="pp-marquee-3" type="text" maxlength="80" placeholder="STAINLESS STEEL 304">
+        </div>
+      </div>
+
+      <hr class="divider">
+
       <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap;margin-bottom:1.5rem;">
         <label class="checkbox-label">
           <input id="pp-enabled" type="checkbox"> Show the popup on the home page
@@ -1483,6 +1507,8 @@
       'pp-sale-intro': 'sale_intro', 'pp-sale-title': 'sale_title',
       'pp-sale-note': 'sale_note', 'pp-cta-text': 'cta_text',
       'pp-cta-url': 'cta_url', 'pp-hide-after': 'hide_after',
+      'pp-marquee-1': 'marquee_1', 'pp-marquee-2': 'marquee_2',
+      'pp-marquee-3': 'marquee_3',
     };
 
     function setPopupStatus(msg, ok = true) {

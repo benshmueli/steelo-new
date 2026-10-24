@@ -4,6 +4,7 @@ Steelo dev server — serves static files + handles admin save + order endpoints
 Run: python3 server.py
 """
 from http.server import HTTPServer, SimpleHTTPRequestHandler
+from html import escape as html_escape
 import json, os, re, hashlib, time, smtplib, threading
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -181,10 +182,23 @@ POPUP_DEFAULT = {
     'hide_after':   '',          # '' = runs until switched off
     'frequency':    'always',    # always | once | daily
     'delay_ms':     7000,
+    # The running strip under the hero — see MARQUEE_FIELDS. The lines that
+    # were hardcoded in index.html, with STEELL corrected.
+    'marquee_1':    'WELCOME TO STEELO',
+    'marquee_2':    'POP UP 📍 KIXBOX SHEINKIN 57 13.8-14.9',
+    'marquee_3':    'STAINLESS STEEL 304',
 }
 
+# The home page's running strip. Edited on the Popup page because that is where
+# the owner already changes what the home page announces, but independent of the
+# card's switch: the strip runs whether or not the card does. An empty line is
+# left out, and all three empty takes the strip off the page. Kept short — it is
+# a single line of spaced capitals.
+MARQUEE_FIELDS    = ('marquee_1', 'marquee_2', 'marquee_3')
+MARQUEE_TEXT_MAX  = 80
+
 POPUP_TEXT_FIELDS = ('intro', 'when', 'venue', 'where', 'sale_intro',
-                     'sale_title', 'sale_note', 'cta_text')
+                     'sale_title', 'sale_note', 'cta_text') + MARQUEE_FIELDS
 POPUP_FREQUENCIES = ('always', 'once', 'daily')
 POPUP_TEXT_MAX    = 300
 # `re`, not the `_re` alias: that import is further down the file and this
@@ -323,7 +337,8 @@ def save_popup_config(cfg):
     clean = {}
     for key in POPUP_TEXT_FIELDS:
         if key in cfg:
-            clean[key] = str(cfg[key] if cfg[key] is not None else '').strip()[:POPUP_TEXT_MAX]
+            limit = MARQUEE_TEXT_MAX if key in MARQUEE_FIELDS else POPUP_TEXT_MAX
+            clean[key] = str(cfg[key] if cfg[key] is not None else '').strip()[:limit]
     for key in ('enabled', 'sale_enabled'):
         if key in cfg:
             clean[key] = bool(cfg[key])
@@ -1310,9 +1325,61 @@ window.STEELO_DELIVERY_FEES = {fees};
 '''
 
 
+# ── Home page ─────────────────────────────────────────────────────────────────
+# index.html is served with its running strip filled in from the admin's lines,
+# so the page arrives with the right text rather than swapping it in after load.
+# The region is marked the way build.py marks the product grid it injects.
+_MARQUEE_RE      = _re.compile(r'<!--marquee:start-->.*?<!--marquee:end-->', _re.S)
+MARQUEE_REPEATS  = 5     # must match the 20% shift in @keyframes marquee
+MARQUEE_SECONDS  = 22    # the .marquee-track duration in styles.css
+# Widths in characters of .mq text. Each line's padding and separator come to
+# about 9; the set the CSS was tuned for is the default lines, measured the same
+# way, so the defaults render exactly as the static copy in index.html does.
+MARQUEE_LINE_PAD = 9
+MARQUEE_SET      = sum(len(POPUP_DEFAULT[k]) + MARQUEE_LINE_PAD for k in MARQUEE_FIELDS)
+
+
+def render_marquee(cfg=None):
+    """The running strip's markup, or '' when all three lines are empty.
+
+    styles.css moves the track by one of MARQUEE_REPEATS repeats every
+    MARQUEE_SECONDS, which the original three lines were tuned for. Other lines
+    change a repeat's width, and with it two things: a short line leaves the
+    strip running half-empty, because the remaining repeats no longer span the
+    screen, and any change alters the speed, since a wider repeat covers more
+    ground in the same time. So each repeat holds the lines as many times as it
+    takes to be at least as long as the original set, and the duration is scaled
+    by the same width — the strip moves at its usual pace whatever it says."""
+    cfg   = cfg or popup_config()
+    lines = [str(cfg.get(k) or '').strip() for k in MARQUEE_FIELDS]
+    lines = [l for l in lines if l]
+    if not lines:
+        return ''
+    width = sum(len(l) + MARQUEE_LINE_PAD for l in lines)
+    sets  = -(-MARQUEE_SET // width)                              # ceiling division
+    unit  = ''.join(f'<span class="mq">{html_escape(l)}</span><span class="mq-sep">—</span>'
+                    for l in lines) * sets
+    secs  = round(MARQUEE_SECONDS * sets * width / MARQUEE_SET, 1)
+    track = '\n        '.join([unit] * MARQUEE_REPEATS)
+    return ('<div class="marquee" aria-hidden="true">\n'
+            f'      <div class="marquee-track" style="animation-duration:{secs}s">\n'
+            f'        {track}\n'
+            '      </div>\n'
+            '    </div>')
+
+
+def rewrite_home_marquee(html):
+    """index.html with the strip between its markers rendered from the store.
+    The markers stay in place; the copy between them in the file is only ever
+    what a page served straight off disk would show."""
+    return _MARQUEE_RE.sub(
+        lambda _: f'<!--marquee:start-->\n    {render_marquee()}\n    <!--marquee:end-->',
+        html, count=1)
+
+
 # ── Generated product pages ───────────────────────────────────────────────────
 _PRODUCT_ROUTE = _re.compile(r'^/products/([A-Za-z0-9_-]+)/$')
-_page_cache: dict = {}     # pid → ((pid, store_rev, mtime), html)
+_page_cache: dict = {}     # pid, or '/' for the home page → (key, html)
 
 
 def rewrite_product_prices(html, product):
@@ -2242,6 +2309,21 @@ class Handler(SimpleHTTPRequestHandler):
         except Exception as e:
             self._json(500, {'ok': False, 'error': str(e)})
 
+    def _serve_home(self):
+        """index.html with the running strip filled in from the Popup page.
+        Cached like the product pages, on the store revision and the file's
+        mtime, so a save in the panel shows on the very next load."""
+        path   = os.path.join(BASE_DIR, 'index.html')
+        key    = ('/', store_rev(), os.path.getmtime(path))
+        cached = _page_cache.get('/')
+        if cached and cached[0] == key:
+            html = cached[1]
+        else:
+            with open(path, encoding='utf-8') as f:
+                html = rewrite_home_marquee(f.read())
+            _page_cache['/'] = (key, html)
+        self._send_body(html.encode('utf-8'), 'text/html; charset=utf-8')
+
     def _serve_product_page(self, route):
         """A generated product page with its machine-readable prices refreshed.
 
@@ -2561,6 +2643,12 @@ class Handler(SimpleHTTPRequestHandler):
             self._handle_meta_coverage()
         elif _PRODUCT_ROUTE.match(route):
             self._serve_product_page(route)
+        elif route in ('/', '/index.html'):
+            # Tranzila may redirect to /?payment=success via dashboard URL — the
+            # same order save the fallback below does for any other path.
+            if 'payment=success' in self.path:
+                self._try_save_from_query()
+            self._serve_home()
         elif self.path.startswith('/payment/confirm'):
             self._handle_payment_confirm()
         elif self.path.startswith('/payment-result'):
