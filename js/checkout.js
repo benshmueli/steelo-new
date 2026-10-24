@@ -224,6 +224,25 @@ function showCheckoutStep(n) {
   document.getElementById('checkout-modal-body').scrollTop = 0;
 }
 
+/* ── What comes off the items ─────────────────────────────────
+   The applied coupon's figures from the server, or — with no coupon — the pair
+   deal, which cart.js prices the same way the server does. Never both: the
+   server only accepts a coupon that saves more than the deal. `subtotal` and
+   `discount` are what the summary shows; `charge` pairs with the cart's sale
+   prices for the total sent to /payment/init. */
+function orderDiscount() {
+  const items = cart.reduce((s, i) => s + i.price * i.quantity, 0);
+  if (appliedCoupon && appliedCoupon.free_shipping) {
+    return { subtotal: items, discount: 0, charge: 0, label: '' };
+  }
+  if (appliedCoupon) {
+    return { subtotal: appliedCoupon.displaySubtotal, discount: appliedCoupon.displayDiscount,
+             charge: appliedCoupon.discount, label: `הנחה (${appliedCoupon.code})` };
+  }
+  const pair = pairDiscount(cart);
+  return { subtotal: items, discount: pair, charge: pair, label: 'מבצע זוג' };
+}
+
 /* ── Order summary (step 2) ───────────────────────────────── */
 function buildOrderSummary() {
   const el = document.getElementById('checkout-order-items');
@@ -253,10 +272,7 @@ function buildOrderSummary() {
   // The server's figures win whenever a coupon is applied — it is the only side
   // that knows the stacking rule, and the total shown has to be the total
   // charged. Falls back to the cart's own arithmetic when there is no coupon.
-  const itemsTotal = appliedCoupon && !freeShip
-    ? appliedCoupon.displaySubtotal
-    : cart.reduce((s, i) => s + i.price * i.quantity, 0);
-  const discount = appliedCoupon && !freeShip ? appliedCoupon.displayDiscount : 0;
+  const { subtotal: itemsTotal, discount, label } = orderDiscount();
 
   const sumRow = (label, value, cls) => {
     const row = document.createElement('div');
@@ -266,22 +282,31 @@ function buildOrderSummary() {
   };
 
   // A subtotal line only earns its place once there is something between it and
-  // the total; without a coupon the item rows already add up to the total.
+  // the total; without a discount the item rows already add up to the total.
+  const notes = [];
   if (discount) {
     sumRow('ביניים', fmt(itemsTotal));
-    sumRow(`הנחה (${appliedCoupon.code})`, '−' + fmt(discount), 'is-discount');
-    // Explains why these rows are dearer than the sale prices on the product
-    // page — the coupon took the sale's place rather than adding to it.
-    const notes = [];
-    if (appliedCoupon.scopeNote) notes.push(appliedCoupon.scopeNote);
-    if (replacesSale)            notes.push('ללא כפל מבצעים');
-    notes.forEach(text => {
-      const note = document.createElement('p');
-      note.className = 'coupon-stack-note';
-      note.textContent = text;
-      el.appendChild(note);
-    });
+    sumRow(label, '−' + fmt(discount), 'is-discount');
+    if (!appliedCoupon) {
+      // Without this a shopper expecting 20% off both tables reads the smaller
+      // figure as a mistake — the same reason the second_item coupon says it.
+      notes.push(`${pairDeal().percent}% הנחה על כל פריט שני (הזול מבין כל זוג)`);
+    } else {
+      // Explains why these rows are dearer than the sale prices on the product
+      // page — the coupon took the sale's place rather than adding to it.
+      if (appliedCoupon.scopeNote) notes.push(appliedCoupon.scopeNote);
+      if (replacesSale)            notes.push('ללא כפל מבצעים');
+    }
   }
+  // The drawer showed the pair saving; a coupon that beat it has taken its place,
+  // and saying so stops the saving looking like it went missing.
+  if (appliedCoupon && pairDiscount(cart) > 0) notes.push('הקופון מחליף את מבצע הזוג (ללא כפל מבצעים)');
+  notes.forEach(text => {
+    const note = document.createElement('p');
+    note.className = 'coupon-stack-note';
+    note.textContent = text;
+    el.appendChild(note);
+  });
   if (isPickup)      sumRow('איסוף עצמי', 'חינם');
   else if (freeShip) sumRow('משלוח', 'חינם', 'is-discount');
   else               sumRow('משלוח', fmt(fee));
@@ -398,10 +423,10 @@ document.getElementById('checkout-to-payment-btn').addEventListener('click', asy
   const method    = getDeliveryMethod();
   const freeShip  = !!(appliedCoupon && appliedCoupon.free_shipping);
   const fee       = freeShip ? 0 : deliveryFee();
-  // `discount`, not `displayDiscount`: this pairs with the cart's sale prices,
-  // where the summary pairs displayDiscount with displaySubtotal. Both land on
-  // the same total, and the server recomputes it regardless.
-  const discount  = appliedCoupon && !freeShip ? appliedCoupon.discount : 0;
+  // `charge`, not `discount`: this pairs with the cart's sale prices, where the
+  // summary pairs the displayed discount with the displayed subtotal. Both land
+  // on the same total, and the server recomputes it regardless.
+  const discount  = orderDiscount().charge;
   const itemsTotal = cart.reduce((s, i) => s + i.price * i.quantity, 0);
   const total     = Math.max(itemsTotal - discount, 0) + fee;
   const val = id => (f[id] ? f[id].value.trim() : '');

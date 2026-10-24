@@ -11,6 +11,13 @@
       increase:      'Increase',
       pay_init_fail: 'Could not initiate payment',
       pay_conn_fail: 'Could not connect to payment. Please try again.',
+      // {p} is the pair-deal percentage, filled in by cart.js
+      pair_title:    'Make it a pair · {p}% off the second item',
+      pair_sub:      'Add another from the same collection and the lower-priced of the two is {p}% off.',
+      pair_twin:     'matching pair',
+      pair_saving:   'Save',
+      pair_add:      'Add',
+      pair_applied:  'Pair deal · {p}% off the second item',
     },
     he: {
       view_details:  'צפייה בפריט',
@@ -20,6 +27,12 @@
       increase:      'הוספת כמות',
       pay_init_fail: 'לא ניתן היה להתחיל את התשלום',
       pay_conn_fail: 'לא ניתן להתחבר לתשלום. אנא נסו שוב.',
+      pair_title:    'השלימו לזוג · {p}% הנחה על הפריט השני',
+      pair_sub:      'מוסיפים עוד פריט מאותה קטגוריה, והזול מבין השניים מקבל {p}% הנחה.',
+      pair_twin:     'זוג תואם',
+      pair_saving:   'חוסכים',
+      pair_add:      'הוספה',
+      pair_applied:  'מבצע זוג · {p}% על הפריט השני',
     },
   };
   var dict = STRINGS[lang] || STRINGS.en;

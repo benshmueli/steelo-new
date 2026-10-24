@@ -23,6 +23,65 @@ function fmtPrice(price, discount) {
   return `<span style="text-decoration:line-through;opacity:0.45;font-size:0.85em;margin-right:0.4rem;">${fmt(price)}</span><span style="color:#B85C38;">${fmt(sale)}</span>`;
 }
 
+/* ---- Pair deal ----
+   A percentage off every second item within a group: side tables pair with side
+   tables, stools with stools. Settings arrive in data.js as STEELO_PAIR_DEAL;
+   without them the deal counts as off, since the drawer must never promise a
+   saving the server won't give. pairDiscount() mirrors pair_deal_discount() in
+   server.py, rounding each unit the same way, and the server's figure is the
+   one charged. */
+function pairDeal() {
+  const d = window.STEELO_PAIR_DEAL;
+  return (d && d.enabled && d.percent > 0 && Array.isArray(d.groups)) ? d : null;
+}
+function pairGroup(category, deal) {
+  const cat = (category || '').toLowerCase();
+  return deal.groups.findIndex(g => g.includes(cat));
+}
+function pairDiscount(items) {
+  const deal = pairDeal();
+  if (!deal) return 0;
+  let total = 0;
+  deal.groups.forEach((_, g) => {
+    // Single units ranked dearest first, so each pair discounts its cheaper half.
+    const units = [];
+    items.forEach(i => {
+      if (pairGroup(i.category, deal) === g) for (let n = 0; n < i.quantity; n++) units.push(i.price);
+    });
+    units.sort((a, b) => b - a);
+    for (let k = 1; k < units.length; k += 2) total += Math.floor((units[k] * deal.percent + 50) / 100);
+  });
+  return total;
+}
+
+/* The first group holding an item with no partner yet, and what to suggest for
+   it: the product just added first — a matching pair is the obvious buy — then
+   the rest of its group. Each saving is worked out by pricing the cart with the
+   suggestion in it, so it stays right when a dearer second item moves the
+   discount onto the first one. */
+function pairOffer() {
+  const deal = pairDeal();
+  if (!deal || typeof PRODUCTS === 'undefined') return null;
+  const base = pairDiscount(cart);
+  for (let g = 0; g < deal.groups.length; g++) {
+    const inGroup = cart.filter(i => pairGroup(i.category, deal) === g);
+    if (inGroup.reduce((s, i) => s + i.quantity, 0) % 2 === 0) continue;
+    const lead = inGroup[inGroup.length - 1].id;
+    const options = PRODUCTS
+      .filter(p => p.id !== 'test' && pairGroup(p.category, deal) === g)
+      .sort((a, b) => (b.id === lead) - (a.id === lead))
+      .slice(0, 4)
+      .map(p => {
+        const price = salePrice(p.price, p.discount);
+        const saving = pairDiscount(cart.concat([{ ...p, price, quantity: 1 }])) - base;
+        return { product: p, price, saving, twin: p.id === lead };
+      })
+      .filter(o => o.saving > 0);
+    if (options.length) return { percent: deal.percent, options };
+  }
+  return null;
+}
+
 /* ---- Cart state ---- */
 function addToCart(product) {
   const existing = cart.find(i => i.id === product.id);
@@ -53,7 +112,7 @@ function removeItem(id) {
 
 function syncCart() {
   const count = cart.reduce((s, i) => s + i.quantity, 0);
-  const total = cart.reduce((s, i) => s + i.price * i.quantity, 0);
+  const total = cart.reduce((s, i) => s + i.price * i.quantity, 0) - pairDiscount(cart);
 
   const countEl = document.getElementById('cart-count');
   countEl.textContent = count;
@@ -105,6 +164,47 @@ function renderCartItems() {
       </div>`;
     el.appendChild(row);
   });
+
+  const saving = pairDiscount(cart);
+  if (saving > 0) el.appendChild(pairSavingRow(saving, pairDeal().percent));
+  const offer = pairOffer();
+  if (offer) el.appendChild(pairOfferCard(offer));
+}
+
+function pairSavingRow(saving, percent) {
+  const row = document.createElement('div');
+  row.style.cssText = 'display:flex;justify-content:space-between;align-items:baseline;gap:1rem;padding-bottom:1.5rem;margin-bottom:1.5rem;border-bottom:1px solid var(--sand-300);color:#B85C38;';
+  row.innerHTML = `
+    <span style="font-family:Montserrat,Heebo;font-size:0.75rem;letter-spacing:0.05em;">${t('pair_applied').replace('{p}', percent)}</span>
+    <span style="font-family:Cormorant,Georgia,serif;font-weight:300;font-size:1.15rem;white-space:nowrap;">−${fmt(saving)}</span>`;
+  return row;
+}
+
+function pairOfferCard(offer) {
+  const card = document.createElement('div');
+  card.style.cssText = 'border:1px solid var(--sand-300);padding:1rem 1rem 0.25rem;margin-bottom:1.5rem;';
+  card.innerHTML = `
+    <p style="font-family:Montserrat,Heebo;font-size:0.8rem;font-weight:500;color:var(--ink);margin:0 0 0.3rem;">${t('pair_title').replace('{p}', offer.percent)}</p>
+    <p style="font-family:Montserrat,Heebo;font-weight:300;font-size:0.72rem;line-height:1.6;color:var(--ink-400);margin:0 0 0.5rem;">${t('pair_sub').replace('{p}', offer.percent)}</p>`;
+  offer.options.forEach(o => {
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:0.75rem;padding:0.65rem 0;border-top:1px solid var(--sand-300);';
+    row.innerHTML = `
+      <img src="${o.product.images[0]}" alt="${o.product.name}" loading="lazy"
+           style="width:44px;height:54px;object-fit:cover;object-position:center;flex-shrink:0;">
+      <div style="flex:1;min-width:0;">
+        <p style="font-family:Cormorant,Georgia,serif;font-weight:300;font-size:1.15rem;color:var(--ink);margin:0;line-height:1.1;">${o.product.name}${o.twin ? `<span style="font-family:Montserrat,Heebo;font-size:0.62rem;color:var(--ink-400);margin-inline-start:0.4rem;">${t('pair_twin')}</span>` : ''}</p>
+        <p style="font-family:Montserrat,Heebo;font-size:0.7rem;color:var(--ink-400);margin:0.25rem 0 0;">${fmt(o.price)} · <span style="color:#B85C38;">${t('pair_saving')} ${fmt(o.saving)}</span></p>
+      </div>
+      <button type="button" aria-label="${t('pair_add')}: ${o.product.name}"
+        style="flex-shrink:0;background:transparent;border:1px solid var(--ink);color:var(--ink);cursor:pointer;padding:0.45rem 0.9rem;font-family:Montserrat,Heebo;font-size:0.68rem;transition:background 0.2s;"
+        onmouseover="this.style.background='var(--sand-200)'" onmouseout="this.style.background='transparent'">${t('pair_add')}</button>`;
+    // The same addToCart every other add path uses, so it is reported to Meta
+    // and the funnel exactly like an add from the product page.
+    row.querySelector('button').addEventListener('click', () => addToCart(o.product));
+    card.appendChild(row);
+  });
+  return card;
 }
 
 /* ---- Cart open/close ---- */
