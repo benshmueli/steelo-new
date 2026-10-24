@@ -408,7 +408,7 @@
     .checkbox-label input { width: auto; margin: 0; cursor: pointer; accent-color: var(--ink); }
     .hint strong { color: var(--ink-400); font-weight: 600; }
 
-    #coupon-save, #popup-save {
+    #coupon-save, #popup-save, #pair-save {
       margin-top: 1.5rem;
       background: var(--ink); color: var(--sand); border: none;
       padding: 0.75rem 2rem;
@@ -416,8 +416,8 @@
       font-size: 0.65rem; letter-spacing: 0.2em; text-transform: uppercase;
       cursor: pointer; transition: opacity 0.2s;
     }
-    #coupon-save:hover, #popup-save:hover { opacity: 0.85; }
-    #coupon-save:disabled, #popup-save:disabled { opacity: 0.4; cursor: default; }
+    #coupon-save:hover, #popup-save:hover, #pair-save:hover { opacity: 0.85; }
+    #coupon-save:disabled, #popup-save:disabled, #pair-save:disabled { opacity: 0.4; cursor: default; }
     #coupon-form-error { color: var(--red); font-size: 0.72rem; margin: 0.75rem 0 0; }
 
     .coupon-table { width: 100%; border-collapse: collapse; }
@@ -726,6 +726,31 @@
         Send a personal code as a link and the customer never has to type it:
         <code>steelo-design.com/?coupon=CODE</code>
       </p>
+
+      <!-- Pair deal: automatic, no code. Saves on its own, like a coupon toggle. -->
+      <div class="coupon-form-card" id="pair-deal-card">
+        <h3 style="font-size:0.7rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--ink-400);margin:0 0 0.6rem;">Pair deal — automatic, no code</h3>
+        <p class="hint" style="font-size:0.7rem;line-height:1.7;margin:0 0 1.25rem;">
+          Every second side table, and every second stool, gets this percentage off — the cheaper
+          item of each pair. Side tables pair with side tables and stools with stools. The cart
+          offers the second item as soon as the first goes in. A coupon <strong>replaces</strong>
+          the deal only when it saves the customer more; they never stack.
+        </p>
+        <div class="coupon-form-grid">
+          <div class="form-group">
+            <label class="checkbox-label">
+              <input id="pd-enabled" type="checkbox">
+              <span>Pair deal is on</span>
+            </label>
+          </div>
+          <div class="form-group">
+            <label for="pd-percent">Off the 2nd item <span class="hint">(%, 1–90)</span></label>
+            <input id="pd-percent" type="number" min="1" max="90" step="1" placeholder="20">
+          </div>
+        </div>
+        <button id="pair-save">Save pair deal</button>
+        <span id="pair-status" style="font-size:0.7rem;margin-inline-start:1rem;"></span>
+      </div>
 
       <div class="coupon-form-card">
         <div class="coupon-form-grid">
@@ -1649,9 +1674,50 @@
           coupons = data.coupons || [];
           catalogue = data.products || [];
           renderCoupons();
+          fillPairDeal(data.pair_deal);
         }
       } catch (e) { /* offline — leave whatever is on screen */ }
     }
+
+    /* The pair deal rides on the coupons endpoint: the same GET loads it, and it
+       saves straight away like a coupon toggle — switching it off has to mean
+       the next checkout. The form is refilled from the server's answer, so it
+       shows what was actually stored. */
+    function fillPairDeal(cfg) {
+      if (!cfg) return;
+      document.getElementById('pd-enabled').checked = !!cfg.enabled;
+      document.getElementById('pd-percent').value   = cfg.percent;
+    }
+
+    function setPairStatus(msg, ok = true) {
+      const el = document.getElementById('pair-status');
+      el.textContent = msg;
+      el.style.color = ok ? '#4A7C59' : '#8B3A3A';
+    }
+
+    document.getElementById('pair-save').addEventListener('click', async () => {
+      const btn = document.getElementById('pair-save');
+      btn.disabled = true;
+      setPairStatus('');
+      try {
+        const data = await couponRequest({
+          action: 'pair_deal',
+          pair_deal: {
+            enabled: document.getElementById('pd-enabled').checked,
+            percent: document.getElementById('pd-percent').value,
+          },
+        });
+        if (!data.ok) throw new Error(data.error || 'Could not save the pair deal.');
+        fillPairDeal(data.pair_deal);
+        setPairStatus(data.pair_deal.enabled
+          ? `Saved — ${data.pair_deal.percent}% off the 2nd item is live.`
+          : 'Saved — the pair deal is off.');
+      } catch (e) {
+        setPairStatus(e.message || 'Could not save the pair deal.', false);
+      } finally {
+        btn.disabled = false;
+      }
+    });
 
     function couponValueLabel(c) {
       if (c.type === 'free_shipping') return 'Free shipping';

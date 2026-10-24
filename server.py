@@ -702,8 +702,11 @@ def append_order_to_sheet(service, order, tab='orders'):
         order.get('floor', ''),
         'איסוף עצמי' if order.get('delivery_method') == 'pickup' else 'משלוח',
         order.get('delivery_fee', 0),
-        order.get('coupon_code', ''),
-        order.get('coupon_discount', 0),
+        # The pair deal shares the coupon columns rather than getting its own:
+        # Status is addressed as column N, so nothing may go in before it, and an
+        # order carries a coupon or the deal, never both.
+        order.get('coupon_code', '') or ('מבצע זוג' if order.get('pair_discount') else ''),
+        order.get('coupon_discount', 0) or order.get('pair_discount', 0),
         order.get('payment_ref', ''),
     ]
     try:
@@ -1015,7 +1018,8 @@ _store_rev  = 0        # bumped on every write; keys the rendered-page caches
 
 def _empty_store():
     return {'version': 1, 'overrides': {}, 'extra_products': [],
-            'delivery_fees': {}, 'popup': {}, 'coupons': [], 'redemptions': []}
+            'delivery_fees': {}, 'popup': {}, 'pair_deal': {},
+            'coupons': [], 'redemptions': []}
 
 
 def load_store():
@@ -1288,6 +1292,11 @@ def render_data_js():
     # delivery from this, and a storefront quoting a different figure from the
     # one price_order charges is the one outcome worth extra bytes to avoid.
     fees  = json.dumps(delivery_fees(), ensure_ascii=False)
+    # Here rather than in a file of its own, unlike popup.js: the cart drawer
+    # is on every page that loads data.js, and it prices the deal from this.
+    cfg   = pair_deal_config()
+    deal  = json.dumps({'enabled': bool(cfg['enabled']), 'percent': int(cfg['percent']),
+                        'groups': [list(g) for g in PAIR_DEAL_GROUPS]})
     return src + f'''
 /* ── Admin overrides ──────────────────────────────────────────────────────────
    Applied by server.py from the persistent store (see STORE_PATH). Edited in
@@ -1307,6 +1316,11 @@ def render_data_js():
 /* Delivery price per category, live from the store. checkout.js reads this in
    preference to its own built-in copy; the server charges from the same map. */
 window.STEELO_DELIVERY_FEES = {fees};
+
+/* The pair deal — a percentage off every second item within a group, no code
+   needed. cart.js shows the saving from this; price_order charges from the
+   same settings, and its figure is the one that counts. */
+window.STEELO_PAIR_DEAL = {deal};
 '''
 
 
@@ -1526,20 +1540,21 @@ def price_order(order, coupon_code=None):
     lines    = order_lines(order)
     subtotal = sum(l['unit'] * l['qty'] for l in lines)
     delivery = compute_delivery_fee(order, lines)
+    pair     = pair_deal_discount(lines)
 
     code = (coupon_code or '').strip().upper()
-    # `subtotal` and `coupon_discount` are the sale-price basis and the real
-    # reduction — build_purchase_data() divides by them to spread the coupon
-    # across invoice lines, so their meaning must not drift. The display_* pair
-    # is what the summary screen shows, and it only differs for a non-stacking
-    # coupon, which prices against the ticket price instead.
+    # `subtotal` is the sale-price basis, and `coupon_discount` + `pair_discount`
+    # the real reduction (at most one of them is non-zero) — build_purchase_data()
+    # divides by them to spread it across invoice lines, so their meaning must
+    # not drift. The display_* pair is what the summary screen shows, and it only
+    # differs for a non-stacking coupon, which prices against the ticket price.
     result = {
         'lines': lines, 'subtotal': subtotal, 'delivery_fee': delivery,
         'coupon': '', 'coupon_discount': 0, 'coupon_label': '',
-        'free_shipping': False, 'coupon_error': '',
-        'display_subtotal': subtotal, 'display_discount': 0, 'list_price_ids': [],
+        'free_shipping': False, 'coupon_error': '', 'pair_discount': pair,
+        'display_subtotal': subtotal, 'display_discount': pair, 'list_price_ids': [],
         'scope_note': '',
-        'total': subtotal + delivery,
+        'total': subtotal - pair + delivery,
     }
     if not code:
         return result
@@ -1551,6 +1566,15 @@ def price_order(order, coupon_code=None):
         result['coupon_error'] = message
         return result
 
+    # The pair deal and a coupon never stack, for the same reason two coupons
+    # cannot: one discount per order. A code takes the deal's place only when it
+    # saves more, and one that doesn't is turned away with the message a code
+    # gets when it loses to a sale — the shopper keeps the better of the two.
+    if pair and (delivery if free_shipping else discount) <= pair:
+        result['coupon_error'] = _MSG['worse']
+        return result
+
+    result['pair_discount']   = 0
     result['coupon']          = code
     result['coupon_discount'] = discount
     result['scope_note']      = coupon_scope_note(find_coupon(code) or {})
@@ -1631,14 +1655,15 @@ def build_purchase_data(order, pricing=None):
     a rounding delta is absorbed on the last line so the post-VAT total matches
     the charged sum exactly (otherwise the invoice omits per-line amounts).
 
-    A coupon is spread proportionally across the product lines rather than added
-    as a negative line — Tranzila's invoicing rejects those, and the lines still
-    have to reconcile to the charge. '' if there is nothing to invoice."""
+    A coupon or the pair deal is spread proportionally across the product lines
+    rather than added as a negative line — Tranzila's invoicing rejects those,
+    and the lines still have to reconcile to the charge. '' if there is nothing
+    to invoice."""
     import urllib.parse
     if pricing is None:
         pricing = price_order(order, order.get('coupon_code'))
     subtotal = pricing['subtotal']
-    discount = pricing['coupon_discount']
+    discount = pricing['coupon_discount'] + pricing['pair_discount']
     ratio    = (subtotal - discount) / subtotal if subtotal > 0 else 1
 
     lines = []
@@ -1669,6 +1694,85 @@ def build_purchase_data(order, pricing=None):
     last['product_price'] = round(last_post / VAT_RATE / last['product_quantity'], 2)
     raw = json.dumps(lines, separators=(',', ':'), ensure_ascii=False)
     return urllib.parse.quote(raw, safe='')  # rawurlencode, per Tranzila's spec
+
+
+# ── Pair deal ─────────────────────────────────────────────────────────────────
+# A percentage off every second item, applied without a code. Side tables and
+# stools are what people buy in pairs — one either side of a bed or a sofa — so
+# the cart offers the second one once the first is in. Pairs form only within a
+# group: two side tables are a pair, a side table and a stool are not. 'nesting
+# tables' sits with the side tables because the storefront shows both as שידות
+# צד. Category matching folds case, since the catalogue holds 'STOOL' too.
+#
+# The groups are code; the switch and the percentage belong to the admin panel,
+# stored as a diff against the default the same way the popup settings are.
+PAIR_DEAL_GROUPS  = (('side table', 'nesting tables'), ('stool',))
+PAIR_DEAL_DEFAULT = {'enabled': True, 'percent': 20}
+
+
+def pair_deal_config():
+    saved = load_store().get('pair_deal') or {}
+    return {**PAIR_DEAL_DEFAULT, **saved}
+
+
+def save_pair_deal(cfg):
+    """Persist the panel's switch and percentage. Returns (ok, error)."""
+    if not isinstance(cfg, dict):
+        return False, 'Invalid pair deal settings'
+    clean = {}
+    if 'enabled' in cfg:
+        clean['enabled'] = bool(cfg['enabled'])
+    if 'percent' in cfg:
+        try:
+            pct = int(cfg['percent'])
+        except (TypeError, ValueError):
+            return False, 'Percentage must be a whole number'
+        # Capped short of 100: that would make the second item free, which is a
+        # giveaway rather than a pair deal, and nobody should get there by typo.
+        if not 1 <= pct <= 90:
+            return False, 'Percentage must be between 1 and 90'
+        clean['percent'] = pct
+    with _store_lock:
+        store  = load_store()
+        merged = dict(store.get('pair_deal') or {})
+        for key, value in clean.items():
+            if value == PAIR_DEAL_DEFAULT.get(key):
+                merged.pop(key, None)
+            else:
+                merged[key] = value
+        store['pair_deal'] = merged
+        save_store()
+    return True, ''
+
+
+def _every_second_unit(lines):
+    """(unit, list_unit) of every second single unit, dearest first.
+
+    Single units rather than cart rows, so two identical tables make a pair just
+    as two different ones do; ranked by what the shopper actually pays, so each
+    pair gives up its cheaper half. The pair deal and the second_item coupon are
+    the same mechanic with and without a code, and both rank through here."""
+    units = sorted(((l['unit'], l['list_unit']) for l in lines
+                    for _ in range(l['qty'])), reverse=True)
+    return units[1::2]
+
+
+def pair_deal_discount(lines, cfg=None):
+    """Shekels off this cart under the pair deal; 0 while it is switched off.
+
+    Each discounted unit is rounded on its own, in whole numbers, so that
+    pairDiscount() in js/cart.js lands on exactly the same figure — the cart
+    drawer shows the saving before the server has been asked anything."""
+    cfg = cfg or pair_deal_config()
+    if not cfg.get('enabled'):
+        return 0
+    pct = int(cfg.get('percent') or 0)
+    total = 0
+    for group in PAIR_DEAL_GROUPS:
+        in_group = [l for l in lines if (l['category'] or '').lower() in group]
+        total += sum((unit * pct + 50) // 100
+                     for unit, _ in _every_second_unit(in_group))
+    return total
 
 
 # ── Coupons ───────────────────────────────────────────────────────────────────
@@ -1892,17 +1996,14 @@ def evaluate_coupon(code, lines, subtotal, delivery, order):
     #                 the ticket price, full stop; the sale they were already
     #                 getting is netted out of the discount.
     if ctype == 'second_item':
-        # Rank single units, not cart rows, by what the shopper actually pays,
-        # so two identical chairs make a pair just as a chair and a table do.
-        units = sorted(((l['unit'], l['list_unit']) for l in in_scope
-                        for _ in range(l['qty'])), reverse=True)
-        if len(units) < 2:
+        discounted = _every_second_unit(in_scope)
+        if not discounted:
             return False, 0, False, _MSG['pair'], []
         # Same stacking rule as below, applied to each discounted unit alone.
         # A unit whose sale already beats the coupon contributes nothing rather
         # than a negative amount that would eat into the other pairs.
         discount = 0
-        for unit, list_unit in units[1::2]:
+        for unit, list_unit in discounted:
             target    = (unit if stackable else list_unit) * (1 - value / 100)
             discount += max(0, unit - target)
         discount = int(round(discount))
@@ -2274,10 +2375,11 @@ class Handler(SimpleHTTPRequestHandler):
             return
         self._json(200, {
             'ok': True,
-            'coupons':  coupons_for_admin(),
-            'products': [{'id': p['id'], 'name': p['name'],
-                          'category': p.get('category', '')}
-                         for p in products_by_id().values()],
+            'coupons':   coupons_for_admin(),
+            'pair_deal': pair_deal_config(),
+            'products':  [{'id': p['id'], 'name': p['name'],
+                           'category': p.get('category', '')}
+                          for p in products_by_id().values()],
         })
 
     def _handle_admin_coupons_post(self, raw):
@@ -2293,10 +2395,13 @@ class Handler(SimpleHTTPRequestHandler):
                 ok, err = set_coupon_active(data.get('code'), data.get('active'))
             elif action == 'delete':
                 ok, err = delete_coupon(data.get('code'))
+            elif action == 'pair_deal':
+                ok, err = save_pair_deal(data.get('pair_deal') or {})
             else:
                 ok, err = False, f'Unknown action: {action}'
             self._json(200 if ok else 400,
-                       {'ok': ok, 'error': err, 'coupons': coupons_for_admin()})
+                       {'ok': ok, 'error': err, 'coupons': coupons_for_admin(),
+                        'pair_deal': pair_deal_config()})
         except Exception as e:
             self._json(500, {'ok': False, 'error': str(e)})
 
@@ -3114,6 +3219,7 @@ class Handler(SimpleHTTPRequestHandler):
             order['delivery_fee']    = pricing['delivery_fee']
             order['coupon_code']     = pricing['coupon']
             order['coupon_discount'] = pricing['coupon_discount']
+            order['pair_discount']   = pricing['pair_discount']
             order['total']           = pricing['total']
 
             # The coupon passed in the summary but not here — it was paused, or
