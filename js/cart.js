@@ -38,20 +38,32 @@ function pairGroup(category, deal) {
   const cat = (category || '').toLowerCase();
   return deal.groups.findIndex(g => g.includes(cat));
 }
-function pairDiscount(items) {
+/* The units the deal discounts — every second one within a group, ranked dearest
+   first so each pair discounts its cheaper half — as one entry per unit, each
+   the cart row it belongs to. Equal prices stay in cart order (sort is stable),
+   so the drawer always marks the same unit. */
+function pairDiscountedUnits(items) {
   const deal = pairDeal();
-  if (!deal) return 0;
-  let total = 0;
+  if (!deal) return [];
+  const discounted = [];
   deal.groups.forEach((_, g) => {
-    // Single units ranked dearest first, so each pair discounts its cheaper half.
     const units = [];
     items.forEach(i => {
-      if (pairGroup(i.category, deal) === g) for (let n = 0; n < i.quantity; n++) units.push(i.price);
+      if (pairGroup(i.category, deal) === g) for (let n = 0; n < i.quantity; n++) units.push(i);
     });
-    units.sort((a, b) => b - a);
-    for (let k = 1; k < units.length; k += 2) total += Math.floor((units[k] * deal.percent + 50) / 100);
+    units.sort((a, b) => b.price - a.price);
+    for (let k = 1; k < units.length; k += 2) discounted.push(units[k]);
   });
-  return total;
+  return discounted;
+}
+// Shekels off one discounted unit, rounded the way the server rounds it.
+function pairUnitOff(price) {
+  return Math.floor((price * pairDeal().percent + 50) / 100);
+}
+// Summed per unit rather than per product id, so pairOffer() can price a cart
+// holding two rows of the same product.
+function pairDiscount(items) {
+  return pairDiscountedUnits(items).reduce((s, i) => s + pairUnitOff(i.price), 0);
 }
 
 /* The first group holding an item with no partner yet, and what to suggest for
@@ -139,7 +151,15 @@ function renderCartItems() {
   }
 
   el.innerHTML = '';
+  // A product's discounted units get a row of their own under its full-price
+  // one, so a second table bought at 20% off shows up as an item, not just as a
+  // smaller total. The −/+ buttons still move the product's whole quantity, and
+  // the split is worked out again from it.
+  const discounted = pairDiscountedUnits(cart);
   cart.forEach(item => {
+    const offCount  = discounted.filter(u => u === item).length;
+    const fullCount = item.quantity - offCount;
+    if (offCount > 0 && fullCount === 0) { el.appendChild(pairLineRow(item, offCount)); return; }
     const row = document.createElement('div');
     row.style.cssText = 'display:flex;gap:1rem;padding-bottom:1.5rem;margin-bottom:1.5rem;border-bottom:1px solid var(--sand-300);';
     row.innerHTML = `
@@ -153,7 +173,7 @@ function renderCartItems() {
           <button class="qty-btn" onclick="changeQty('${item.id}',-1)" aria-label="${t('decrease')}">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/></svg>
           </button>
-          <span style="font-family:Montserrat;font-size:0.85rem;width:1rem;text-align:center;">${item.quantity}</span>
+          <span style="font-family:Montserrat;font-size:0.85rem;width:1rem;text-align:center;">${fullCount}</span>
           <button class="qty-btn" onclick="changeQty('${item.id}',1)" aria-label="${t('increase')}">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           </button>
@@ -163,20 +183,46 @@ function renderCartItems() {
         </div>
       </div>`;
     el.appendChild(row);
+    if (offCount > 0) el.appendChild(pairLineRow(item, offCount));
   });
 
-  const saving = pairDiscount(cart);
-  if (saving > 0) el.appendChild(pairSavingRow(saving, pairDeal().percent));
+  const saving = discounted.reduce((s, i) => s + pairUnitOff(i.price), 0);
+  if (saving > 0) el.appendChild(pairSavingRow(saving));
   const offer = pairOffer();
   if (offer) el.appendChild(pairOfferCard(offer));
 }
 
-function pairSavingRow(saving, percent) {
+/* A product's discounted units as an item of their own: the same row as a
+   full-price one, priced after the deal. Remove takes off a single unit — the
+   one this row stands for. */
+function pairLineRow(item, count) {
+  const label = t('pair_line').replace('{p}', pairDeal().percent);
   const row = document.createElement('div');
-  row.style.cssText = 'display:flex;justify-content:space-between;align-items:baseline;gap:1rem;padding-bottom:1.5rem;margin-bottom:1.5rem;border-bottom:1px solid var(--sand-300);color:#B85C38;';
+  row.style.cssText = 'display:flex;gap:1rem;padding-bottom:1.5rem;margin-bottom:1.5rem;border-bottom:1px solid var(--sand-300);';
   row.innerHTML = `
-    <span style="font-family:Montserrat,Heebo;font-size:0.75rem;letter-spacing:0.05em;">${t('pair_applied').replace('{p}', percent)}</span>
-    <span style="font-family:Cormorant,Georgia,serif;font-weight:300;font-size:1.15rem;white-space:nowrap;">−${fmt(saving)}</span>`;
+    <img src="${item.images[0]}" alt="${item.name}" loading="lazy"
+         style="width:72px;height:88px;object-fit:cover;object-position:center;flex-shrink:0;">
+    <div style="flex:1;">
+      <p style="font-family:Montserrat;font-size:0.7rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--ink-400);margin:0 0 0.2rem;">${item.category}</p>
+      <h4 style="font-family:Cormorant,Georgia,serif;font-weight:300;font-size:1.4rem;color:var(--ink);margin:0 0 0.3rem;line-height:1.1;">${item.name}</h4>
+      <p style="font-family:Montserrat,Heebo;font-size:0.7rem;color:#B85C38;margin:0 0 0.3rem;">${label}</p>
+      <p style="font-family:Cormorant,Georgia,serif;font-weight:300;font-size:1.15rem;color:var(--ink);margin:0 0 0.75rem;"><span style="text-decoration:line-through;opacity:0.4;font-size:0.85em;margin-right:0.35rem;">${fmt(item.price)}</span><span style="color:#B85C38;">${fmt(item.price - pairUnitOff(item.price))}</span></p>
+      <div style="display:flex;align-items:center;gap:0.75rem;">
+        ${count > 1 ? `<span style="font-family:Montserrat;font-size:0.85rem;">×${count}</span>` : ''}
+        <button onclick="changeQty('${item.id}',-1)" aria-label="${t('remove')}: ${item.name} · ${label}"
+          style="margin-inline-start:auto;background:none;border:none;cursor:pointer;font-family:Montserrat,Heebo;font-size:0.65rem;color: var(--ink-400);transition:color 0.2s;"
+          onmouseover="this.style.color='var(--ink)'" onmouseout="this.style.color='var(--ink-400)'">${t('remove')}</button>
+      </div>
+    </div>`;
+  return row;
+}
+
+// The deal is already in the rows' prices, so this is what it came to — not a
+// further deduction, which is how a "−₪440" under them read.
+function pairSavingRow(saving) {
+  const row = document.createElement('div');
+  row.style.cssText = 'padding-bottom:1.5rem;margin-bottom:1.5rem;border-bottom:1px solid var(--sand-300);color:#B85C38;font-family:Montserrat,Heebo;font-size:0.75rem;letter-spacing:0.05em;';
+  row.innerHTML = t('pair_saved').replace('{s}', fmt(saving));
   return row;
 }
 
