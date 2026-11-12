@@ -25,6 +25,18 @@ function discountBadge(discount) {
   return badge;
 }
 
+/* ---- Sold-out badge ----
+   Same corner as the discount badge, which it replaces: a sold-out product's
+   sale is beside the point. Only ever set at runtime — sold_out comes from the
+   admin's store, which build.py never sees, so the static grid has no copy. */
+function soldOutBadge() {
+  const badge = document.createElement('div');
+  badge.className = 'card-soldout';
+  badge.textContent = 'SOLD OUT';
+  badge.style.cssText = 'position:absolute;top:1rem;left:1rem;background:#1A1715;color:#F5F0EB;font-family:Montserrat,sans-serif;font-size:0.7rem;font-weight:600;letter-spacing:0.18em;padding:0.3rem 0.65rem;z-index:3;';
+  return badge;
+}
+
 /* Refresh prices on the static grid.
 
    build.py bakes the grid into index.html at build time, on a laptop — great
@@ -42,7 +54,14 @@ function refreshGridPrices(grid) {
 
     const box   = card.querySelector('.product-card');
     const badge = card.querySelector('.card-badge');
+    const sold  = card.querySelector('.card-soldout');
     if (!box) return;
+    if (p.sold_out) {
+      if (badge) badge.remove();
+      if (!sold) box.appendChild(soldOutBadge());
+      return;
+    }
+    if (sold) sold.remove();
     if (p.discount > 0 && !badge)      box.appendChild(discountBadge(p.discount));
     else if (p.discount > 0 && badge)  badge.textContent = `${p.discount}% OFF`;
     else if (badge)                    badge.remove();
@@ -104,8 +123,9 @@ function renderGrid() {
     imgBox.appendChild(price);
     imgBox.appendChild(overlay);
 
-    /* discount badge */
-    if (p.discount > 0) imgBox.appendChild(discountBadge(p.discount));
+    /* sold-out badge, or else the discount badge */
+    if (p.sold_out)         imgBox.appendChild(soldOutBadge());
+    else if (p.discount > 0) imgBox.appendChild(discountBadge(p.discount));
 
     /* header — category + name, above the image (mirrors grid_cards in build.py) */
     const head = document.createElement('div');

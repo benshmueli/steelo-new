@@ -80,7 +80,7 @@ function pairOffer() {
     if (inGroup.reduce((s, i) => s + i.quantity, 0) % 2 === 0) continue;
     const lead = inGroup[inGroup.length - 1].id;
     const options = PRODUCTS
-      .filter(p => p.id !== 'test' && pairGroup(p.category, deal) === g)
+      .filter(p => p.id !== 'test' && !p.sold_out && pairGroup(p.category, deal) === g)
       .sort((a, b) => (b.id === lead) - (a.id === lead))
       .slice(0, 4)
       .map(p => {
@@ -96,6 +96,9 @@ function pairOffer() {
 
 /* ---- Cart state ---- */
 function addToCart(product) {
+  // Sold out in the admin: still on the site, but not for sale. Every add path
+  // comes through here, so this one check covers them all.
+  if (product.sold_out) return;
   const existing = cart.find(i => i.id === product.id);
   if (existing) { existing.quantity++; }
   else {
@@ -313,4 +316,9 @@ document.getElementById('inquiry-form').addEventListener('submit', e => {
 });
 
 /* Init */
+// A product switched to sold out since it went in the cart leaves it here,
+// rather than at payment, where the server would turn the order away.
+if (typeof PRODUCTS !== 'undefined') {
+  cart = cart.filter(i => !(PRODUCTS.find(p => p.id === i.id) || {}).sold_out);
+}
 syncCart();

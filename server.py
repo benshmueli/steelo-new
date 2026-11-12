@@ -943,6 +943,15 @@ def validate_order(order):
     if not items or not isinstance(items, list):
         return False, 'Order must have at least one item'
 
+    # The storefront already keeps sold-out products out of the cart; this is
+    # for a cart filled before the switch was flipped, or one forged outright.
+    # Hebrew, unlike the messages above, because checkout shows it as written.
+    catalog = products_by_id()
+    for item in items:
+        p = catalog.get(str(item.get('id') or '')) if isinstance(item, dict) else None
+        if p and p.get('sold_out'):
+            return False, f'{p["name"]} אזל מהמלאי — יש להסיר אותו מהסל כדי להמשיך'
+
     return True, ''
 
 
@@ -1083,12 +1092,16 @@ def store_rev():
 # Fields the admin may override. `material`, and anything else added to data.js
 # later, is deliberately not here: it stays whatever git says.
 OVERRIDABLE = ('name', 'category', 'price', 'discount', 'dimensions',
-               'description', 'images', 'delivery_fee')
+               'description', 'images', 'delivery_fee', 'sold_out')
 
 # Overridable fields that are whole numbers. `delivery_fee` is deliberately not
 # in here: absent means "use my category's fee" and 0 means free delivery, so
 # unlike price and discount it must survive as None rather than becoming 0.
 INT_FIELDS = ('price', 'discount')
+
+# Overridable on/off switches. `sold_out` keeps a product on the site — grid
+# card, product page, catalogue row — while nothing can buy it.
+BOOL_FIELDS = ('sold_out',)
 
 
 def _clean_fee(value):
@@ -1109,6 +1122,8 @@ def _coerce_override(key, value):
     read back as a change and never settle."""
     if key in INT_FIELDS:
         return int(value or 0)
+    if key in BOOL_FIELDS:
+        return bool(value)
     if key == 'delivery_fee':
         return _clean_fee(value)
     return value
@@ -1152,6 +1167,9 @@ def _parse_products_js(src):
             'price':       _js_int(block, 'price'),
             'discount':    _js_int(block, 'discount'),
             'images':      _re.findall(r"'([^']*)'", images.group(1)) if images else [],
+            # Read rather than assumed False, so the admin's diff stays a diff:
+            # only a product whose state differs from git's gets an override.
+            'sold_out':    bool(_re.search(r'\bsold_out:\s*true\b', block)),
         }
     return out
 
@@ -1192,6 +1210,7 @@ def products_by_id():
                 'price': int(extra.get('price', 0) or 0),
                 'discount': int(extra.get('discount', 0) or 0),
                 'delivery_fee': _clean_fee(extra.get('delivery_fee')),
+                'sold_out': bool(extra.get('sold_out')),
             }
     for pid, fields in override.items():
         if pid not in catalog:
@@ -1412,6 +1431,32 @@ def rewrite_product_prices(html, product):
     return html
 
 
+_ADD_CART_RE = _re.compile(r'<button id="pdp-add-cart"[^>]*>.*?</button>', _re.S)
+_BUY_NOW_RE  = _re.compile(r'\s*<button id="pdp-buy-now"[^>]*>.*?</button>', _re.S)
+SOLD_OUT_BUTTON = (
+    '<button id="pdp-add-cart" class="btn-primary" disabled aria-disabled="true" '
+    'style="background:var(--sand-200);color:var(--ink-400);border:1px solid var(--sand-300);'
+    'cursor:not-allowed;">אזל מהמלאי</button>')
+
+
+def rewrite_sold_out(html, product):
+    """A sold-out product's page: still there to be seen, with nothing to buy.
+
+    Done here rather than in the browser so the page arrives without a working
+    buy button to click before a script disables it, and so the JSON-LD Google
+    reads says OutOfStock. build.py writes the buttons, so their markup is as
+    regular as the prices rewrite_product_prices() relies on. Quick buy goes
+    altogether — its click handler already returns when the button is absent."""
+    if not product.get('sold_out'):
+        return html
+    html = html.replace('"availability": "https://schema.org/InStock"',
+                        '"availability": "https://schema.org/OutOfStock"', 1)
+    html = _ADD_CART_RE.sub(lambda _: SOLD_OUT_BUTTON, html, count=1)
+    html = _BUY_NOW_RE.sub('', html, count=1)
+    return html.replace('מיוצר בהזמנה — זמן אספקה 5-10 ימי עסקים.',
+                        'הפריט אזל מהמלאי כרגע.', 1)
+
+
 _LI_FEE_RE = _re.compile(
     r'(<li\b[^>]*\bdata-stl-cat="([^"]*)"[^>]*>)(.*?)(</li>)', _re.S)
 _FEE_SPAN_RE = _re.compile(r'(<span\b[^>]*\bdata-stl-fee[^>]*>)(.*?)(</span>)', _re.S)
@@ -1470,8 +1515,9 @@ def render_catalog_csv():
             'id':           pid,
             'title':        p.get('name') or pid,
             'description':  p.get('description') or p.get('name') or pid,
-            # No stock is tracked — everything is made to order.
-            'availability': 'in stock',
+            # No stock count is tracked — everything is made to order — but the
+            # owner can switch a product to sold out in the admin.
+            'availability': 'out of stock' if p.get('sold_out') else 'in stock',
             'condition':    'new',
             'price':        f'{price:.2f} ILS',
             'sale_price':   f'{sale:.2f} ILS' if sale < price else '',
@@ -2447,6 +2493,7 @@ class Handler(SimpleHTTPRequestHandler):
             with open(path, encoding='utf-8') as f:
                 html = rewrite_product_prices(f.read(), prod)
             html = rewrite_delivery_fees(html, prod)
+            html = rewrite_sold_out(html, prod)
             _page_cache[pid] = (key, html)
         self._send_body(html.encode('utf-8'), 'text/html; charset=utf-8')
 

@@ -1189,6 +1189,7 @@
           <div style="text-align:right;">
             <div class="item-price">${p.discount > 0 ? `<span style="text-decoration:line-through;opacity:0.4;font-size:0.85em;">${fmt(p.price)}</span> <span style="color:#B85C38;">${fmt(Math.round(p.price*(1-p.discount/100)))}</span>` : fmt(p.price)}</div>
             ${p.discount > 0 ? `<div style="font-size:0.55rem;letter-spacing:0.1em;color:#B85C38;font-weight:600;">${p.discount}% OFF</div>` : ''}
+            ${p.sold_out ? `<div style="font-size:0.55rem;letter-spacing:0.1em;color:var(--ink);font-weight:600;">SOLD OUT</div>` : ''}
           </div>`;
         el.addEventListener('click', () => selectProduct(p.id));
         list.appendChild(el);
@@ -1254,6 +1255,13 @@
             <label style="display:flex;align-items:center;gap:0.4rem;margin-top:0.4rem;font-size:0.65rem;letter-spacing:0.05em;text-transform:none;color:var(--ink-400);cursor:pointer;">
               <input id="f-delivery-inherit" type="checkbox" ${ownDelivery(p) === null ? 'checked' : ''}>
               Use ${esc(p.category || 'category')} price (${fmt(categoryFee(p.category))})
+            </label>
+          </div>
+          <div class="form-group full">
+            <label class="checkbox-label">
+              <input id="f-soldout" type="checkbox" ${p.sold_out ? 'checked' : ''}>
+              <span id="f-soldout-text" style="${p.sold_out ? 'color:#B85C38;font-weight:600;' : ''}">Sold out</span>
+              <span style="color:var(--ink-300);">— still shown on the site, but can't be bought</span>
             </label>
           </div>
           <div class="form-group full">
@@ -1335,6 +1343,14 @@
       });
       document.getElementById('f-desc').addEventListener('input', e => {
         p.description = e.target.value; markDirty();
+      });
+      document.getElementById('f-soldout').addEventListener('change', e => {
+        p.sold_out = e.target.checked;
+        const text = document.getElementById('f-soldout-text');
+        text.style.color      = p.sold_out ? '#B85C38' : '';
+        text.style.fontWeight = p.sold_out ? '600' : '';
+        renderSidebar();
+        markDirty();
       });
       document.getElementById('add-image').addEventListener('click', () => {
         p.images.push('');

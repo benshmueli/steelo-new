@@ -430,7 +430,7 @@ SCRIPTS = '''  <script src="/js/nav.js?v=1"></script>
   <script src="/js/tracking.js?v=4"></script>
   <!-- first-party funnel analytics; independent of the Meta pixel above -->
   <script src="/js/analytics.js?v=2"></script>
-  <script src="/js/cart.js?v=12"></script>
+  <script src="/js/cart.js?v=13"></script>
   <!-- jQuery required by Tranzila's embedded payment iframe (Apple Pay / Google Pay) -->
   <script src="/js/jquery.min.js?v=1"></script>
   <script src="/js/checkout.js?v=20"></script>
