@@ -322,7 +322,7 @@ MODALS = '''  <!-- CART -->
             <div id="checkout-pickup-card" style="display:none;">
               <div class="checkout-pickup-box">
                 <p class="checkout-pickup-title">איסוף עצמי — ללא עלות</p>
-                <p>הכתובת שלנו: חומה ומגדל 26, תל אביב</p>
+                <p>איסוף מחגור</p>
                 <p>זמין לאיסוף תוך 2–4 ימי עסקים, בתיאום מראש בוואטסאפ.</p>
               </div>
             </div>
