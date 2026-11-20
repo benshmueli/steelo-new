@@ -1898,7 +1898,49 @@ def pair_deal_discount(lines, cfg=None):
 # tries four more times and then leaves.
 # 'second_item' is "X% off every second item": units are ranked dearest first
 # and every second one is discounted, so each pair gives up its cheaper half.
-COUPON_TYPES = ('percent', 'fixed', 'free_shipping', 'second_item')
+# 'tiered' is a percentage set by how many items are in the cart, applied to all
+# of them: `tiers` = [15, 20, 25] is 15% off for one item, 20% off both items for
+# two, and 25% off every item for three or more. Items are single units, so two
+# of the same table count as two.
+COUPON_TYPES = ('percent', 'fixed', 'free_shipping', 'second_item', 'tiered')
+TIERED_MAX_TIERS = 10
+
+
+def coupon_tiers(coupon):
+    """The stored percentages of a tiered coupon, as floats; [] if none."""
+    out = []
+    for t in coupon.get('tiers') or []:
+        try:
+            out.append(float(t))
+        except (TypeError, ValueError):
+            pass
+    return out
+
+
+def tiered_percent(lines, tiers):
+    """The percentage a tiered coupon gives this many items: one tier per item
+    count, the last one covering every larger count. 0 for an empty cart."""
+    count = sum(l['qty'] for l in lines)
+    if not count or not tiers:
+        return 0
+    return tiers[min(count, len(tiers)) - 1]
+
+
+def tiered_note(tiers):
+    """Hebrew line for the checkout summary, e.g. 'פריט אחד: 15% · 2 פריטים:
+    20% · 3 פריטים ומעלה: 25% — ההנחה חלה על כל הפריטים'."""
+    if not tiers:
+        return ''
+    if len(tiers) == 1:
+        return f'{tiers[0]:g}% הנחה על כל פריט'
+    parts = []
+    for i, pct in enumerate(tiers):
+        n = i + 1
+        label = 'פריט אחד' if n == 1 else f'{n} פריטים'
+        if n == len(tiers):
+            label += ' ומעלה'
+        parts.append(f'{label}: {pct:g}%')
+    return ' · '.join(parts) + ' — ההנחה חלה על כל הפריטים'
 
 # Hebrew category labels for the customer-facing scope note. Mirror of
 # CATEGORY_HE in build.py — kept in step by hand, the same way DELIVERY_FEE is
@@ -2007,6 +2049,8 @@ def coupon_scope_note(coupon):
     mechanic = ''
     if coupon.get('type') == 'second_item':
         mechanic = f"{float(coupon.get('value') or 0):g}% הנחה על כל פריט שני (הזול מבין כל זוג)"
+    elif coupon.get('type') == 'tiered':
+        mechanic = tiered_note(coupon_tiers(coupon))
     if not ids and not cats:
         return mechanic
     if cats:
@@ -2120,6 +2164,20 @@ def evaluate_coupon(code, lines, subtotal, delivery, order):
             target    = (unit if stackable else list_unit) * (1 - value / 100)
             discount += max(0, unit - target)
         discount = int(round(discount))
+    elif ctype == 'tiered':
+        tiers = coupon_tiers(coupon)
+        if not tiers:
+            return False, 0, False, _MSG['inactive'], []
+        # One percentage for the whole eligible cart, picked by its item count.
+        # Applied per line with the same stacking rule as the second-item
+        # coupon, so a line whose sale already beats it adds nothing rather
+        # than eating into the others.
+        pct = tiered_percent(in_scope, tiers)
+        discount = 0
+        for l in in_scope:
+            target    = (l['unit'] if stackable else l['list_unit']) * (1 - pct / 100)
+            discount += max(0, l['unit'] - target) * l['qty']
+        discount = int(round(discount))
     else:
         base   = eligible if stackable else eligible_list
         target = base - round(value) if ctype == 'fixed' else base * (1 - value / 100)
@@ -2139,7 +2197,7 @@ def evaluate_coupon(code, lines, subtotal, delivery, order):
     # coupon stacks, since then the sale prices still stand. Also empty for a
     # second-item coupon: it reprices single units, and showing a whole row at
     # the ticket price would misstate the units it leaves alone.
-    list_ids = [] if stackable or ctype == 'second_item' else [l['id'] for l in in_scope]
+    list_ids = [] if stackable or ctype in ('second_item', 'tiered') else [l['id'] for l in in_scope]
     return True, discount, False, norm_code(coupon['code']), list_ids
 
 
@@ -2204,6 +2262,22 @@ def upsert_coupon(payload):
         return False, f'Unknown coupon type: {ctype}'
 
     value = float(payload.get('value') or 0)
+    tiers = None
+    if ctype == 'tiered':
+        try:
+            tiers = [float(t) for t in (payload.get('tiers') or [])
+                     if str(t).strip() != '']
+        except (TypeError, ValueError):
+            return False, 'Each tier must be a number'
+        if not tiers:
+            return False, 'Add at least one tier'
+        if len(tiers) > TIERED_MAX_TIERS:
+            return False, f'At most {TIERED_MAX_TIERS} tiers'
+        if not all(0 < t <= 90 for t in tiers):
+            return False, 'Each tier must be between 1 and 90%'
+        # `value` mirrors the first tier, so anything that only reads `value`
+        # still sees a sensible number.
+        value = tiers[0]
     if ctype in ('percent', 'second_item') and not (0 < value <= 100):
         return False, 'Percentage must be between 1 and 100'
     if ctype == 'fixed' and value <= 0:
@@ -2231,6 +2305,7 @@ def upsert_coupon(payload):
             'code':         code,
             'type':         ctype,
             'value':        value,
+            'tiers':        tiers,
             'active':       bool(payload.get('active', True)),
             'max_uses':     n_or_none(payload.get('max_uses')),
             'per_customer': n_or_none(payload.get('per_customer')),
