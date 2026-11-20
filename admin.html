@@ -407,6 +407,15 @@
     }
     .checkbox-label input { width: auto; margin: 0; cursor: pointer; accent-color: var(--ink); }
     .hint strong { color: var(--ink-400); font-weight: 600; }
+    .tier-row { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.5rem; }
+    .tier-row span { font-size: 0.7rem; color: var(--ink-400); min-width: 7rem; }
+    .tier-row input { max-width: 110px; }
+    .tier-row button {
+      background: none; border: 1px solid var(--sand-300); color: var(--ink-400);
+      padding: 0.25rem 0.6rem; font-family: 'Montserrat', sans-serif;
+      font-size: 0.6rem; cursor: pointer;
+    }
+    .tier-row button:hover { border-color: var(--ink); color: var(--ink); }
 
     #coupon-save, #popup-save, #pair-save {
       margin-top: 1.5rem;
@@ -768,7 +777,20 @@
               <option value="fixed">₪ off</option>
               <option value="free_shipping">Free shipping</option>
               <option value="second_item">% off every 2nd item (cheaper)</option>
+              <option value="tiered">% by number of items (whole cart)</option>
             </select>
+          </div>
+          <div class="form-group wide" id="c-tiers-group" style="display:none;">
+            <label>Discount by number of items <span class="hint">(%)</span></label>
+            <div id="c-tiers"></div>
+            <div class="quick-picks">
+              <button type="button" class="quick-pick" id="c-tier-add">+ Add tier</button>
+            </div>
+            <span class="hint">
+              The number of items in the cart picks one percentage, and it comes off <strong>every</strong>
+              item. E.g. 15 / 20 / 25: one item 15%, two items 20% on both, three or more 25% on all.
+              Two of the same product count as two items.
+            </span>
           </div>
           <div class="form-group" id="c-value-group">
             <label for="c-value">Value <span class="hint" id="c-value-unit">(%)</span></label>
@@ -1765,6 +1787,10 @@
       if (c.type === 'free_shipping') return 'Free shipping';
       if (c.type === 'fixed')         return `₪${Number(c.value).toLocaleString()} off`;
       if (c.type === 'second_item')   return `${Number(c.value)}% off every 2nd item`;
+      if (c.type === 'tiered') {
+        const t = (c.tiers || []).map(Number);
+        return t.length ? `${t.map((x, i) => `${i + 1}${i === t.length - 1 ? '+' : ''}: ${x}%`).join(' · ')} (by item count)` : 'By item count';
+      }
       return `${Number(c.value)}% off`;
     }
 
@@ -1864,6 +1890,7 @@
       cType.value = c.type || 'percent';
       cType.dispatchEvent(new Event('change'));
       set('c-value', c.type === 'free_shipping' ? '' : c.value);
+      if (c.type === 'tiered') renderTiers(c.tiers);
       set('c-max-uses', c.max_uses);
       set('c-per-customer', c.per_customer);
       set('c-min', c.min_subtotal || '');
@@ -1965,11 +1992,42 @@
 
     /* ---- Coupon form ---- */
     const cType = document.getElementById('c-type');
+
+    /* Tiered coupon: one % input per item position. */
+    function renderTiers(values) {
+      const box = document.getElementById('c-tiers');
+      const list = values && values.length ? values : ['', '', ''];
+      box.innerHTML = list.map((v, i) => `
+        <div class="tier-row">
+          <span>${i + 1} item${i ? 's' : ''}${i === list.length - 1 && list.length > 1 ? ' or more' : ''}</span>
+          <input type="number" class="c-tier" min="1" max="90" step="1" value="${esc(v == null ? '' : String(v))}" placeholder="%">
+          ${list.length > 1 ? `<button type="button" data-tier-del="${i}">Remove</button>` : ''}
+        </div>`).join('');
+      box.querySelectorAll('[data-tier-del]').forEach(b => b.addEventListener('click', () => {
+        const vals = tiersFromForm(true);
+        vals.splice(Number(b.dataset.tierDel), 1);
+        renderTiers(vals);
+      }));
+    }
+    function tiersFromForm(keepBlank) {
+      const vals = [...document.querySelectorAll('.c-tier')].map(i => i.value.trim());
+      return keepBlank ? vals : vals.filter(v => v !== '');
+    }
+    document.getElementById('c-tier-add').addEventListener('click', () => {
+      const vals = tiersFromForm(true);
+      if (vals.length >= 10) return;
+      vals.push('');
+      renderTiers(vals);
+    });
+    renderTiers();
+
     cType.addEventListener('change', () => {
       // Free shipping has no sale price to stack with, so both the value and
       // the stacking choice are meaningless for it.
       const isShipping = cType.value === 'free_shipping';
-      document.getElementById('c-value-group').style.display     = isShipping ? 'none' : '';
+      const isTiered   = cType.value === 'tiered';
+      document.getElementById('c-tiers-group').style.display     = isTiered ? '' : 'none';
+      document.getElementById('c-value-group').style.display     = isShipping || isTiered ? 'none' : '';
       document.getElementById('c-stackable-group').style.display = isShipping ? 'none' : '';
       document.getElementById('c-value-unit').textContent = cType.value === 'fixed' ? '(₪)' : '(%)';
     });
@@ -1996,7 +2054,8 @@
         const data = await couponRequest({ action: 'save', coupon: {
           code:         val('c-code'),
           type:         cType.value,
-          value:        cType.value === 'free_shipping' ? 0 : val('c-value'),
+          value:        cType.value === 'free_shipping' || cType.value === 'tiered' ? 0 : val('c-value'),
+          tiers:        cType.value === 'tiered' ? tiersFromForm() : null,
           max_uses:     val('c-max-uses'),
           per_customer: val('c-per-customer'),
           min_subtotal: val('c-min') || 0,
@@ -2017,6 +2076,7 @@
         ['c-code', 'c-value', 'c-max-uses', 'c-per-customer', 'c-min', 'c-expires', 'c-note']
           .forEach(id => document.getElementById(id).value = '');
         document.getElementById('c-stackable').checked = false;   // back to no-stacking
+        renderTiers();
         setCouponScope('all');
       } catch (e) {
         err.textContent = 'Could not reach the server.';
