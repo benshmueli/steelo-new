@@ -813,6 +813,19 @@
             <input id="c-min" type="number" min="0" step="10" placeholder="0">
           </div>
           <div class="form-group">
+            <label for="c-min-items">Min items <span class="hint">(blank = any)</span></label>
+            <input id="c-min-items" type="number" min="1" step="1" placeholder="any">
+          </div>
+          <div class="form-group">
+            <label for="c-max-items">Max items <span class="hint">(blank = any)</span></label>
+            <input id="c-max-items" type="number" min="1" step="1" placeholder="any">
+            <div class="quick-picks">
+              <button type="button" class="quick-pick items-pick" data-min="1" data-max="1">Exactly 1</button>
+              <button type="button" class="quick-pick items-pick" data-min="2" data-max="2">Exactly 2</button>
+              <button type="button" class="quick-pick items-pick" data-min="3" data-max="">3 or more</button>
+            </div>
+          </div>
+          <div class="form-group">
             <label for="c-expires">Expires <span class="hint">(blank = never)</span></label>
             <input id="c-expires" type="date">
           </div>
@@ -1805,6 +1818,7 @@
         const limits = [
           c.per_customer ? `${c.per_customer} per customer` : '',
           c.min_subtotal ? `min ₪${Number(c.min_subtotal).toLocaleString()}` : '',
+          itemsLabel(c),
         ].filter(Boolean).join(' · ');
         const open = expandedCoupon === c.code;
         const redemptions = (c.redemptions || []).map(r =>
@@ -1894,6 +1908,8 @@
       set('c-max-uses', c.max_uses);
       set('c-per-customer', c.per_customer);
       set('c-min', c.min_subtotal || '');
+      set('c-min-items', c.min_items);
+      set('c-max-items', c.max_items);
       set('c-expires', c.expires_at);
       set('c-note', c.note);
       document.getElementById('c-stackable').checked = !!c.stackable;
@@ -2040,9 +2056,22 @@
       document.getElementById('c-code').value = code;
     });
 
-    document.querySelectorAll('.quick-pick').forEach(b => b.addEventListener('click', () => {
+    document.querySelectorAll('.quick-pick[data-max]:not(.items-pick)').forEach(b => b.addEventListener('click', () => {
       document.getElementById('c-max-uses').value = b.dataset.max;
     }));
+    document.querySelectorAll('.items-pick').forEach(b => b.addEventListener('click', () => {
+      document.getElementById('c-min-items').value = b.dataset.min;
+      document.getElementById('c-max-items').value = b.dataset.max;
+    }));
+
+    function itemsLabel(c) {
+      const lo = c.min_items, hi = c.max_items;
+      if (!lo && !hi) return '';
+      if (lo && hi && lo === hi) return `exactly ${lo} item${lo > 1 ? 's' : ''}`;
+      if (lo && hi) return `${lo}–${hi} items`;
+      if (lo) return `${lo}+ items`;
+      return `up to ${hi} items`;
+    }
 
     document.getElementById('coupon-save').addEventListener('click', async () => {
       const btn = document.getElementById('coupon-save');
@@ -2059,6 +2088,8 @@
           max_uses:     val('c-max-uses'),
           per_customer: val('c-per-customer'),
           min_subtotal: val('c-min') || 0,
+          min_items:    val('c-min-items'),
+          max_items:    val('c-max-items'),
           expires_at:   val('c-expires'),
           note:         val('c-note'),
           stackable:    document.getElementById('c-stackable').checked,
@@ -2073,7 +2104,7 @@
         coupons = data.coupons;
         renderCoupons();
         setStatus(`Coupon ${val('c-code').toUpperCase()} saved ✓`);
-        ['c-code', 'c-value', 'c-max-uses', 'c-per-customer', 'c-min', 'c-expires', 'c-note']
+        ['c-code', 'c-value', 'c-max-uses', 'c-per-customer', 'c-min', 'c-min-items', 'c-max-items', 'c-expires', 'c-note']
           .forEach(id => document.getElementById(id).value = '');
         document.getElementById('c-stackable').checked = false;   // back to no-stacking
         renderTiers();

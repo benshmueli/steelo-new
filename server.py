@@ -1968,6 +1968,9 @@ _MSG = {
     'zero':      'לא ניתן להשלים הזמנה בסכום 0 — צרו קשר',
     'worse':     'המבצע הקיים משתלם יותר מהקופון',
     'pair':      'הקופון חל בקנייה של 2 פריטים לפחות',
+    'items_eq':  'הקופון תקף בקנייה של {} בדיוק',
+    'items_min': 'הקופון תקף בקנייה של {} לפחות',
+    'items_max': 'הקופון תקף בקנייה של עד {}',
 }
 
 
@@ -2134,6 +2137,22 @@ def evaluate_coupon(code, lines, subtotal, delivery, order):
     if scoped and eligible <= 0:
         return False, 0, False, _MSG['items'], []
 
+    # Item-count window: lets the owner hand out a different code per cart
+    # size (one code for a single item, another for two, another for three or
+    # more). Counted in single units of the eligible items, so two of the same
+    # table are two items.
+    min_items = int(coupon.get('min_items') or 0)
+    max_items = int(coupon.get('max_items') or 0)
+    if min_items or max_items:
+        count = sum(l['qty'] for l in in_scope)
+        he = lambda n: 'פריט אחד' if n == 1 else f'{n} פריטים'
+        if min_items and max_items and min_items == max_items and count != min_items:
+            return False, 0, False, _MSG['items_eq'].format(he(min_items)), []
+        if min_items and count < min_items:
+            return False, 0, False, _MSG['items_min'].format(he(min_items)), []
+        if max_items and count > max_items:
+            return False, 0, False, _MSG['items_max'].format(he(max_items)), []
+
     ctype = coupon.get('type', 'percent')
     value = float(coupon.get('value') or 0)
     if ctype == 'free_shipping':
@@ -2296,6 +2315,15 @@ def upsert_coupon(payload):
         return False, f'Unknown product or category: {", ".join(unknown[:3])}'
 
     n_or_none = lambda v: int(v) if str(v or '').strip() not in ('', '0', 'None') else None
+    try:
+        min_items = n_or_none(payload.get('min_items'))
+        max_items = n_or_none(payload.get('max_items'))
+    except (TypeError, ValueError):
+        return False, 'Item counts must be whole numbers'
+    if (min_items is not None and min_items < 1) or (max_items is not None and max_items < 1):
+        return False, 'Item counts must be 1 or more'
+    if min_items and max_items and min_items > max_items:
+        return False, 'Min items cannot be above max items'
 
     with _store_lock:
         store    = load_store()
@@ -2310,6 +2338,8 @@ def upsert_coupon(payload):
             'max_uses':     n_or_none(payload.get('max_uses')),
             'per_customer': n_or_none(payload.get('per_customer')),
             'min_subtotal': int(payload.get('min_subtotal') or 0),
+            'min_items':    min_items,
+            'max_items':    max_items,
             # False = "ללא כפל מבצעים": the coupon replaces any running sale
             # rather than compounding with it.
             'stackable':    bool(payload.get('stackable', False)),
