@@ -13,8 +13,9 @@ server.py is a plain HTTPServer that handles one request at a time, so there is
 no write contention to design around. The write path is one INSERT.
 
 Privacy: no IP address and no user agent are ever stored. The UA is read once to
-drop bots and then discarded. The visitor id is a random value minted in the
-browser and means nothing outside this database.
+drop bots and to sort the visitor into one of three device classes (see
+device_class), and then discarded. The visitor id is a random value minted in
+the browser and means nothing outside this database.
 """
 import os
 import re
@@ -71,6 +72,35 @@ def is_bot(user_agent):
     """Cheap UA filter. Most crawlers never run JS and so never reach the beacon
     at all; this catches the ones that do, plus Railway's own health checks."""
     return bool(_BOT_RE.search(user_agent or ''))
+
+
+# ── Device class ──────────────────────────────────────────────────────────────
+# Instagram's and Facebook's in-app browsers get a class of their own: that is
+# where paid Meta traffic lands, with no saved cards or autofill, and it is the
+# question the funnel could not answer — is it the ad audience that leaves at
+# the summary, or the browser they are stuck in?
+DEVICES = ['meta_app', 'mobile', 'desktop']
+
+DEVICE_LABELS = {
+    'meta_app': 'אינסטגרם / פייסבוק (בתוך האפליקציה)',
+    'mobile':   'נייד — דפדפן רגיל',
+    'desktop':  'מחשב',
+    'unknown':  'לא ידוע (לפני שנמדד)',
+}
+
+_META_APP_RE = re.compile(r'Instagram|FBAN|FBAV|FB_IAB|FBIOS', re.I)
+_MOBILE_RE   = re.compile(r'Mobi|Android|iPhone|iPad|iPod', re.I)
+
+
+def device_class(user_agent):
+    """One of DEVICES. Only this word is kept, never the UA it came from.
+    An iPad on iPadOS 13+ announces itself as a Mac and counts as desktop."""
+    ua = user_agent or ''
+    if _META_APP_RE.search(ua):
+        return 'meta_app'
+    if _MOBILE_RE.search(ua):
+        return 'mobile'
+    return 'desktop'
 
 
 # ── Israel-time buckets ───────────────────────────────────────────────────────
@@ -152,6 +182,12 @@ def init(data_dir):
         try:
             with _connect() as db:
                 db.executescript(SCHEMA)
+                # Added after launch. CREATE TABLE IF NOT EXISTS leaves an
+                # existing table as it was, so the column is added here; rows
+                # from before it stay NULL and report as 'unknown'.
+                cols = {r['name'] for r in db.execute('PRAGMA table_info(visitors)')}
+                if 'device' not in cols:
+                    db.execute('ALTER TABLE visitors ADD COLUMN device TEXT')
             return True
         except Exception as e:
             # Analytics must never stop the store from serving. If the DB can't
@@ -182,7 +218,7 @@ def _clean(value, limit=64):
 
 
 def record(stage, visitor, session='', source='direct', campaign='',
-           order_id='', value=None):
+           order_id='', value=None, device=None):
     """Append one funnel event. Never raises — a failure here must not surface
     in a page request, let alone in checkout."""
     if not ready():
@@ -192,6 +228,7 @@ def record(stage, visitor, session='', source='direct', campaign='',
     if stage not in STAGES or not visitor:
         return False
     source = source if source in SOURCES else 'direct'
+    device = device if device in DEVICES else None
     hour, day = _buckets()
     try:
         with _lock, _connect() as db:
@@ -199,10 +236,15 @@ def record(stage, visitor, session='', source='direct', campaign='',
             # they originally came from, which is the useful answer to "did the
             # ad bring me this customer". The per-event source is last touch.
             db.execute(
-                'INSERT OR IGNORE INTO visitors (visitor, first_seen, source, campaign)'
-                ' VALUES (?, ?, ?, ?)',
-                (visitor, int(time.time()), source, _clean(campaign, 120)),
+                'INSERT OR IGNORE INTO visitors (visitor, first_seen, source, campaign, device)'
+                ' VALUES (?, ?, ?, ?, ?)',
+                (visitor, int(time.time()), source, _clean(campaign, 120), device),
             )
+            # First device wins too, but a visitor row made without one — by
+            # set_excluded, or before the column existed — takes the first seen.
+            if device:
+                db.execute('UPDATE visitors SET device=? WHERE visitor=? AND device IS NULL',
+                           (device, visitor))
             db.execute(
                 'INSERT INTO events (ts, il_hour, il_day, visitor, session, stage,'
                 ' source, campaign, order_id, value) VALUES (?,?,?,?,?,?,?,?,?,?)',
@@ -430,6 +472,7 @@ def report(granularity='day', days=30):
                 'label':     SOURCE_LABELS[name],
                 'visitors':  visitors,
                 'add_to_cart': stages.get('add_to_cart', 0),
+                'summary':   stages.get('summary', 0),
                 'checkout':  stages.get('checkout_created', 0),
                 'purchases': purchases,
                 'cvr':       round(purchases / visitors * 100, 2) if visitors else 0.0,
@@ -437,6 +480,38 @@ def report(granularity='day', days=30):
         total_visitors = sum(s['visitors'] for s in sources) or 0
         for s in sources:
             s['share'] = round(s['visitors'] / total_visitors * 100, 1) if total_visitors else 0.0
+
+        # By device, the visitor's first one. Same shape as by_source, plus the
+        # summary step — the one most people leave from.
+        by_device = {}
+        for r in q(f"""
+            SELECT COALESCE(v.device, 'unknown') AS device, e.stage AS stage,
+                   COUNT(DISTINCT e.visitor) AS people
+            FROM events e JOIN visitors v ON v.visitor = e.visitor
+            WHERE e.il_day >= ? AND v.excluded = 0
+            GROUP BY device, e.stage
+        """, since):
+            by_device.setdefault(r['device'], {})[r['stage']] = r['people']
+
+        devices = []
+        for name in DEVICES + ['unknown']:
+            stages = by_device.get(name, {})
+            visitors = stages.get('visit', 0)
+            if name == 'unknown' and not visitors:
+                continue
+            devices.append({
+                'device':      name,
+                'label':       DEVICE_LABELS[name],
+                'visitors':    visitors,
+                'add_to_cart': stages.get('add_to_cart', 0),
+                'summary':     stages.get('summary', 0),
+                'checkout':    stages.get('checkout_created', 0),
+                'purchases':   stages.get('purchase', 0),
+                'cvr':         round(stages.get('purchase', 0) / visitors * 100, 2) if visitors else 0.0,
+            })
+        device_visitors = sum(d['visitors'] for d in devices) or 0
+        for d in devices:
+            d['share'] = round(d['visitors'] / device_visitors * 100, 1) if device_visitors else 0.0
 
         rev = q(f"""
             SELECT COUNT(*) AS orders, COALESCE(SUM(e.value), 0) AS revenue
@@ -464,4 +539,5 @@ def report(granularity='day', days=30):
         'series':  series,
         'funnel':  funnel,
         'sources': sources,
+        'devices': devices,
     }

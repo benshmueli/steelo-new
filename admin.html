@@ -1078,6 +1078,17 @@
           windows and loses iOS users to ATT, while this counts who actually reached the site.
         </p>
       </div>
+
+      <div class="an-section">
+        <h3>By device</h3>
+        <div id="an-devices"></div>
+        <p class="an-note">
+          The device each person first arrived on. <strong>Instagram / Facebook</strong> is the
+          browser inside those apps, where an ad click opens — no saved cards, no autofill. Only the
+          class is kept, never the browser details it was read from. Visitors from before this was
+          measured show as unknown.
+        </p>
+      </div>
     </div>
   </div>
 
@@ -2155,7 +2166,8 @@
         renderKpis(data.totals);
         renderFunnel(data.funnel);
         renderChart(data.series);
-        renderSources(data.sources);
+        renderBreakdown('an-sources', data.sources);
+        renderBreakdown('an-devices', data.devices || []);
       } catch (e) {
         setStatus('Could not load analytics', false);
       }
@@ -2278,18 +2290,22 @@
       return b.slice(5);                       // MM-DD
     }
 
-    function renderSources(rows) {
-      const any = rows.some(r => r.visitors > 0);
-      if (!any) {
-        document.getElementById('an-sources').innerHTML =
-          '<div class="empty-coupons">No traffic recorded yet.</div>';
+    /* The by-source and by-device tables: one row per group, people per step.
+       "Summary → payment" is the share of people who saw the order summary and
+       went on to the payment page — the step most shoppers leave from. */
+    function renderBreakdown(id, rows) {
+      const el = document.getElementById(id);
+      if (!rows.some(r => r.visitors > 0)) {
+        el.innerHTML = '<div class="empty-coupons">No traffic recorded yet.</div>';
         return;
       }
-      document.getElementById('an-sources').innerHTML = `
+      const onward = r => r.summary ? `${Math.round(Math.min(r.checkout / r.summary, 1) * 100)}%` : '—';
+      el.innerHTML = `
         <table class="coupon-table">
           <thead><tr>
-            <th>Source</th><th>Visitors</th><th>Share</th>
-            <th>Add to cart</th><th>Checkout</th><th>Orders</th><th>CVR</th>
+            <th></th><th>Visitors</th><th>Share</th>
+            <th>Add to cart</th><th>Summary</th><th>Payment page</th>
+            <th>Summary → payment</th><th>Orders</th><th>CVR</th>
           </tr></thead>
           <tbody>${rows.filter(r => r.visitors > 0).map(r => `
             <tr>
@@ -2297,7 +2313,9 @@
               <td>${nfmt(r.visitors)}</td>
               <td>${r.share}%</td>
               <td>${nfmt(r.add_to_cart)}</td>
+              <td>${nfmt(r.summary)}</td>
               <td>${nfmt(r.checkout)}</td>
+              <td><b>${onward(r)}</b></td>
               <td>${nfmt(r.purchases)}</td>
               <td><b>${r.cvr}%</b></td>
             </tr>`).join('')}

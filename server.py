@@ -524,7 +524,9 @@ def _lead_row(lead, status, updated):
 
 
 def _lead_now():
-    return __import__('datetime').datetime.now().strftime('%d/%m/%Y %H:%M')
+    """Israel time, as the orders tab shows it. datetime.now() alone is the
+    container's UTC, which put every lead two or three hours early."""
+    return _il_now().strftime('%d/%m/%Y %H:%M')
 
 
 def ensure_lead_tab(service, tab):
@@ -614,12 +616,23 @@ def mark_lead_status(service, status, email='', order_id='', tab='leads'):
 
     Silent when there is no matching row: a lead is best-effort, and a customer
     whose beacon was blocked must not turn a payment into an error.
+
+    The Order ID is stamped even when the status stays put. Each payment
+    attempt is a new order, and the purchase callback finds the lead by it, so
+    a row holding only the first attempt's ID left everyone who paid on a
+    retry stuck at 'Reached payment'.
     """
     try:
         with _leads_lock:
             row_num = find_lead_row(service, tab, email=email, order_id=order_id)
             if not row_num:
                 return False
+            if order_id:
+                service.spreadsheets().values().update(
+                    spreadsheetId=SHEET_ID,
+                    range=f'{tab}!{LEAD_COL_ORDER_ID}{row_num}',
+                    valueInputOption='RAW', body={'values': [[order_id]]},
+                ).execute()
             prev = service.spreadsheets().values().get(
                 spreadsheetId=SHEET_ID, range=f'{tab}!{LEAD_COL_STATUS}{row_num}'
             ).execute().get('values', [['']])
@@ -631,12 +644,6 @@ def mark_lead_status(service, status, email='', order_id='', tab='leads'):
                 range=f'{tab}!{LEAD_COL_STATUS}{row_num}:{LEAD_COL_UPDATED}{row_num}',
                 valueInputOption='RAW', body={'values': [[status, _lead_now()]]},
             ).execute()
-            if order_id:
-                service.spreadsheets().values().update(
-                    spreadsheetId=SHEET_ID,
-                    range=f'{tab}!{LEAD_COL_ORDER_ID}{row_num}',
-                    valueInputOption='RAW', body={'values': [[order_id]]},
-                ).execute()
             print(f'  [Sheets] Lead row {row_num} → {status} ✓')
         return True
     except Exception as e:
@@ -1984,15 +1991,22 @@ _MSG = {
 }
 
 
-def _il_today():
-    """Today's date in Israel. The container runs on UTC, and an expiry of
-    "30/09" has to mean end of the 30th in Tel Aviv, not in Greenwich."""
+def _il_now():
+    """Now, in Israel. The container runs on UTC. tzdata is in requirements.txt
+    so ZoneInfo works on an image without a system zone database; the fixed
+    +3 is a last resort, an hour out in winter."""
     from datetime import datetime, timezone, timedelta
     try:
         from zoneinfo import ZoneInfo
-        return datetime.now(ZoneInfo('Asia/Jerusalem')).date()
+        return datetime.now(ZoneInfo('Asia/Jerusalem'))
     except Exception:
-        return datetime.now(timezone(timedelta(hours=3))).date()
+        return datetime.now(timezone(timedelta(hours=3)))
+
+
+def _il_today():
+    """Today's date in Israel: an expiry of "30/09" has to mean end of the
+    30th in Tel Aviv, not in Greenwich."""
+    return _il_now().date()
 
 
 def _as_date(value):
@@ -2842,6 +2856,7 @@ class Handler(SimpleHTTPRequestHandler):
                 session=data.get('session', ''),
                 source=data.get('source', 'direct'),
                 campaign=data.get('campaign', ''),
+                device=analytics.device_class(self.headers.get('User-Agent', '')),
             )
         except Exception as e:
             print(f'  [Analytics] beacon rejected: {e}')
@@ -3174,17 +3189,19 @@ class Handler(SimpleHTTPRequestHandler):
                 print(f'  [Sheets] ⚠ Could not mark {order_id or "(unknown)"} Paid — '
                       f'the row is still showing as unpaid. Check it by hand.')
             # Close the loop on their lead so a customer who came back and paid
-            # drops out of the win-back list. Found by Order ID, stamped on the
-            # row at /payment/init: `order` is often None here, popped by an
-            # earlier callback, so the email cannot be relied on. Which tab it
-            # lives in is unknowable without the order, hence trying both — the
-            # miss is one cheap read against a tab that usually has few rows.
+            # drops out of the win-back list. By email when the order is still
+            # in memory; otherwise by Order ID, stamped on the row at
+            # /payment/init — `order` is often None here, popped by an earlier
+            # callback. Which tab it lives in is unknowable without the order,
+            # hence trying both — the miss is one cheap read against a tab that
+            # usually has few rows.
             _tabs = (['leads_test'] if _is_test_order(order) else
                      ['leads'] if order else ['leads', 'leads_test'])
+            _email = (order or {}).get('email', '')
 
             def _close_lead():
                 for _tab in _tabs:
-                    if mark_lead_status(service, 'Purchased',
+                    if mark_lead_status(service, 'Purchased', email=_email,
                                         order_id=order_id, tab=_tab):
                         return
 
@@ -3702,7 +3719,8 @@ class Handler(SimpleHTTPRequestHandler):
             # the top is undercounted.
             analytics.record('checkout_created', visitor=order.get('visitor_id', ''),
                              source=order.get('visitor_source', 'direct'),
-                             order_id=order_id, value=order['total'])
+                             order_id=order_id, value=order['total'],
+                             device=analytics.device_class(self.headers.get('User-Agent', '')))
             # Logged decoded: the wire format is unreadable, and when an invoice
             # comes back wrong this line is the only record of what we sent.
             print(f'  [Payment] Invoice items (u71/json_purchase_data): '
