@@ -135,7 +135,19 @@ function syncCart() {
 
   document.getElementById('cart-total').innerHTML = fmt(total);
   renderCartItems();
+  renderCartShipping();
   saveCart();
+}
+
+/* Home delivery quoted under the subtotal, so the summary step is not the first
+   place the shopper meets it. shippingFee() lives in checkout.js, which loads
+   after this file, so the line is filled in again when the drawer opens. */
+function renderCartShipping() {
+  const el = document.getElementById('cart-shipping');
+  if (!el) return;
+  if (!cart.length || typeof shippingFee !== 'function') { el.textContent = ''; return; }
+  const fee = shippingFee();
+  el.textContent = fee ? t('cart_ship').replace('{f}', fmtPlain(fee)) : t('cart_ship_free');
 }
 
 function renderCartItems() {
@@ -258,6 +270,7 @@ function pairOfferCard(offer) {
 
 /* ---- Cart open/close ---- */
 function openCart() {
+  renderCartShipping();
   document.getElementById('cart-root').classList.add('active');
   document.body.style.overflow = 'hidden';
 }

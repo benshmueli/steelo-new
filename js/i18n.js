@@ -19,6 +19,9 @@
       pair_add:      'Add',
       pair_line:     'Second item · {p}% off',
       pair_saved:    'You saved {s} with the pair deal',
+      // {f} is the home-delivery price for the cart, filled in by cart.js
+      cart_ship:      'Home delivery: {f} · Pickup: free',
+      cart_ship_free: 'Home delivery: free',
     },
     he: {
       view_details:  'צפייה בפריט',
@@ -35,6 +38,8 @@
       pair_add:      'הוספה',
       pair_line:     'פריט שני · {p}% הנחה',
       pair_saved:    'חסכתם {s} במבצע זוג',
+      cart_ship:      'משלוח עד הבית: {f} · איסוף עצמי: חינם',
+      cart_ship_free: 'משלוח עד הבית: חינם',
     },
   };
   var dict = STRINGS[lang] || STRINGS.en;

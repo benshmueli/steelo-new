@@ -33,9 +33,22 @@ function getDeliveryMethod() {
   const el = document.getElementById('co-delivery-method');
   return el && el.value ? el.value : 'ship';
 }
+/* What home delivery costs for this cart, whichever method is picked — quoted
+   on the delivery button and in the cart drawer, ahead of the summary. */
+function shippingFee() {
+  return cart.reduce((s, i) => s + itemDeliveryFee(i) * i.quantity, 0);
+}
 function deliveryFee() {
   if (getDeliveryMethod() === 'pickup') return 0;
-  return cart.reduce((s, i) => s + itemDeliveryFee(i) * i.quantity, 0);
+  return shippingFee();
+}
+/* The price on the delivery button itself, so it is known while the address is
+   being typed instead of first appearing on the summary. */
+function renderShipFee() {
+  const el = document.getElementById('cdt-ship-fee');
+  if (!el) return;
+  const fee = shippingFee();
+  el.textContent = ' · ' + (fee ? fmtPlain(fee) : 'חינם');
 }
 function selectDelivery(method) {
   const hidden = document.getElementById('co-delivery-method');
@@ -46,7 +59,9 @@ function selectDelivery(method) {
   const pickup = document.getElementById('checkout-pickup-card');
   if (ship)   ship.style.display   = isPickup ? 'none' : '';
   if (pickup) pickup.style.display = isPickup ? '' : 'none';
-  ['co-address', 'co-city', 'co-postal'].forEach(id => {
+  // Postal code is optional: couriers deliver on street and city, and a field
+  // most people have to look up is one more reason to stop.
+  ['co-address', 'co-city'].forEach(id => {
     const inp = document.getElementById(id);
     if (inp) isPickup ? inp.removeAttribute('required') : inp.setAttribute('required', '');
   });
@@ -189,6 +204,7 @@ function openCheckout() {
   if (!cart || cart.length === 0) return;
   showCouponError('');
   renderCoupon();
+  renderShipFee();
   showCheckoutStep(1);
   document.getElementById('checkout-modal').style.display = 'flex';
   document.body.style.overflow = 'hidden';

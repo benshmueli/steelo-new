@@ -153,6 +153,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
           <span style="font-family:Montserrat,Heebo;font-size:0.65rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--ink-400);">סכום ביניים</span>
           <span id="cart-total" style="font-family:'Cormorant','Frank Ruhl Libre',Georgia,serif;font-weight:300;font-size:1.75rem;color:var(--ink);">₪0</span>
         </div>
+        <p id="cart-shipping" style="font-family:Montserrat,Heebo;font-weight:300;font-size:0.75rem;line-height:1.7;color:var(--ink);margin:-0.5rem 0 0.25rem;"></p>
         <p style="font-family:Montserrat,Heebo;font-weight:300;font-size:0.75rem;line-height:1.7;color: var(--ink-400);margin-bottom:1rem;">כל הפריטים מיוצרים בהזמנה.</p>
         <button id="checkout-btn" class="btn-primary">לביצוע ההזמנה</button>
       </div>
@@ -206,7 +207,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             <div class="checkout-field"><label for="co-phone">טלפון / וואטסאפ *</label><input id="co-phone" name="co-phone" type="tel" required class="form-input" placeholder="+972 50 000 0000" autocomplete="tel"></div>
             <p class="checkout-section-label" style="margin-top:1.75rem;">אופן קבלת ההזמנה</p>
             <div class="checkout-delivery-toggle">
-              <button type="button" class="cdt-btn active" data-method="ship">משלוח עד הבית</button>
+              <button type="button" class="cdt-btn active" data-method="ship">משלוח עד הבית<span id="cdt-ship-fee"></span></button>
               <button type="button" class="cdt-btn" data-method="pickup">איסוף עצמי · חינם</button>
             </div>
             <input type="hidden" id="co-delivery-method" name="co-delivery-method" value="ship">
@@ -219,9 +220,9 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
               <div class="checkout-field-row">
                 <div class="checkout-field" style="flex:1;"><label for="co-floor">קומה</label><input id="co-floor" name="co-floor" type="text" class="form-input" placeholder="2"></div>
                 <div class="checkout-field" style="flex:1;"><label for="co-apartment">דירה</label><input id="co-apartment" name="co-apartment" type="text" class="form-input" placeholder="4"></div>
-                <div class="checkout-field" style="flex:1;"><label for="co-postal">מיקוד *</label><input id="co-postal" name="co-postal" type="text" required class="form-input" placeholder="6100000" autocomplete="postal-code"></div>
+                <div class="checkout-field" style="flex:1;"><label for="co-postal">מיקוד</label><input id="co-postal" name="co-postal" type="text" class="form-input" placeholder="6100000" autocomplete="postal-code"></div>
               </div>
-              <div class="checkout-field"><label for="co-country">מדינה</label><input id="co-country" name="co-country" type="text" class="form-input" value="ישראל" autocomplete="country-name"></div>
+              <input type="hidden" id="co-country" name="co-country" value="ישראל">
             </div>
             <div id="checkout-pickup-card" style="display:none;">
               <div class="checkout-pickup-box">
@@ -257,9 +258,8 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             </div>
             <div class="checkout-total-row"><span>סה״כ</span><span id="checkout-order-total"></span></div>
             <p class="checkout-note">כל הפריטים מיוצרים בהזמנה — זמן אספקה 5-10 ימי עסקים. נאשר את ההזמנה במייל ובוואטסאפ.</p>
-            <!-- TEMPORARY: mirror of the note in index.html. Delete both together
-                 once the acquirer enables Amex/Diners, then rerun build.py. -->
-            <p class="checkout-note" style="border-top:1px solid var(--sand-300);padding-top:1rem;">לתשומת לבכם: כרגע איננו מקבלים כרטיסי <span style="color:var(--ink);">אמריקן אקספרס ודיינרס</span> — גם לא בתשלום דרך Apple Pay.&lrm;</p>
+            <!-- Mirror of the note in index.html — change both together. -->
+            <p class="checkout-note" style="border-top:1px solid var(--sand-300);padding-top:1rem;"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true" style="vertical-align:-1px;margin-inline-end:0.35rem;"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg>תשלום מאובטח · כל כרטיסי האשראי, כולל אמריקן אקספרס ודיינרס · Apple Pay</p>
             <p id="checkout-pay-error" style="display:none;font-family:Montserrat,Heebo;font-size:0.75rem;color:#c0392b;margin:1rem 0 0;"></p>
             <div style="display:flex;flex-direction:column;gap:0.75rem;margin-top:1.5rem;">
               <button type="button" id="checkout-to-payment-btn" class="btn-primary">מעבר לתשלום ←</button>
@@ -295,16 +295,16 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
   </div>
 
   <script src="/js/nav.js?v=1"></script>
-  <script src="/js/i18n.js?v=3"></script>
+  <script src="/js/i18n.js?v=4"></script>
   <script src="/js/data.js?v=17"></script>
   <!-- tracking before cart/checkout: they call into it on user actions -->
   <script src="/js/tracking.js?v=4"></script>
   <!-- first-party funnel analytics; independent of the Meta pixel above -->
   <script src="/js/analytics.js?v=2"></script>
-  <script src="/js/cart.js?v=13"></script>
+  <script src="/js/cart.js?v=14"></script>
   <!-- jQuery required by Tranzila's embedded payment iframe (Apple Pay / Google Pay) -->
   <script src="/js/jquery.min.js?v=1"></script>
-  <script src="/js/checkout.js?v=20"></script>
+  <script src="/js/checkout.js?v=21"></script>
   <!-- Tranzila Apple Pay bridge (must load on the page that hosts the payment iframe) -->
   <script type="text/javascript" src="https://direct.tranzila.com/Tranzila_files/jquery.js"></script>
   <script>document.write('<script src="https://direct.tranzila.com/js/tranzilanapple_v3.js?v=' + Date.now() + '"><\/script>');</script>

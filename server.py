@@ -922,8 +922,9 @@ def validate_order(order):
     """
     required = ['name', 'email', 'phone']
     # Shipping address is only required when the order is delivered (not pickup).
+    # Postal code is optional: couriers deliver on street and city.
     if order.get('delivery_method') != 'pickup':
-        required += ['address', 'city', 'postal_code']
+        required += ['address', 'city']
     for field in required:
         val = str(order.get(field, '')).strip()
         if not val:
@@ -3063,9 +3064,9 @@ class Handler(SimpleHTTPRequestHandler):
         Records the decline against the order. This used to do nothing but log,
         and fail_url carried no order_id to record it against — so a declined
         card was indistinguishable in the sheet from a customer who wandered
-        off, and both sat at 'Pending Payment' for ever. Since the storefront
-        does not take Amex or Diners, declines are a routine outcome here, not
-        an edge case.
+        off, and both sat at 'Pending Payment' for ever. Declines (issuer
+        refusals, 3-D Secure drop-outs) are a routine outcome here, not an edge
+        case.
 
         The order stays in _pending_orders: a decline is not the end of the
         attempt, and the customer may put in another card.
