@@ -136,6 +136,7 @@ function syncCart() {
   document.getElementById('cart-total').innerHTML = fmt(total);
   renderCartItems();
   renderCartShipping();
+  renderCartCoupon();
   saveCart();
 }
 
@@ -148,6 +149,21 @@ function renderCartShipping() {
   if (!cart.length || typeof shippingFee !== 'function') { el.textContent = ''; return; }
   const fee = shippingFee();
   el.textContent = fee ? t('cart_ship').replace('{f}', fmtPlain(fee)) : t('cart_ship_free');
+}
+
+/* A discount the summary will apply by itself — the automatic coupon, or a code
+   from a ?coupon= link. The total above is before it, and without this line a
+   sale announced in the running strip looks missing from the cart. Guarded like
+   the shipping line: upcomingCoupon() is in checkout.js. */
+function renderCartCoupon() {
+  const el = document.getElementById('cart-coupon');
+  if (!el) return;
+  const c = cart.length && typeof upcomingCoupon === 'function' ? upcomingCoupon() : null;
+  el.style.display = c ? '' : 'none';
+  if (!c) return;
+  el.textContent = c.label
+    ? t('cart_coupon').replace('{l}', c.label).replace('{c}', c.code)
+    : t('cart_coupon_code').replace('{c}', c.code);
 }
 
 function renderCartItems() {
@@ -271,6 +287,7 @@ function pairOfferCard(offer) {
 /* ---- Cart open/close ---- */
 function openCart() {
   renderCartShipping();
+  renderCartCoupon();
   document.getElementById('cart-root').classList.add('active');
   document.body.style.overflow = 'hidden';
 }

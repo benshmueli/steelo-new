@@ -22,6 +22,9 @@
       // {f} is the home-delivery price for the cart, filled in by cart.js
       cart_ship:      'Home delivery: {f} · Pickup: free',
       cart_ship_free: 'Home delivery: free',
+      // {l} is the coupon's headline ("15% הנחה") and {c} its code
+      cart_coupon:      '{l} · code {c} is applied for you at checkout',
+      cart_coupon_code: 'Code {c} is applied for you at checkout',
     },
     he: {
       view_details:  'צפייה בפריט',
@@ -40,6 +43,8 @@
       pair_saved:    'חסכתם {s} במבצע זוג',
       cart_ship:      'משלוח עד הבית: {f} · איסוף עצמי: חינם',
       cart_ship_free: 'משלוח עד הבית: חינם',
+      cart_coupon:      '{l} · הקוד {c} יחול אוטומטית בסיכום ההזמנה',
+      cart_coupon_code: 'הקוד {c} יחול אוטומטית בסיכום ההזמנה',
     },
   };
   var dict = STRINGS[lang] || STRINGS.en;

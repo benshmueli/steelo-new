@@ -1332,6 +1332,11 @@ def render_data_js():
     cfg   = pair_deal_config()
     deal  = json.dumps({'enabled': bool(cfg['enabled']), 'percent': int(cfg['percent']),
                         'groups': [list(g) for g in PAIR_DEAL_GROUPS]})
+    # Code and headline only — never the rules. The summary still asks
+    # /coupon/validate, and /payment/init prices it from scratch.
+    auto  = auto_coupon()
+    auto  = (json.dumps({'code': norm_code(auto['code']), 'label': auto_coupon_label(auto)},
+                        ensure_ascii=False) if auto else 'null')
     return src + f'''
 /* ── Admin overrides ──────────────────────────────────────────────────────────
    Applied by server.py from the persistent store (see STORE_PATH). Edited in
@@ -1356,6 +1361,10 @@ window.STEELO_DELIVERY_FEES = {fees};
    needed. cart.js shows the saving from this; price_order charges from the
    same settings, and its figure is the one that counts. */
 window.STEELO_PAIR_DEAL = {deal};
+
+/* The coupon the owner set to apply by itself, or null. checkout.js tries it at
+   the summary when no other code is pending, and cart.js says it is coming. */
+window.STEELO_AUTO_COUPON = {auto};
 '''
 
 
@@ -2349,11 +2358,47 @@ def upsert_coupon(payload):
             'applies_to':            ids or None,
             'applies_to_categories': cats or None,
             'note':         str(payload.get('note') or '')[:200],
+            # Applied at checkout without being typed — see auto_coupon().
+            'auto_apply':   bool(payload.get('auto_apply', False)),
         })
+        if record['auto_apply']:
+            # One at a time: an order takes a single coupon, so a second
+            # automatic code could only ever displace the first.
+            for c in store['coupons']:
+                if c is not record:
+                    c['auto_apply'] = False
         if not existing:
             store['coupons'].append(record)
         save_store()
     return True, ''
+
+
+def auto_coupon():
+    """The coupon the storefront applies without a code being typed, or None.
+
+    Only while it is live: a paused, expired or used-up code drops out of
+    data.js on the next page load instead of being tried and refused."""
+    for c in load_store().get('coupons', []):
+        if c.get('auto_apply') and coupon_status(c) == 'active':
+            return c
+    return None
+
+
+def auto_coupon_label(coupon):
+    """Short Hebrew headline for the cart drawer, e.g. '15% הנחה'. The exact
+    figure for the cart is left to the summary, where the server prices it."""
+    ctype = coupon.get('type', 'percent')
+    value = float(coupon.get('value') or 0)
+    if ctype == 'free_shipping':
+        return 'משלוח חינם'
+    if ctype == 'fixed':
+        return f'₪{value:,.0f} הנחה'
+    if ctype == 'second_item':
+        return f'{value:g}% הנחה על הפריט השני'
+    if ctype == 'tiered':
+        tiers = coupon_tiers(coupon)
+        return f'עד {max(tiers):g}% הנחה' if tiers else ''
+    return f'{value:g}% הנחה'
 
 
 def set_coupon_active(code, active):

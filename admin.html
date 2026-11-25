@@ -845,6 +845,17 @@
             </span>
           </div>
           <div class="form-group wide">
+            <label class="checkbox-label">
+              <input id="c-auto" type="checkbox">
+              <span>Apply automatically at checkout</span>
+            </label>
+            <span class="hint">
+              Nobody has to type it: the order summary applies it by itself, and the cart tells the
+              shopper it is coming. Made for a site-wide sale code, like the one in the running strip.
+              Only one coupon can do this — ticking it here unticks it on any other.
+            </span>
+          </div>
+          <div class="form-group wide">
             <label>Applies to</label>
             <div class="seg" id="c-scope">
               <button type="button" data-scope="all" class="on">All products</button>
@@ -1828,6 +1839,7 @@
           <tr class="${c.status === 'active' ? '' : 'is-off'}">
             <td>
               <span class="coupon-code">${esc(c.code)}</span>
+              ${c.auto_apply ? '<span class="coupon-note">applies automatically</span>' : ''}
               ${c.note ? `<span class="coupon-note">${esc(c.note)}</span>` : ''}
             </td>
             <td>
@@ -1913,6 +1925,7 @@
       set('c-expires', c.expires_at);
       set('c-note', c.note);
       document.getElementById('c-stackable').checked = !!c.stackable;
+      document.getElementById('c-auto').checked = !!c.auto_apply;
       // Restored explicitly: leaving the picker on its previous state would
       // silently widen a scoped coupon to the whole catalogue on the next save.
       const cats = c.applies_to_categories || [];
@@ -2093,6 +2106,7 @@
           expires_at:   val('c-expires'),
           note:         val('c-note'),
           stackable:    document.getElementById('c-stackable').checked,
+          auto_apply:   document.getElementById('c-auto').checked,
           active:       true,
           ...scopeFromForm(),
         }});
@@ -2107,6 +2121,7 @@
         ['c-code', 'c-value', 'c-max-uses', 'c-per-customer', 'c-min', 'c-min-items', 'c-max-items', 'c-expires', 'c-note']
           .forEach(id => document.getElementById(id).value = '');
         document.getElementById('c-stackable').checked = false;   // back to no-stacking
+        document.getElementById('c-auto').checked = false;
         renderTiers();
         setCouponScope('all');
       } catch (e) {

@@ -86,6 +86,25 @@ const COUPON_PENDING_KEY = 'steelo_coupon';
   } catch (e) {}
 })();
 
+/* A coupon the owner set to apply without a code — STEELO_AUTO_COUPON, from
+   data.js. Taking it off in the summary keeps it off for the rest of the visit,
+   instead of it coming back every time the summary is rebuilt. */
+let autoCouponRemoved = false;
+function autoCoupon() {
+  const a = window.STEELO_AUTO_COUPON;
+  return (a && a.code && !autoCouponRemoved) ? a : null;
+}
+
+/* What the summary is going to apply, for the cart drawer to announce: a code
+   already on the order, else one from a ?coupon= link, else the automatic one. */
+function upcomingCoupon() {
+  let code = appliedCoupon ? appliedCoupon.code : '';
+  if (!code) { try { code = sessionStorage.getItem(COUPON_PENDING_KEY) || ''; } catch (e) {} }
+  const auto = autoCoupon();
+  if (!code) return auto;
+  return (auto && auto.code === code) ? auto : { code, label: '' };
+}
+
 function couponPayload(code) {
   return {
     coupon_code:     code,
@@ -178,6 +197,8 @@ async function applyCoupon(code, opts) {
 }
 
 function removeCoupon() {
+  const auto = autoCoupon();
+  if (auto && appliedCoupon && appliedCoupon.code === auto.code) autoCouponRemoved = true;
   appliedCoupon = null;
   try { sessionStorage.removeItem(COUPON_PENDING_KEY); } catch (e) {}
   const input = document.getElementById('coupon-input');
@@ -394,12 +415,22 @@ document.getElementById('checkout-next-btn').addEventListener('click', () => {
   // so it has to be re-checked every time this summary is built — the customer
   // may have changed the cart or the delivery method since applying it. This is
   // also where a code from ?coupon=… first applies itself, now that there is a
-  // cart and a customer for the server to validate against.
+  // cart and a customer for the server to validate against — or, with none
+  // pending, the coupon the owner set to apply automatically.
   let pending = appliedCoupon ? appliedCoupon.code : '';
   if (!pending) {
     try { pending = sessionStorage.getItem(COUPON_PENDING_KEY) || ''; } catch (e) {}
   }
-  if (pending) applyCoupon(pending, { silent: true });
+  const auto = autoCoupon();
+  if (pending) {
+    // A pending code that no longer holds falls back to the automatic one, so
+    // the shopper still gets the sale everyone else is seeing.
+    applyCoupon(pending, { silent: true }).then(ok => {
+      if (!ok && auto && auto.code !== pending) applyCoupon(auto.code, { silent: true });
+    });
+  } else if (auto) {
+    applyCoupon(auto.code, { silent: true });
+  }
 });
 
 /* ── Coupon controls ──────────────────────────────────────── */

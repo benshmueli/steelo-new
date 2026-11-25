@@ -169,6 +169,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
           <span id="cart-total" style="font-family:'Cormorant','Frank Ruhl Libre',Georgia,serif;font-weight:300;font-size:1.75rem;color:var(--ink);">₪0</span>
         </div>
         <p id="cart-shipping" style="font-family:Montserrat,Heebo;font-weight:300;font-size:0.75rem;line-height:1.7;color:var(--ink);margin:-0.5rem 0 0.25rem;"></p>
+        <p id="cart-coupon" style="display:none;font-family:Montserrat,Heebo;font-weight:400;font-size:0.75rem;line-height:1.7;color:#B85C38;margin:0 0 0.25rem;"></p>
         <p style="font-family:Montserrat,Heebo;font-weight:300;font-size:0.75rem;line-height:1.7;color: var(--ink-400);margin-bottom:1rem;">כל הפריטים מיוצרים בהזמנה.</p>
         <button id="checkout-btn" class="btn-primary">לביצוע ההזמנה</button>
       </div>
@@ -310,16 +311,16 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
   </div>
 
   <script src="/js/nav.js?v=1"></script>
-  <script src="/js/i18n.js?v=4"></script>
+  <script src="/js/i18n.js?v=5"></script>
   <script src="/js/data.js?v=17"></script>
   <!-- tracking before cart/checkout: they call into it on user actions -->
   <script src="/js/tracking.js?v=4"></script>
   <!-- first-party funnel analytics; independent of the Meta pixel above -->
   <script src="/js/analytics.js?v=2"></script>
-  <script src="/js/cart.js?v=14"></script>
+  <script src="/js/cart.js?v=15"></script>
   <!-- jQuery required by Tranzila's embedded payment iframe (Apple Pay / Google Pay) -->
   <script src="/js/jquery.min.js?v=1"></script>
-  <script src="/js/checkout.js?v=21"></script>
+  <script src="/js/checkout.js?v=22"></script>
   <!-- Tranzila Apple Pay bridge (must load on the page that hosts the payment iframe) -->
   <script type="text/javascript" src="https://direct.tranzila.com/Tranzila_files/jquery.js"></script>
   <script>document.write('<script src="https://direct.tranzila.com/js/tranzilanapple_v3.js?v=' + Date.now() + '"><\/script>');</script>
