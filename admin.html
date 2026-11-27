@@ -725,8 +725,8 @@
       .hdr-left, .hdr-right { display: contents; }
       header .brand { order: 1; font-size: 1.05rem; letter-spacing: 0.3em; margin-right: auto; }
       header .tag { display: none; }
-      #save-all   { order: 2; padding: 0.65rem 1rem; font-size: 0.6rem; letter-spacing: 0.15em; }
-      #logout-btn { order: 3; padding: 0.6rem 0.75rem; }
+      #save-all   { order: 2; padding: 0.65rem 1rem; font-size: 0.6rem; letter-spacing: 0.15em; min-height: 44px; }
+      #logout-btn { order: 3; padding: 0.6rem 0.75rem; min-height: 44px; }
       #save-status { order: 4; flex-basis: 100%; padding: 0; text-align: center; }
       #save-status:empty { display: none; }
       .tabs {
@@ -1452,9 +1452,11 @@
       if (isPhone()) window.scrollTo(0, listScrollY);
     }
     // The "← All products" button goes back through history when it can, so
-    // the history entry pushed in selectProduct doesn't linger.
+    // the history entry pushed in selectProduct doesn't linger. Only on a
+    // phone: if the window grew to desktop width mid-edit, popstate no longer
+    // closes the editor, so close it directly.
     function closeEditor() {
-      if (history.state && history.state.steeloEdit) history.back();
+      if (isPhone() && history.state && history.state.steeloEdit) history.back();
       else showList();
     }
     window.addEventListener('popstate', () => { if (isPhone()) showList(); });
