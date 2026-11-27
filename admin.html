@@ -79,6 +79,75 @@
       padding: 0 1rem;
       transition: color 0.3s;
     }
+    .hdr-left  { display: flex; align-items: center; gap: 1.5rem; }
+    .hdr-right { display: flex; align-items: center; gap: 0.75rem; }
+    #logout-btn {
+      background: none;
+      border: 1px solid var(--ink-500);
+      color: var(--ink-400);
+      padding: 0.5rem 0.9rem;
+      font-family: Montserrat, sans-serif;
+      font-size: 0.6rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      cursor: pointer;
+    }
+
+    /* ---- Bulk discount + delivery bars ---- */
+    .discount-bar {
+      background: var(--sand-200);
+      border-bottom: 1px solid var(--sand-300);
+      padding: 0.75rem 2rem;
+      display: flex;
+      align-items: center;
+      gap: 1.25rem;
+      flex-wrap: wrap;
+    }
+    .discount-bar[hidden] { display: none; }
+    .db-range  { display: flex; align-items: center; gap: 1.25rem; }
+    .db-slider { display: flex; align-items: center; gap: 0.5rem; }
+    .db-label {
+      font-size: 0.6rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--ink-400);
+    }
+    #discount-slider { width: 120px; margin: 0; accent-color: var(--ink); cursor: pointer; }
+    #discount-label {
+      font-family: 'Cormorant', serif;
+      font-size: 1.4rem;
+      font-weight: 300;
+      color: var(--ink);
+      min-width: 2.75rem;
+    }
+    .db-btn {
+      background: var(--ink);
+      color: var(--sand);
+      border: none;
+      padding: 0.45rem 1rem;
+      font-family: Montserrat, sans-serif;
+      font-size: 0.6rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+    .db-btn:hover { opacity: 0.75; }
+    .db-btn.ghost { background: none; color: var(--ink-400); border: 1px solid var(--sand-300); }
+    .db-btn.ghost:hover { opacity: 0.6; }
+    .db-btn.outline { margin-left: auto; background: none; color: var(--ink); border: 1px solid var(--ink-500); }
+    .db-btn.outline:hover { opacity: 0.7; }
+    .db-hint { font-size: 0.7rem; color: var(--ink-400); }
+    #delivery-bar {
+      background: var(--sand-200);
+      border-bottom: 1px solid var(--sand-300);
+      padding: 0.9rem 2rem;
+    }
+    #delivery-bar[hidden] { display: none; }
+    .delivery-head { display: flex; align-items: baseline; gap: 0.75rem; margin-bottom: 0.6rem; }
+
+    /* Mobile-only "back to list" button; shown by the media query below. */
+    .m-back { display: none; }
 
     /* ---- Layout ---- */
     .workspace {
@@ -631,6 +700,166 @@
     #confirm-box .actions button:hover { opacity: 0.8; }
     #confirm-yes { background: var(--red); color: #fff; }
     #confirm-no  { background: var(--sand-300); color: var(--ink); }
+
+    /* ============================================================
+       Phones (≤768px, same breakpoint as the storefront).
+       Desktop is untouched above this line.
+       ============================================================ */
+    @media (max-width: 768px) {
+      /* Normal page scrolling instead of nested scroll boxes, so Safari's
+         toolbar collapses and nothing is wider than the screen. */
+      html, body { height: auto; min-height: 100%; }
+      body { overflow-x: hidden; }
+
+      /* iOS zooms into any field under 16px. */
+      input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]),
+      textarea, select { font-size: 16px !important; }
+
+      /* ---- Header: logo + Save + Logout, then the tabs on their own row ---- */
+      header {
+        position: sticky; top: 0; z-index: 50;
+        flex-wrap: wrap;
+        padding: 0.7rem 1rem 0;
+        gap: 0.6rem;
+      }
+      .hdr-left, .hdr-right { display: contents; }
+      header .brand { order: 1; font-size: 1.05rem; letter-spacing: 0.3em; margin-right: auto; }
+      header .tag { display: none; }
+      #save-all   { order: 2; padding: 0.65rem 1rem; font-size: 0.6rem; letter-spacing: 0.15em; }
+      #logout-btn { order: 3; padding: 0.6rem 0.75rem; }
+      #save-status { order: 4; flex-basis: 100%; padding: 0; text-align: center; }
+      #save-status:empty { display: none; }
+      .tabs {
+        order: 5; flex-basis: 100%;
+        gap: 0; margin: 0 -1rem;
+        overflow-x: auto; scrollbar-width: none;
+        border-top: 1px solid #2c2825;
+      }
+      .tabs::-webkit-scrollbar { display: none; }
+      .tab {
+        flex: 1 0 auto;
+        padding: 0.9rem 0.6rem;
+        letter-spacing: 0.15em;
+        border: none;
+        border-bottom: 2px solid transparent;
+      }
+      .tab.active { border-color: transparent; border-bottom-color: var(--sand); }
+
+      /* ---- Bulk discount bar: slider row, Apply | Clear, Delivery ---- */
+      .discount-bar {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.6rem;
+        padding: 0.9rem 1rem;
+      }
+      .discount-bar[hidden] { display: none; }
+      .db-range { grid-column: 1 / -1; gap: 1rem; }
+      .db-slider { flex: 1; min-width: 0; gap: 0.75rem; }
+      #discount-slider { flex: 1; width: auto; min-width: 0; padding: 0.6rem 0; background: none; border: none; }
+      .db-hint { display: none; }
+      .db-btn { padding: 0.8rem 0.5rem; }
+      .db-btn.outline { grid-column: 1 / -1; margin-left: 0; }
+      #delivery-bar { padding: 0.9rem 1rem; }
+      .delivery-head { flex-wrap: wrap; gap: 0.25rem 0.75rem; }
+      #delivery-rows { gap: 0.6rem !important; }
+      #delivery-rows > label { flex: 1 1 100%; justify-content: space-between; }
+
+      /* ---- Products: full-width list, tap opens the editor full-screen ---- */
+      .workspace { flex-direction: column; overflow: visible; }
+      aside { width: 100%; border-right: none; overflow: visible; }
+      .sidebar-head { padding: 1rem; }
+      #add-product { padding: 0.65rem 1rem; }
+      #product-list { overflow: visible; }
+      .product-item { padding: 0.75rem 1rem; }
+      main { overflow: visible; padding: 0.5rem 1rem 3rem; }
+
+      body:not(.m-editing) #edit-panel { display: none; }
+      body.m-editing aside,
+      body.m-editing #discount-bar,
+      body.m-editing #delivery-bar { display: none !important; }
+
+      .m-back {
+        display: inline-flex; align-items: center; gap: 0.5rem;
+        background: none; border: none; padding: 0.75rem 0; margin-bottom: 0.75rem;
+        min-height: 44px;
+        font-family: 'Montserrat', sans-serif; font-size: 0.62rem;
+        letter-spacing: 0.18em; text-transform: uppercase;
+        color: var(--ink-500); cursor: pointer;
+      }
+
+      /* ---- Product editor ---- */
+      .edit-header { align-items: center; margin-bottom: 1.5rem; }
+      .edit-title { font-size: 1.9rem; min-width: 0; overflow-wrap: anywhere; }
+      #delete-btn { padding: 0.65rem 0.8rem; font-size: 0.58rem; }
+      .form-grid { grid-template-columns: 1fr; gap: 1.1rem; }
+      .divider { margin: 1.5rem 0; }
+      input[type="checkbox"] { width: 20px; height: 20px; flex: none; margin: 0; accent-color: var(--ink); }
+      .checkbox-label { flex-wrap: wrap; row-gap: 0.2rem; }
+      .checkbox-label > span:first-of-type { white-space: nowrap; }
+      .image-row img { width: 44px; height: 52px; }
+      .image-row input { min-width: 0; }
+      .image-row button { width: 44px; height: 44px; }
+      #add-image { padding: 0.85rem 1rem; }
+
+      /* ---- Coupons, Popup, Analytics: tighter padding, one column ---- */
+      #view-coupons, #view-popup, #view-analytics { overflow: visible; padding: 1.25rem 1rem 3rem; }
+      .coupon-form-card { padding: 1.1rem; margin-bottom: 1.75rem; }
+      .coupon-form-grid { grid-template-columns: 1fr; gap: 1.1rem; }
+      .coupon-form-grid .form-group.wide { grid-column: 1 / -1; }
+      .scope-picker { grid-template-columns: 1fr; }
+      .tier-row span { min-width: 5.5rem; }
+      .quick-pick { padding: 0.5rem 0.75rem; }
+      .code-row button { padding: 0 1rem; }
+      #coupon-save, #popup-save, #pair-save { width: 100%; padding: 0.9rem 1rem; }
+      .empty-coupons { padding: 2rem 1rem; }
+
+      /* Coupon list: each row becomes a card. */
+      #coupons-table-wrap .coupon-table,
+      #coupons-table-wrap .coupon-table tbody,
+      #coupons-table-wrap .coupon-table tr,
+      #coupons-table-wrap .coupon-table td { display: block; width: 100%; }
+      #coupons-table-wrap .coupon-table thead { display: none; }
+      #coupons-table-wrap .coupon-table tr {
+        background: var(--sand-100);
+        border: 1px solid var(--sand-300);
+        padding: 0.25rem 1rem;
+        margin-bottom: 0.75rem;
+      }
+      #coupons-table-wrap .coupon-table tr.redemptions { margin-top: -0.75rem; border-top: none; }
+      #coupons-table-wrap .coupon-table td { padding: 0.65rem 0; position: relative; }
+      #coupons-table-wrap .coupon-table td[data-label] { padding-left: 5.75rem; }
+      #coupons-table-wrap .coupon-table td[data-label]::before {
+        content: attr(data-label);
+        position: absolute; left: 0; top: 0.8rem;
+        font-size: 0.52rem; letter-spacing: 0.2em; text-transform: uppercase;
+        color: var(--ink-400);
+      }
+      #coupons-table-wrap .coupon-table td:last-child { border-bottom: none; }
+      .row-actions { justify-content: flex-start; flex-wrap: wrap; }
+      .row-actions button { flex: 1 1 auto; padding: 0.65rem 0.6rem; }
+
+      /* Analytics */
+      .an-controls { gap: 1rem; }
+      .seg { flex-wrap: wrap; }
+      .seg button { padding: 0.65rem 0.8rem; }
+      .kpis { grid-template-columns: repeat(2, 1fr); margin-bottom: 1.75rem; }
+      .kpi { padding: 1rem; }
+      .kpi:last-child:nth-child(odd) { grid-column: 1 / -1; }
+      .kpi .v { font-size: 1.6rem; }
+      .fn-row { flex-wrap: wrap; gap: 0.3rem 0.75rem; margin-bottom: 0.9rem; }
+      .fn-name { width: 100%; text-align: left; }
+      .fn-track { flex: 1 1 0; min-width: 0; }
+      .fn-pct { width: 6.5rem; font-size: 0.62rem; }
+      /* Wide stat tables scroll sideways inside their own box. */
+      #view-analytics .coupon-table {
+        display: block; overflow-x: auto; white-space: nowrap;
+        -webkit-overflow-scrolling: touch;
+      }
+
+      /* ---- Overlays ---- */
+      #login-box { padding: 2rem 1.5rem; width: calc(100% - 2rem); }
+      #confirm-box { padding: 1.75rem 1.5rem; }
+    }
   </style>
 </head>
 <body>
@@ -652,7 +881,7 @@
 
   <!-- Header -->
   <header>
-    <div style="display:flex;align-items:center;gap:1.5rem;">
+    <div class="hdr-left">
       <span class="brand">STEELO</span>
       <span class="tag">Admin</span>
       <div class="tabs">
@@ -662,30 +891,31 @@
         <button class="tab" data-view="analytics">Analytics</button>
       </div>
     </div>
-    <div style="display:flex;align-items:center;gap:0.75rem;">
+    <div class="hdr-right">
       <span id="save-status"></span>
       <button id="save-all">Save Changes</button>
-      <button id="logout-btn" style="background:none;border:1px solid var(--ink-500);color:var(--ink-400);padding:0.5rem 0.9rem;font-family:Montserrat,sans-serif;font-size:0.6rem;letter-spacing:0.15em;text-transform:uppercase;cursor:pointer;" title="Log out">Logout</button>
+      <button id="logout-btn" title="Log out">Logout</button>
     </div>
   </header>
 
   <!-- Bulk discount bar (products view only) -->
-  <div id="discount-bar" style="background:var(--sand-200);border-bottom:1px solid var(--sand-300);padding:0.75rem 2rem;display:flex;align-items:center;gap:1.25rem;flex-wrap:wrap;">
-    <span style="font-size:0.6rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--ink-400);">Bulk Discount</span>
-    <div style="display:flex;align-items:center;gap:0.5rem;">
-      <input type="range" id="discount-slider" min="5" max="70" step="5" value="20"
-             style="width:120px;margin:0;accent-color:var(--ink);cursor:pointer;">
-      <span id="discount-label" style="font-family:'Cormorant',serif;font-size:1.4rem;font-weight:300;color:var(--ink);min-width:2.75rem;">20%</span>
+  <div id="discount-bar" class="discount-bar">
+    <div class="db-range">
+      <span class="db-label">Bulk Discount</span>
+      <div class="db-slider">
+        <input type="range" id="discount-slider" min="5" max="70" step="5" value="20">
+        <span id="discount-label">20%</span>
+      </div>
     </div>
-    <button id="discount-apply-all" style="background:var(--ink);color:var(--sand);border:none;padding:0.45rem 1rem;font-family:Montserrat,sans-serif;font-size:0.6rem;letter-spacing:0.15em;text-transform:uppercase;cursor:pointer;transition:opacity 0.2s;" onmouseover="this.style.opacity='.75'" onmouseout="this.style.opacity='1'">Apply to All</button>
-    <button id="discount-clear-all" style="background:none;color:var(--ink-400);border:1px solid var(--sand-300);padding:0.45rem 1rem;font-family:Montserrat,sans-serif;font-size:0.6rem;letter-spacing:0.15em;text-transform:uppercase;cursor:pointer;transition:opacity 0.2s;" onmouseover="this.style.opacity='.6'" onmouseout="this.style.opacity='1'">Clear All</button>
-    <span style="font-size:0.7rem;color:var(--ink-400);">— or set per-product below</span>
-    <button id="delivery-toggle" style="margin-left:auto;background:none;color:var(--ink);border:1px solid var(--ink-500);padding:0.45rem 1rem;font-family:Montserrat,sans-serif;font-size:0.6rem;letter-spacing:0.15em;text-transform:uppercase;cursor:pointer;transition:opacity 0.2s;" onmouseover="this.style.opacity='.7'" onmouseout="this.style.opacity='1'">Delivery Prices</button>
+    <button id="discount-apply-all" class="db-btn">Apply to All</button>
+    <button id="discount-clear-all" class="db-btn ghost">Clear All</button>
+    <span class="db-hint">— or set per-product below</span>
+    <button id="delivery-toggle" class="db-btn outline">Delivery Prices</button>
   </div>
 
   <!-- Delivery prices by category (products view only) -->
-  <div id="delivery-bar" hidden style="background:var(--sand-200);border-bottom:1px solid var(--sand-300);padding:0.9rem 2rem;">
-    <div style="display:flex;align-items:baseline;gap:0.75rem;margin-bottom:0.6rem;">
+  <div id="delivery-bar" hidden>
+    <div class="delivery-head">
       <span style="font-size:0.6rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--ink-400);">Delivery Price per Category</span>
       <span style="font-size:0.7rem;color:var(--ink-400);">— charged per item; a product can override its own above</span>
     </div>
@@ -1198,15 +1428,42 @@
 
     /* ---- Select product ---- */
     function selectProduct(id) {
+      // On a phone the editor replaces the list, so opening it is a step the
+      // back button / back-swipe should undo instead of leaving the admin.
+      if (isPhone() && !selectedId) {
+        listScrollY = window.scrollY;
+        history.pushState({ steeloEdit: true }, '');
+      }
       selectedId = id;
       renderSidebar();
       renderEditPanel();
+      if (isPhone()) window.scrollTo(0, 0);
     }
+
+    /* ---- Phone: list ⇄ editor ---- */
+    const isPhone = () => window.matchMedia('(max-width: 768px)').matches;
+    let listScrollY = 0;
+
+    function showList() {
+      if (!selectedId) return;
+      selectedId = null;
+      renderSidebar();
+      renderEditPanel();
+      if (isPhone()) window.scrollTo(0, listScrollY);
+    }
+    // The "← All products" button goes back through history when it can, so
+    // the history entry pushed in selectProduct doesn't linger.
+    function closeEditor() {
+      if (history.state && history.state.steeloEdit) history.back();
+      else showList();
+    }
+    window.addEventListener('popstate', () => { if (isPhone()) showList(); });
 
     /* ---- Edit panel render ---- */
     function renderEditPanel() {
       const panel = document.getElementById('edit-panel');
       const p = products.find(x => x.id === selectedId);
+      document.body.classList.toggle('m-editing', !!p);
       if (!p) {
         panel.innerHTML = `<div class="empty-state">
           <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
@@ -1218,6 +1475,7 @@
 
       const isNew = p._new;
       panel.innerHTML = `
+        <button type="button" class="m-back" id="m-back">← All products</button>
         <div class="edit-header">
           <h2 class="edit-title${isNew ? ' new-product' : ''}" id="edit-heading">${p.name || 'New Product'}</h2>
           <button id="delete-btn">Delete Product</button>
@@ -1361,6 +1619,7 @@
       document.getElementById('delete-btn').addEventListener('click', () => {
         showConfirm(`Remove "${p.name}" from the store?`, () => deleteProduct(p.id));
       });
+      document.getElementById('m-back').addEventListener('click', closeEditor);
     }
 
     function renderImageList(p) {
@@ -1415,10 +1674,8 @@
     /* ---- Delete product ---- */
     function deleteProduct(id) {
       products = products.filter(p => p.id !== id);
-      selectedId = null;
-      renderSidebar();
-      renderEditPanel();
       markDirty();
+      closeEditor();
     }
 
     /* ---- Delivery prices by category ---- */
@@ -1671,7 +1928,7 @@
         const view = tab.dataset.view;
         document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t === tab));
         document.querySelector('.workspace').style.display    = view === 'products'  ? 'flex'  : 'none';
-        document.getElementById('discount-bar').style.display = view === 'products'  ? 'flex'  : 'none';
+        document.getElementById('discount-bar').hidden = view !== 'products';
         // Follows the products view, but stays collapsed until asked for.
         if (view !== 'products') document.getElementById('delivery-bar').hidden = true;
         document.getElementById('view-coupons').style.display = view === 'coupons'   ? 'block' : 'none';
@@ -1790,7 +2047,7 @@
               <span class="coupon-code">${esc(c.code)}</span>
               ${c.note ? `<span class="coupon-note">${esc(c.note)}</span>` : ''}
             </td>
-            <td>
+            <td data-label="Discount">
               ${couponValueLabel(c)}
               ${c.type !== 'free_shipping'
                 ? `<span class="coupon-note">${c.stackable ? 'stacks with sales' : 'no stacking'}</span>`
@@ -1798,12 +2055,12 @@
               <span class="coupon-note">${esc(scopeLabel(c))}</span>
               ${limits ? `<span class="coupon-note">${limits}</span>` : ''}
             </td>
-            <td>
+            <td data-label="Used">
               ${uses}
               ${c.used_count ? `<span class="coupon-note"><a href="#" data-expand="${esc(c.code)}" style="color:var(--ink-400);">${open ? 'hide' : 'who used it'}</a></span>` : ''}
             </td>
-            <td>${c.expires_at ? esc(c.expires_at) : '—'}</td>
-            <td><span class="pill ${c.status}">${c.status}</span></td>
+            <td data-label="Expires">${c.expires_at ? esc(c.expires_at) : '—'}</td>
+            <td data-label="Status"><span class="pill ${c.status}">${c.status}</span></td>
             <td>
               <div class="row-actions">
                 <button data-edit="${esc(c.code)}">Edit</button>
